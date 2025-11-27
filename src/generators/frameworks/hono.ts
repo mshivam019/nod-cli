@@ -288,8 +288,18 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   // Generate declarative routes helper (same as Express)
   const declarativeRoutesContent = `// Declarative Route System
 
+export const METHODS = {
+  GET: 'GET',
+  POST: 'POST',
+  PUT: 'PUT',
+  DELETE: 'DELETE',
+  PATCH: 'PATCH'
+} as const;
+
+export type HttpMethod = typeof METHODS[keyof typeof METHODS];
+
 export interface RouteDefinition {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  method: HttpMethod;
   path: string;
   handler: string;
   enabled?: string[];

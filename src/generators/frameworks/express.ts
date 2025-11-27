@@ -259,7 +259,7 @@ async function generateDatabaseConnection(projectPath: string, config: ProjectCo
 
   if (config.database === 'pg') {
     dbContent = `import { Pool } from 'pg';
-import { config } from './index.js';
+import { config } from '../config/index.js';
 
 export const pool = new Pool({
   host: config.database.host,
@@ -283,7 +283,7 @@ export async function connectDatabase() {
 `;
   } else if (config.database === 'mysql') {
     dbContent = `import mysql from 'mysql2/promise';
-import { config } from './index.js';
+import { config } from '../config/index.js';
 
 export const pool = mysql.createPool({
   host: config.database.host,
@@ -329,8 +329,18 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   // Generate declarative routes helper
   const declarativeRoutesContent = `// Declarative Route System
 
+export const METHODS = {
+  GET: 'GET',
+  POST: 'POST',
+  PUT: 'PUT',
+  DELETE: 'DELETE',
+  PATCH: 'PATCH'
+} as const;
+
+export type HttpMethod = typeof METHODS[keyof typeof METHODS];
+
 export interface RouteDefinition {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  method: HttpMethod;
   path: string;
   handler: string;
   enabled?: string[];
@@ -572,7 +582,8 @@ export function createConfiguredRouter(config: {
 
   // Generate example route with centralized config
   const routeContent = `import { Router } from 'express';
-import { createConfiguredRouter, METHODS } from '../config/router.js';
+import { createConfiguredRouter } from '../config/router.js';
+import { METHODS } from '../helpers/route-builder.js';
 import { exampleController } from '../controllers/example.js';
 
 export const router = Router();

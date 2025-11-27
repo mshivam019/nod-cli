@@ -49,5 +49,6 @@ temp/
 .cache/
 
 # Generated projects (for testing)
-test-project/
+test-*/
 my-*/
+*.md

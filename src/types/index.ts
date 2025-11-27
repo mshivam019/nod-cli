@@ -2,7 +2,8 @@ export type Framework = 'express' | 'hono';
 export type Database = 'pg' | 'mysql' | 'none';
 export type Auth = 'jwt' | 'jwks' | 'none';
 export type Queue = 'bull' | 'none';
-export type Preset = 'minimal' | 'api' | 'full';
+export type Preset = 'minimal' | 'api' | 'full' | 'custom';
+export type CronLock = 'pg' | 'mysql' | 'redis' | 'file';
 
 export interface ProjectConfig {
   name: string;
@@ -14,8 +15,11 @@ export interface ProjectConfig {
   preset: Preset;
   features: {
     cron: boolean;
+    cronLock?: CronLock;
     logging: boolean;
     testing: boolean;
+    docker?: boolean;
+    pm2?: boolean;
   };
 }
 

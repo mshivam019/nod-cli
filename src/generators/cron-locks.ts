@@ -1,6 +1,27 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
+type CronLockBackend = 'pg' | 'mysql' | 'redis' | 'file';
+
+export async function generateCronLocks(
+  projectPath: string,
+  backend: CronLockBackend
+) {
+  // Detect if TypeScript or JavaScript
+  const tsConfigPath = path.join(projectPath, 'tsconfig.json');
+  const ext = await fs.pathExists(tsConfigPath) ? 'ts' : 'js';
+  
+  // Map backend names
+  const backendMap: Record<CronLockBackend, 'redis' | 'postgres' | 'mysql' | 'file'> = {
+    'pg': 'postgres',
+    'mysql': 'mysql',
+    'redis': 'redis',
+    'file': 'file'
+  };
+  
+  await generateLockAdapter(projectPath, ext, backendMap[backend]);
+}
+
 export async function generateLockAdapter(
   projectPath: string,
   ext: string,

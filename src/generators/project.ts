@@ -56,24 +56,24 @@ export async function generateProject(config: ProjectConfig) {
   await generateEnvFile(projectPath, config);
   await generateTsConfig(projectPath, config);
   await generateGitIgnore(projectPath);
-  await generateDockerFiles(projectPath, config);
+  
+  if (config.features.docker !== false) {
+    await generateDockerFiles(projectPath, config);
+  }
+  
   await generateScripts(projectPath, config);
   
   // Generate PM2 configuration
-  const { generatePM2Config } = await import('./pm2.js');
-  await generatePM2Config(projectPath, config);
+  if (config.features.pm2 !== false) {
+    const { generatePM2Config } = await import('./pm2.js');
+    await generatePM2Config(projectPath, config);
+  }
   
   // Generate lock adapter for cron jobs
   if (config.features.cron) {
-    const { generateLockAdapter } = await import('./cron-locks.js');
-    const ext = config.typescript ? 'ts' : 'js';
-    let lockBackend: 'redis' | 'postgres' | 'mysql' | 'file' = 'file';
-    if (config.database === 'pg') {
-      lockBackend = 'postgres';
-    } else if (config.database === 'mysql') {
-      lockBackend = 'mysql';
-    }
-    await generateLockAdapter(projectPath, ext, lockBackend);
+    const { generateCronLocks } = await import('./cron-locks.js');
+    const lockBackend = config.features.cronLock || 'file';
+    await generateCronLocks(projectPath, lockBackend);
   }
 
 }

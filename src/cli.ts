@@ -23,8 +23,8 @@ program
 
 program
   .command('add <component>')
-  .description('Add a component (route, middleware, service, etc.)')
-  .option('-n, --name <name>', 'Component name')
+  .description('Add a component: route, middleware, service, controller, cron, pm2')
+  .option('-n, --name <name>', 'Component name (for route/middleware/service/controller)')
   .action(addComponent);
 
 program
