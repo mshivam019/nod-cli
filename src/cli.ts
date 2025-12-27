@@ -7,7 +7,7 @@ import { validateCommand } from './commands/validate.js';
 const program = new Command();
 
 program
-  .name('create-shiv-am')
+  .name('nod-cli')
   .description('Backend scaffolding CLI with best practices built-in')
   .version('0.1.0');
 

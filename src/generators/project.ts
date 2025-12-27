@@ -171,8 +171,8 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
       devDependencies['@types/express'] = '^4.17.21';
     }
   } else if (config.framework === 'hono') {
-    dependencies['hono'] = '^3.11.7';
-    dependencies['@hono/node-server'] = '^1.4.1';
+    dependencies['hono'] = '^4.6.0';
+    dependencies['@hono/node-server'] = '^1.13.0';
   }
 
   if (config.auth === 'jwt') {

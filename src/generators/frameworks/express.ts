@@ -26,7 +26,6 @@ async function generateAppFile(projectPath: string, config: ProjectConfig, ctx: 
   const ext = ctx.fileExt;
   const appContent = `import express, { Express, Request, Response, NextFunction } from 'express';
 import { router } from './routes/index.js';
-${ctx.hasAuth ? "import { authMiddleware } from './middleware/auth.js';" : ''}
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
 
 export function createApp(): Express {
@@ -36,7 +35,7 @@ export function createApp(): Express {
   app.use(express.urlencoded({ extended: true }));
 
   // Health check
-  app.get('/health', (req: Request, res: Response) => {
+  app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
@@ -44,7 +43,7 @@ export function createApp(): Express {
   app.use('/api', router);
 
   // Error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error(err.stack);
     res.status(500).json({ error: 'Internal server error' });
   });
@@ -62,7 +61,7 @@ async function generateServerFile(projectPath: string, config: ProjectConfig, ct
   const ext = ctx.fileExt;
   const serverContent = `import { createApp } from './app.js';
 import { config } from './config/index.js';
-${ctx.hasDatabase ? "import { connectDatabase } from './config/database.js';" : ''}
+${ctx.hasDatabase ? "import { connectDatabase } from './db/index.js';" : ''}
 
 async function startServer() {
   ${ctx.hasDatabase ? 'await connectDatabase();' : ''}
@@ -92,11 +91,12 @@ export interface AuthRequest extends Request {
   user?: any;
 }
 
-export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    res.status(401).json({ error: 'No token provided' });
+    return;
   }
 
   try {
@@ -104,14 +104,15 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: 'Invalid token' });
   }
 }
 
 export function roleMiddleware(roles: string[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      res.status(403).json({ error: 'Insufficient permissions' });
+      return;
     }
     next();
   };
@@ -123,7 +124,7 @@ export function roleMiddleware(roles: string[]) {
 
   const loggingMiddleware = `import { Request, Response, NextFunction } from 'express';
 
-export function loggingMiddleware(req: Request, res: Response, next: NextFunction) {
+export function loggingMiddleware(req: Request, _res: Response, next: NextFunction): void {
   console.log(\`[\${new Date().toISOString()}] \${req.method} \${req.path}\`);
   next();
 }
@@ -235,7 +236,7 @@ function logAuditEntry(entry: AuditLogEntry) {
 }
 
 // Optional: Export function to send logs to external service
-export async function sendToLoggingService(entry: AuditLogEntry) {
+export async function sendToLoggingService(_entry: AuditLogEntry): Promise<void> {
   // Implement integration with your logging service
   // Examples: Datadog, Splunk, ELK Stack, CloudWatch, etc.
   
@@ -620,7 +621,7 @@ dr.applyToExpress(router);
 import { exampleService } from '../services/example.js';
 
 export const exampleController = {
-  async getExample(req: Request, res: Response) {
+  async getExample(_req: Request, res: Response) {
     try {
       const data = await exampleService.getData();
       res.json(data);
@@ -629,11 +630,11 @@ export const exampleController = {
     }
   },
 
-  async getPublic(req: Request, res: Response) {
+  async getPublic(_req: Request, res: Response) {
     res.json({ message: 'Public endpoint' });
   },
 
-  async adminAction(req: Request, res: Response) {
+  async adminAction(_req: Request, res: Response) {
     res.json({ message: 'Admin action performed' });
   }
 };
@@ -643,7 +644,7 @@ export const exampleController = {
 
   const serviceContent = `export const exampleService = {
   async getData() {
-    return { message: 'Hello from shiv-am!' };
+    return { message: 'Hello from nod-cli!' };
   }
 };
 `;

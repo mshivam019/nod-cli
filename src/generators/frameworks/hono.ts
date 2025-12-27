@@ -26,7 +26,6 @@ async function generateAppFile(projectPath: string, config: ProjectConfig, ctx: 
   const ext = ctx.fileExt;
   const appContent = `import { Hono } from 'hono';
 import { routes } from './routes/index.js';
-${ctx.hasAuth ? "import { authMiddleware } from './middlewares/auth.js';" : ''}
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
 
 export function createApp() {
@@ -81,7 +80,7 @@ async function generateMiddleware(projectPath: string, config: ProjectConfig, ct
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 
-export async function authMiddleware(c: Context, next: Next) {
+export async function authMiddleware(c: Context, next: Next): Promise<Response | void> {
   const token = c.req.header('Authorization')?.split(' ')[1];
 
   if (!token) {
@@ -98,7 +97,7 @@ export async function authMiddleware(c: Context, next: Next) {
 }
 
 export function roleMiddleware(roles: string[]) {
-  return async (c: Context, next: Next) => {
+  return async (c: Context, next: Next): Promise<Response | void> => {
     const user = c.get('user');
     if (!user || !roles.includes(user.role)) {
       return c.json({ error: 'Insufficient permissions' }, 403);
@@ -539,7 +538,7 @@ export function createConfiguredRouter(config: {
 
   // Generate example route with centralized config
   const routeContent = `import { Hono } from 'hono';
-import { createConfiguredRouter } from '../config/router.js';
+import { createConfiguredRouter, METHODS } from '../config/router.js';
 import { exampleController } from '../controllers/example.js';
 
 export const routes = new Hono();

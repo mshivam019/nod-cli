@@ -5,7 +5,7 @@ import { ProjectConfig, Framework, Database, Auth, Queue, Preset } from '../type
 import { generateProject } from '../generators/project.js';
 
 export async function initProject(name?: string, options?: any) {
-  console.log(chalk.blue.bold('\n🚀 Welcome to create-shiv-am!\n'));
+  console.log(chalk.blue.bold('\n🚀 Welcome to nod-cli!\n'));
 
   let config: ProjectConfig;
 

@@ -1,12 +1,12 @@
 {
-  "name": "create-shiv-am",
+  "name": "nod-cli",
   "version": "0.1.0",
   "description": "Backend scaffolding CLI for Express, Hono, and more - with best practices built-in",
   "main": "./dist/index.js",
   "type": "module",
   "bin": {
-    "create-shiv-am": "./dist/cli.js",
-    "shiv-am": "./dist/cli.js"
+    "nod-cli": "./dist/cli.js",
+    "nod": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -23,10 +23,8 @@
   },
   "files": [
     "dist",
-    "templates",
     "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "LICENSE"
   ],
   "keywords": [
     "cli",
@@ -44,18 +42,19 @@
     "create",
     "generator",
     "boilerplate",
-    "route-builder"
+    "route-builder",
+    "nod-cli"
   ],
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/create-shiv-am.git"
+    "url": "https://github.com/yourusername/nod-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/create-shiv-am/issues"
+    "url": "https://github.com/yourusername/nod-cli/issues"
   },
-  "homepage": "https://github.com/yourusername/create-shiv-am#readme",
+  "homepage": "https://github.com/yourusername/nod-cli#readme",
   "engines": {
     "node": ">=18.0.0"
   },

@@ -1,5 +1,5 @@
 import prompts from 'prompts';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
@@ -97,16 +97,14 @@ async function createController(projectRoot: string, name: string, hasService: b
   const controllerPath = path.join(projectRoot, 'src/controllers', `${name}.ts`);
   
   // Detect framework
-  const packageJson = JSON.parse(
-    await fs.readFile(path.join(projectRoot, 'package.json'), 'utf-8')
-  );
+  const packageJson = await fs.readJson(path.join(projectRoot, 'package.json'));
   const isHono = packageJson.dependencies?.hono;
 
   let controllerContent = '';
 
   if (isHono) {
     controllerContent = `import { Context } from 'hono';
-${hasService ? `import { ${name}Service } from '../services/${name}';` : ''}
+${hasService ? `import { ${name}Service } from '../services/${name}.js';` : ''}
 
 export const ${name}Controller = {
   async get${capitalize(name)}(c: Context) {
@@ -131,10 +129,10 @@ export const ${name}Controller = {
 `;
   } else {
     controllerContent = `import { Request, Response } from 'express';
-${hasService ? `import { ${name}Service } from '../services/${name}';` : ''}
+${hasService ? `import { ${name}Service } from '../services/${name}.js';` : ''}
 
 export const ${name}Controller = {
-  async get${capitalize(name)}(req: Request, res: Response) {
+  async get${capitalize(name)}(_req: Request, res: Response) {
     try {
       ${hasService ? `const data = await ${name}Service.get${capitalize(name)}();` : `const data = { message: 'Hello from ${name}' };`}
       res.json(data);
@@ -162,43 +160,93 @@ export const ${name}Controller = {
 async function addRouteToFile(projectRoot: string, name: string, config: any) {
   const routesPath = path.join(projectRoot, 'src/routes/index.ts');
   
+  // Detect framework
+  const packageJson = await fs.readJson(path.join(projectRoot, 'package.json'));
+  const isHono = packageJson.dependencies?.hono;
+  
   try {
-    let content = await fs.readFile(routesPath, 'utf-8');
+    let content = await fs.readFile(routesPath, 'utf-8') as string;
     
-    // Add import
-    const importLine = `import { ${name}Controller } from '../controllers/${name}';`;
+    // Add controller import at the top with other imports
+    const importLine = `import { ${name}Controller } from '../controllers/${name}.js';`;
     if (!content.includes(importLine)) {
-      const lastImport = content.lastIndexOf('import');
-      const endOfLastImport = content.indexOf('\n', lastImport);
-      content = content.slice(0, endOfLastImport + 1) + importLine + '\n' + content.slice(endOfLastImport + 1);
-    }
-
-    // Add middleware imports if needed
-    if (config.middleware && config.middleware.length > 0) {
-      for (const mw of config.middleware) {
-        const mwImport = `import { ${mw} } from '../middleware/auth';`;
-        if (!content.includes(mwImport)) {
-          const lastImport = content.lastIndexOf('import');
-          const endOfLastImport = content.indexOf('\n', lastImport);
-          content = content.slice(0, endOfLastImport + 1) + mwImport + '\n' + content.slice(endOfLastImport + 1);
-        }
+      // Find the last import statement
+      const importMatches = content.match(/^import .+$/gm);
+      if (importMatches && importMatches.length > 0) {
+        const lastImport = importMatches[importMatches.length - 1];
+        const lastImportIndex = content.lastIndexOf(lastImport);
+        const endOfLastImport = content.indexOf('\n', lastImportIndex);
+        content = content.slice(0, endOfLastImport + 1) + importLine + '\n' + content.slice(endOfLastImport + 1);
+      } else {
+        content = importLine + '\n' + content;
       }
     }
 
-    // Add route
-    const middlewareChain = config.middleware && config.middleware.length > 0 
-      ? config.middleware.join(', ') + ', ' 
-      : '';
-    
-    const routeLine = `router.${config.method}('${config.path}', ${middlewareChain}${name}Controller.get${capitalize(name)});`;
-    
-    // Find the last route definition
-    const lastRouterCall = content.lastIndexOf('router.');
-    if (lastRouterCall !== -1) {
-      const endOfLastRoute = content.indexOf('\n', lastRouterCall);
-      content = content.slice(0, endOfLastRoute + 1) + routeLine + '\n' + content.slice(endOfLastRoute + 1);
+    if (isHono) {
+      // For Hono, add route to the routesList array
+      const routeEntry = `  {
+    method: METHODS.${config.method.toUpperCase()},
+    path: '${config.path}',
+    handler: ${name}Controller.get${capitalize(name)}
+  }`;
+      
+      // Find the routesList array and add the new route
+      const routesListMatch = content.match(/const routesList = \[/);
+      if (routesListMatch) {
+        const routesListIndex = content.indexOf(routesListMatch[0]);
+        const insertIndex = routesListIndex + routesListMatch[0].length;
+        content = content.slice(0, insertIndex) + '\n' + routeEntry + ',' + content.slice(insertIndex);
+      } else {
+        // Fallback: add a simple route
+        const routesMatch = content.match(/export const routes = new Hono\(\);/);
+        if (routesMatch) {
+          const routesIndex = content.indexOf(routesMatch[0]);
+          const endOfRoutes = content.indexOf('\n', routesIndex);
+          const routeLine = `\nroutes.${config.method}('${config.path}', ${name}Controller.get${capitalize(name)});`;
+          content = content.slice(0, endOfRoutes + 1) + routeLine + content.slice(endOfRoutes + 1);
+        }
+      }
     } else {
-      content += '\n' + routeLine + '\n';
+      // For Express, add middleware imports if needed
+      if (config.middleware && config.middleware.length > 0) {
+        const middlewareFileMap: Record<string, string> = {
+          'authMiddleware': 'auth',
+          'loggingMiddleware': 'logging',
+          'roleMiddleware': 'auth'
+        };
+        
+        for (const mw of config.middleware) {
+          const mwFile = middlewareFileMap[mw] || 'auth';
+          const mwImport = `import { ${mw} } from '../middlewares/${mwFile}.js';`;
+          if (!content.includes(`import { ${mw} }`)) {
+            const importMatches = content.match(/^import .+$/gm);
+            if (importMatches && importMatches.length > 0) {
+              const lastImport = importMatches[importMatches.length - 1];
+              const lastImportIndex = content.lastIndexOf(lastImport);
+              const endOfLastImport = content.indexOf('\n', lastImportIndex);
+              content = content.slice(0, endOfLastImport + 1) + mwImport + '\n' + content.slice(endOfLastImport + 1);
+            }
+          }
+        }
+      }
+
+      // Add route after the export statement
+      const middlewareChain = config.middleware && config.middleware.length > 0 
+        ? config.middleware.join(', ') + ', ' 
+        : '';
+      
+      const routeLine = `router.${config.method}('${config.path}', ${middlewareChain}${name}Controller.get${capitalize(name)});`;
+      
+      // Find the export const router line and add route after it
+      const exportRouterMatch = content.match(/export const router = Router\(\);/);
+      if (exportRouterMatch) {
+        const exportIndex = content.indexOf(exportRouterMatch[0]);
+        const endOfExport = content.indexOf('\n', exportIndex);
+        content = content.slice(0, endOfExport + 1) + '\n' + routeLine + '\n' + content.slice(endOfExport + 1);
+      } else {
+        // Fallback: add at the end
+        content += '\n' + routeLine + '\n';
+      }
     }
 
     await fs.outputFile(routesPath, content);

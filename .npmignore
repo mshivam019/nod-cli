@@ -1,51 +1,36 @@
-# Source files
+# Source files (keep dist/)
 src/
 tsconfig.json
 
-# Development files
+# Development
 .vscode/
 .idea/
 *.log
 .DS_Store
+Thumbs.db
 
-# Test files
+# Tests
 test/
 tests/
 *.test.ts
 *.spec.ts
-
-# Documentation (keep README.md)
-docs/
-examples/
-PUBLISHING.md
+coverage/
 
 # Git
 .git/
 .gitignore
-.gitattributes
 
 # CI/CD
 .github/
-.gitlab-ci.yml
-.travis.yml
 
-# Package manager
+# Package manager files
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+package-lock.json
 
 # Environment
 .env
-.env.local
-.env.*.local
-
-# Build artifacts (keep dist/)
-coverage/
-.nyc_output/
+.env.*
 
 # Editor
 *.swp
 *.swo
-*~
