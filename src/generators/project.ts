@@ -11,26 +11,32 @@ export async function generateProject(config: ProjectConfig) {
   await fs.ensureDir(projectPath);
 
   // Create directory structure based on preset
-  const structure = ['src/routes', 'src/controllers', 'src/services', 'src/config', 'src/helpers'];
+  const structure = ['src/routes', 'src/controllers', 'src/services', 'src/config', 'src/helpers', 'src/utils'];
 
   if (config.preset !== 'minimal') {
-    structure.push('src/middlewares');
+    structure.push('src/middleware');
     
-    if (config.auth !== 'none') {
+    // Only create auth folder for non-supabase auth (supabase auth uses middleware folder)
+    if (config.auth !== 'none' && config.auth !== 'supabase') {
       structure.push('src/auth');
     }
     
-    if (config.database !== 'none') {
+    if (config.database !== 'none' || config.orm === 'drizzle') {
       structure.push('src/db');
     }
   }
 
-  if (config.preset === 'full' || config.features.cron) {
+  if (config.preset === 'full' || config.preset === 'ai' || config.features.cron) {
     structure.push('src/cron');
+    structure.push('src/cron/jobs');
   }
   
   if (config.preset === 'full' && config.queue !== 'none') {
     structure.push('src/queue');
+  }
+
+  if (config.features.environments) {
+    structure.push('src/environments');
   }
 
   if (config.typescript) {
@@ -43,6 +49,7 @@ export async function generateProject(config: ProjectConfig) {
 
   // Generate framework-specific files
   const templateContext = getTemplateContext(config);
+  const ext = templateContext.fileExt;
   
   if (config.framework === 'express') {
     await generateExpressProject(projectPath, config, templateContext);
@@ -56,6 +63,7 @@ export async function generateProject(config: ProjectConfig) {
   await generateEnvFile(projectPath, config);
   await generateTsConfig(projectPath, config);
   await generateGitIgnore(projectPath);
+  await generateLogger(projectPath, ext);
   
   if (config.features.docker !== false) {
     await generateDockerFiles(projectPath, config);
@@ -76,13 +84,105 @@ export async function generateProject(config: ProjectConfig) {
     await generateCronLocks(projectPath, lockBackend);
   }
 
+  // Generate environment config
+  if (config.features.environments) {
+    const { generateEnvironments, generateEnvConfig } = await import('./environments.js');
+    await generateEnvironments(projectPath, config, ext);
+    await generateEnvConfig(projectPath, config, ext);
+  }
+
+  // Generate Supabase helper
+  if (config.database === 'supabase' || config.auth === 'supabase') {
+    const { generateSupabaseHelper, generateSupabaseJwtAuth } = await import('./supabase.js');
+    await generateSupabaseHelper(projectPath, config, ext);
+    
+    if (config.auth === 'supabase') {
+      await generateSupabaseJwtAuth(projectPath, ext);
+    }
+  }
+
+  // Generate Vercel cron
+  if (config.deployment?.vercelCron) {
+    const { generateVercelConfig, generateVercelCronRoutes, generateCronMiddleware, generateCronService } = await import('./vercel.js');
+    await generateVercelConfig(projectPath, []);
+    await generateVercelCronRoutes(projectPath, ext, config.framework);
+    await generateCronMiddleware(projectPath, ext);
+    await generateCronService(projectPath, ext);
+  }
+
+  // Generate GitHub workflow
+  if (config.deployment?.githubWorkflow) {
+    const { generateGithubWorkflow } = await import('./github.js');
+    await generateGithubWorkflow(projectPath, { deployTrigger: true });
+  }
+
+  // Generate AI features
+  if (config.ai?.rag) {
+    const { generateRAGService } = await import('./ai.js');
+    await generateRAGService(projectPath, config, ext);
+  }
+
+  if (config.ai?.chat) {
+    const { generateChatService } = await import('./ai.js');
+    await generateChatService(projectPath, config, ext);
+  }
+
+  // Generate model/source config
+  if (config.features.modelConfig) {
+    const { generateModelConfig, generateSelectionMiddleware } = await import('./ai.js');
+    await generateModelConfig(projectPath, ext);
+    await generateSelectionMiddleware(projectPath, ext, true, false); // model=true, source=false
+  }
+
+  if (config.features.sourceConfig) {
+    const { generateSourceConfig, generateSourceSelectionMiddleware } = await import('./ai.js');
+    await generateSourceConfig(projectPath, ext);
+    await generateSourceSelectionMiddleware(projectPath, ext);
+  }
+
+  // Generate API audit middleware
+  if (config.features.apiAudit) {
+    const { generateApiAudit, generateAuditSchema } = await import('./audit.js');
+    const auditTableName = `${config.name.replace(/-/g, '_')}_api_audit`;
+    await generateApiAudit(projectPath, ext, auditTableName);
+    await generateAuditSchema(projectPath, auditTableName);
+  }
+}
+
+async function generateLogger(projectPath: string, ext: string) {
+  const loggerContent = `import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+export default logger;
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/utils/logger.${ext}`), loggerContent);
 }
 
 async function generateConfigFiles(projectPath: string, config: ProjectConfig, ctx: any) {
   const ext = ctx.fileExt;
+  const isTS = ext === 'ts';
   
-  // Main config with zod validation
-  const configContent = `import { z } from 'zod';
+  // Main config with zod validation (only for TS) or simple config for JS
+  const configContent = isTS
+    ? `import { z } from 'zod';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -140,6 +240,36 @@ export const config: Config = configSchema.parse({
     level: (process.env.LOG_LEVEL as any) || 'info',
   },` : ''}
 });
+`
+    : `import dotenv from 'dotenv';
+
+dotenv.config();
+
+export const config = {
+  port: Number(process.env.PORT) || 3000,
+  env: process.env.NODE_ENV || 'development',
+  ${ctx.hasAuth ? `jwt: {
+    secret: process.env.JWT_SECRET,
+    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    ${ctx.hasJWKS ? `jwksUri: process.env.JWKS_URI,
+    audience: process.env.JWT_AUDIENCE,
+    issuer: process.env.JWT_ISSUER,` : ''}
+  },` : ''}
+  ${ctx.hasDatabase ? `database: {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || ${config.database === 'pg' ? 5432 : 3306},
+    name: process.env.DB_NAME || '${config.name}',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    pool: {
+      min: Number(process.env.DB_POOL_MIN) || 2,
+      max: Number(process.env.DB_POOL_MAX) || 10,
+    },
+  },` : ''}
+  ${ctx.hasLogging ? `logging: {
+    level: process.env.LOG_LEVEL || 'info',
+  },` : ''}
+};
 `;
 
   await fs.outputFile(path.join(projectPath, `src/config/index.${ext}`), configContent);
@@ -167,14 +297,20 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   if (config.framework === 'express') {
     dependencies['express'] = '^4.18.2';
     dependencies['express-async-errors'] = '^3.1.1';
+    dependencies['cors'] = '^2.8.5';
+    dependencies['helmet'] = '^7.1.0';
+    dependencies['morgan'] = '^1.10.0';
     if (config.typescript) {
       devDependencies['@types/express'] = '^4.17.21';
+      devDependencies['@types/cors'] = '^2.8.17';
+      devDependencies['@types/morgan'] = '^1.9.9';
     }
   } else if (config.framework === 'hono') {
     dependencies['hono'] = '^4.6.0';
     dependencies['@hono/node-server'] = '^1.13.0';
   }
 
+  // Auth dependencies
   if (config.auth === 'jwt') {
     dependencies['jsonwebtoken'] = '^9.0.2';
     if (config.typescript) {
@@ -190,22 +326,15 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     }
   }
 
-  if (config.features.cron) {
-    dependencies['node-cron'] = '^3.0.3';
+  if (config.auth === 'supabase') {
+    dependencies['jose'] = '^5.2.0';
+    dependencies['jsonwebtoken'] = '^9.0.2';
     if (config.typescript) {
-      devDependencies['@types/node-cron'] = '^3.0.11';
+      devDependencies['@types/jsonwebtoken'] = '^9.0.5';
     }
-    // Note: ioredis only added if user explicitly wants Redis backend
   }
 
-  // PM2 for production
-  devDependencies['pm2'] = '^5.3.0';
-
-  if (config.queue === 'bull') {
-    dependencies['bullmq'] = '^5.1.0';
-    dependencies['ioredis'] = '^5.3.2';
-  }
-
+  // Database dependencies
   if (config.database === 'pg') {
     dependencies['pg'] = '^8.11.3';
     if (config.typescript) {
@@ -213,12 +342,55 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     }
   } else if (config.database === 'mysql') {
     dependencies['mysql2'] = '^3.6.5';
+  } else if (config.database === 'supabase') {
+    dependencies['@supabase/supabase-js'] = '^2.39.0';
   }
 
-  if (config.features.logging) {
-    dependencies['pino'] = '^8.17.2';
-    dependencies['pino-pretty'] = '^10.3.1';
+  // ORM dependencies
+  if (config.orm === 'drizzle') {
+    dependencies['drizzle-orm'] = '^0.29.0';
+    dependencies['postgres'] = '^3.4.0';
+    devDependencies['drizzle-kit'] = '^0.20.0';
   }
+
+  // Cron dependencies
+  if (config.features.cron) {
+    dependencies['node-cron'] = '^3.0.3';
+    if (config.typescript) {
+      devDependencies['@types/node-cron'] = '^3.0.11';
+    }
+  }
+
+  // Queue dependencies
+  if (config.queue === 'bull') {
+    dependencies['bullmq'] = '^5.1.0';
+    dependencies['ioredis'] = '^5.3.2';
+  }
+
+  // Logging
+  dependencies['winston'] = '^3.11.0';
+
+  // AI dependencies
+  if (config.ai?.rag || config.ai?.chat) {
+    dependencies['@langchain/openai'] = '^0.6.0';
+    dependencies['@langchain/core'] = '^0.3.78';
+    dependencies['langchain'] = '^0.3.27';
+  }
+
+  if (config.ai?.langfuse) {
+    // Add langfuse-langchain for LLM observability
+    // These versions are compatible with @langchain/core@^0.3.x
+    dependencies['langfuse-langchain'] = '^3.37.0';
+    
+    // If langfuse is enabled but no RAG/chat, still need langchain core
+    if (!config.ai?.rag && !config.ai?.chat) {
+      dependencies['@langchain/core'] = '^0.3.78';
+      dependencies['langchain'] = '^0.3.27';
+    }
+  }
+
+  // PM2 for production
+  devDependencies['pm2'] = '^5.3.0';
 
   if (config.features.testing) {
     devDependencies['vitest'] = '^1.0.4';
@@ -240,6 +412,12 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     format: 'prettier --write "src/**/*.{ts,js}"',
   };
 
+  if (config.orm === 'drizzle') {
+    scripts['db:generate'] = 'drizzle-kit generate';
+    scripts['db:push'] = 'drizzle-kit push';
+    scripts['db:studio'] = 'drizzle-kit studio';
+  }
+
   if (config.features.testing) {
     scripts.test = 'vitest run';
     scripts['test:watch'] = 'vitest';
@@ -248,7 +426,7 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   const packageJson = {
     name: config.name,
     version: '1.0.0',
-    description: `Backend project generated with create-shiv-am`,
+    description: `Backend project generated with nod-cli`,
     main: config.typescript ? 'dist/server.js' : 'src/server.js',
     type: 'module',
     scripts,
@@ -268,15 +446,18 @@ PORT=3000
 NODE_ENV=development
 `;
 
+  // Auth
   if (config.auth === 'jwt') {
-    envContent += `\n# JWT Authentication
+    envContent += `
+# JWT Authentication
 JWT_SECRET=your-super-secret-key-change-this-in-production-min-32-chars
 JWT_EXPIRES_IN=24h
 `;
   }
 
   if (config.auth === 'jwks') {
-    envContent += `\n# JWKS Authentication
+    envContent += `
+# JWKS Authentication
 JWT_SECRET=your-super-secret-key-change-this-in-production-min-32-chars
 JWKS_URI=https://your-auth-provider.com/.well-known/jwks.json
 JWT_AUDIENCE=your-api-audience
@@ -284,9 +465,11 @@ JWT_ISSUER=https://your-auth-provider.com/
 `;
   }
 
-  if (config.database !== 'none') {
+  // Database
+  if (config.database === 'pg' || config.database === 'mysql') {
     const defaultPort = config.database === 'pg' ? 5432 : 3306;
-    envContent += `\n# Database
+    envContent += `
+# Database
 DB_HOST=localhost
 DB_PORT=${defaultPort}
 DB_NAME=${config.name}
@@ -297,19 +480,86 @@ DB_POOL_MAX=10
 `;
   }
 
+  // Supabase
+  if (config.database === 'supabase' || config.auth === 'supabase') {
+    envContent += `
+# Supabase - Production
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_API_KEY=your-service-role-key
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_PROJECT=your-project-id
+`;
+
+    if (config.orm === 'drizzle' || config.supabase?.usePooler) {
+      envContent += `SUPABASE_POOLER_URL=postgresql://postgres.your-project:password@aws-0-region.pooler.supabase.com:6543/postgres
+`;
+    }
+
+    envContent += `
+# Supabase - Staging
+SUPABASE_STAGING_URL=https://your-staging-project.supabase.co
+SUPABASE_STAGING_SECRET_KEY=your-staging-service-role-key
+SUPABASE_STAGING_ANON_KEY=your-staging-anon-key
+SUPABASE_STAGING_PROJECT=your-staging-project-id
+`;
+
+    if (config.orm === 'drizzle' || config.supabase?.usePooler) {
+      envContent += `SUPABASE_STAGING_POOLER_URL=postgresql://postgres.your-staging-project:password@aws-0-region.pooler.supabase.com:6543/postgres
+`;
+    }
+  }
+
+  // Queue
   if (config.queue === 'bull') {
-    envContent += `\n# Redis (for BullMQ)
+    envContent += `
+# Redis (for BullMQ)
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 `;
   }
 
-  if (config.features.logging) {
-    envContent += `\n# Logging
-LOG_LEVEL=info
+  // AI Features
+  if (config.ai?.rag || config.ai?.chat) {
+    envContent += `
+# OpenAI
+OPENAI_API_KEY=sk-your-openai-api-key
 `;
   }
+
+  if (config.ai?.langfuse) {
+    envContent += `
+# Langfuse - Production
+LANGFUSE_PUBLIC_KEY=pk-lf-your-public-key
+LANGFUSE_SECRET_KEY=sk-lf-your-secret-key
+
+# Langfuse - Staging
+LANGFUSE_STAGING_PUBLIC_KEY=pk-lf-your-staging-public-key
+LANGFUSE_STAGING_SECRET_KEY=sk-lf-your-staging-secret-key
+`;
+  }
+
+  // Vercel Cron
+  if (config.deployment?.vercelCron) {
+    envContent += `
+# Cron
+CRON_SECRET=your-cron-secret-for-vercel
+`;
+  }
+
+  // Model Config
+  if (config.features.modelConfig) {
+    envContent += `
+# Model Domain Mapping (JSON)
+MODEL_DOMAIN_MAPPING={"o3":"o3","mini":"gpt-4o-mini","default":"gpt-4o"}
+`;
+  }
+
+  // Logging
+  envContent += `
+# Logging
+LOG_LEVEL=info
+`;
 
   await fs.outputFile(path.join(projectPath, '.env.example'), envContent);
 }
@@ -423,7 +673,7 @@ async function generateScripts(projectPath: string, config: ProjectConfig) {
   // Add README
   const readme = `# ${config.name}
 
-Backend project generated with create-shiv-am
+Backend project generated with nod-cli
 
 ## Features
 
@@ -431,8 +681,15 @@ Backend project generated with create-shiv-am
 - Language: ${config.typescript ? 'TypeScript' : 'JavaScript'}
 - Database: ${config.database}
 - Auth: ${config.auth}
+${config.orm === 'drizzle' ? '- ORM: Drizzle' : ''}
 ${config.queue !== 'none' ? `- Queue: ${config.queue}` : ''}
 ${config.features.cron ? '- Cron jobs' : ''}
+${config.features.environments ? '- Environment config (staging/production)' : ''}
+${config.ai?.rag ? '- RAG (Retrieval Augmented Generation)' : ''}
+${config.ai?.chat ? '- Chat service' : ''}
+${config.ai?.langfuse ? '- Langfuse LLM observability' : ''}
+${config.deployment?.vercelCron ? '- Vercel cron' : ''}
+${config.deployment?.githubWorkflow ? '- GitHub workflow' : ''}
 
 ## Getting Started
 
@@ -447,6 +704,20 @@ cp .env.example .env
 npm run dev
 \`\`\`
 
+${config.orm === 'drizzle' ? `## Database Setup (Drizzle)
+
+\`\`\`bash
+# Generate migrations
+npm run db:generate
+
+# Push to database
+npm run db:push
+
+# Open Drizzle Studio
+npm run db:studio
+\`\`\`
+` : ''}
+
 ## Scripts
 
 - \`npm run dev\` - Start development server
@@ -455,6 +726,9 @@ npm run dev
 - \`npm run lint\` - Lint code
 - \`npm run format\` - Format code
 ${config.features.testing ? '- `npm test` - Run tests' : ''}
+${config.orm === 'drizzle' ? `- \`npm run db:generate\` - Generate Drizzle migrations
+- \`npm run db:push\` - Push schema to database
+- \`npm run db:studio\` - Open Drizzle Studio` : ''}
 
 ## Project Structure
 
@@ -465,13 +739,46 @@ src/
 ├── routes/          # Route definitions
 ├── controllers/     # Request handlers
 ├── services/        # Business logic
-${config.preset !== 'minimal' ? `├── middlewares/    # Custom middleware
-${config.auth !== 'none' ? '├── auth/           # Authentication' : ''}
-${config.database !== 'none' ? '├── db/             # Database connection' : ''}` : ''}
-${config.features.cron ? '├── cron/          # Scheduled jobs' : ''}
+├── middleware/      # Custom middleware
+├── helpers/         # Utility functions
+├── utils/           # Utility modules
 ├── config/          # Configuration
-└── helpers/         # Utility functions
+${config.database !== 'none' || config.orm === 'drizzle' ? '├── db/             # Database connection & schema' : ''}
+${config.features.environments ? '├── environments/   # Environment configs (staging/production)' : ''}
+${config.features.cron ? '├── cron/           # Scheduled jobs' : ''}
+${config.typescript ? '└── types/          # TypeScript types' : ''}
 \`\`\`
+
+${config.deployment?.vercelCron ? `## Vercel Cron
+
+Add cron jobs to \`vercel.json\`:
+
+\`\`\`json
+{
+  "crons": [
+    {
+      "path": "/cron/your-job",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
+\`\`\`
+
+Set \`CRON_SECRET\` in Vercel environment variables.
+` : ''}
+
+${config.ai?.rag || config.ai?.chat ? `## AI Features
+
+${config.ai?.rag ? `### RAG Service
+Use \`ragService\` for vector similarity search and document retrieval.
+` : ''}
+${config.ai?.chat ? `### Chat Service
+Use \`chatService\` for conversation management and AI responses.
+` : ''}
+${config.ai?.langfuse ? `### Langfuse
+LLM calls are automatically traced with Langfuse. Set your keys in \`.env\`.
+` : ''}
+` : ''}
 `;
 
   await fs.outputFile(path.join(projectPath, 'README.md'), readme);

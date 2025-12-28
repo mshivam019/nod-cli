@@ -71,10 +71,11 @@ export async function generateThreadSafeCron(projectPath: string, ext: string, l
   const { generateLockAdapter } = await import('./cron-locks.js');
   await generateLockAdapter(projectPath, ext, lockBackend);
   
-  const cronContent = `import cron from 'node-cron';
+  const isTS = ext === 'ts';
+  
+  const cronContent = isTS
+    ? `import cron from 'node-cron';
 import { acquireLock, releaseLock } from './lock-adapter.js';
-
-
 
 /**
  * Thread-safe cron job wrapper
@@ -85,6 +86,77 @@ function createThreadSafeCron(
   task: () => Promise<void>,
   options?: { ttl?: number }
 ) {
+  return cron.schedule(schedule, async () => {
+    const ttl = options?.ttl || 60000; // Default 1 minute
+    const acquired = await acquireLock(lockKey, ttl);
+    
+    if (!acquired) {
+      console.log(\`[\${lockKey}] Lock not acquired, skipping (another instance is running)\`);
+      return;
+    }
+
+    console.log(\`[\${lockKey}] Lock acquired, executing task\`);
+    
+    try {
+      await task();
+      console.log(\`[\${lockKey}] Task completed successfully\`);
+    } catch (error) {
+      console.error(\`[\${lockKey}] Task failed:\`, error);
+    } finally {
+      await releaseLock(lockKey);
+    }
+  });
+}
+
+export function initCronJobs() {
+  // Example: Daily cleanup at midnight (runs only on one instance)
+  createThreadSafeCron(
+    '0 0 * * *',
+    'cron:daily-cleanup',
+    async () => {
+      console.log('Running daily cleanup');
+      // Your cleanup logic here
+    },
+    { ttl: 300000 } // 5 minutes max execution time
+  );
+
+  // Example: Hourly report generation
+  createThreadSafeCron(
+    '0 * * * *',
+    'cron:hourly-report',
+    async () => {
+      console.log('Generating hourly report');
+      // Your report logic here
+    }
+  );
+
+  // Example: Every 5 minutes health check
+  createThreadSafeCron(
+    '*/5 * * * *',
+    'cron:health-check',
+    async () => {
+      console.log('Running health check');
+      // Your health check logic here
+    },
+    { ttl: 60000 } // 1 minute max
+  );
+
+  console.log('✅ Thread-safe cron jobs initialized');
+}
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('Shutting down cron jobs...');
+  process.exit(0);
+});
+`
+    : `import cron from 'node-cron';
+import { acquireLock, releaseLock } from './lock-adapter.js';
+
+/**
+ * Thread-safe cron job wrapper
+ */
+function createThreadSafeCron(schedule, lockKey, task, options) {
   return cron.schedule(schedule, async () => {
     const ttl = options?.ttl || 60000; // Default 1 minute
     const acquired = await acquireLock(lockKey, ttl);

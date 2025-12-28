@@ -12,9 +12,15 @@ Thumbs.db
 # Tests
 test/
 tests/
+e2e-tests/
+test-audit/
+scripts/
 *.test.ts
 *.spec.ts
 coverage/
+
+# Sample projects
+sample/
 
 # Git
 .git/

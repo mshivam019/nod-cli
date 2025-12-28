@@ -48,19 +48,43 @@ export function createApp() {
 
 async function generateServerFile(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
   const ext = ctx.fileExt;
-  const serverContent = `import { serve } from '@hono/node-server';
+  const isTS = ext === 'ts';
+  const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
+  
+  const serverContent = isTS
+    ? `import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { config } from './config/index.js';
-${ctx.hasDatabase ? "import { connectDatabase } from './db/index.js';" : ''}
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ''}
 
 async function startServer() {
-  ${ctx.hasDatabase ? 'await connectDatabase();' : ''}
+  ${needsDbConnect ? 'await connectDatabase();' : ''}
   
   const app = createApp();
   
   serve({
     fetch: app.fetch,
     port: config.port as number
+  });
+
+  console.log(\`🚀 Server running on port \${config.port}\`);
+}
+
+startServer().catch(console.error);
+`
+    : `import { serve } from '@hono/node-server';
+import { createApp } from './app.js';
+import { config } from './config/index.js';
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ''}
+
+async function startServer() {
+  ${needsDbConnect ? 'await connectDatabase();' : ''}
+  
+  const app = createApp();
+  
+  serve({
+    fetch: app.fetch,
+    port: config.port
   });
 
   console.log(\`🚀 Server running on port \${config.port}\`);
@@ -74,9 +98,11 @@ startServer().catch(console.error);
 
 async function generateMiddleware(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
   const ext = ctx.fileExt;
+  const isTS = ext === 'ts';
   
   if (ctx.hasAuth) {
-    const authMiddleware = `import { Context, Next } from 'hono';
+    const authMiddleware = isTS
+      ? `import { Context, Next } from 'hono';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 
@@ -105,13 +131,43 @@ export function roleMiddleware(roles: string[]) {
     await next();
   };
 }
+`
+      : `import jwt from 'jsonwebtoken';
+import { config } from '../config/index.js';
+
+export async function authMiddleware(c, next) {
+  const token = c.req.header('Authorization')?.split(' ')[1];
+
+  if (!token) {
+    return c.json({ error: 'No token provided' }, 401);
+  }
+
+  try {
+    const decoded = jwt.verify(token, config.jwt.secret);
+    c.set('user', decoded);
+    await next();
+  } catch (error) {
+    return c.json({ error: 'Invalid token' }, 401);
+  }
+}
+
+export function roleMiddleware(roles) {
+  return async (c, next) => {
+    const user = c.get('user');
+    if (!user || !roles.includes(user.role)) {
+      return c.json({ error: 'Insufficient permissions' }, 403);
+    }
+    await next();
+  };
+}
 `;
 
-    await fs.outputFile(path.join(projectPath, `src/middlewares/auth.${ext}`), authMiddleware);
+    await fs.outputFile(path.join(projectPath, `src/middleware/auth.${ext}`), authMiddleware);
   }
 
   // Generate API audit log middleware for Hono
-  const auditLogMiddleware = `import { Context, Next } from 'hono';
+  const auditLogMiddleware = isTS
+    ? `import { Context, Next } from 'hono';
 
 interface AuditLogEntry {
   timestamp: string;
@@ -204,9 +260,86 @@ function logAuditEntry(entry: AuditLogEntry) {
     }, null, 2));
   }
 }
+`
+    : `export async function apiAuditLog(c, next) {
+  const startTime = Date.now();
+  const user = c.get('user');
+  
+  // Capture request details
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    method: c.req.method,
+    path: c.req.path,
+    query: c.req.query(),
+    body: await sanitizeBody(c),
+    userId: user?.id,
+    userEmail: user?.email,
+    userRole: user?.role,
+    ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown',
+    userAgent: c.req.header('user-agent') || 'unknown'
+  };
+
+  await next();
+
+  // Capture response details
+  logEntry.statusCode = c.res.status;
+  logEntry.responseTime = Date.now() - startTime;
+  
+  // Log to console (in production, send to logging service)
+  logAuditEntry(logEntry);
+}
+
+async function sanitizeBody(c) {
+  try {
+    const body = await c.req.json().catch(() => null);
+    if (!body) return null;
+    
+    // Create a copy to avoid modifying original
+    const sanitized = { ...body };
+    
+    // Remove sensitive fields
+    const sensitiveFields = ['password', 'token', 'secret', 'apiKey', 'creditCard'];
+    sensitiveFields.forEach(field => {
+      if (sanitized[field]) {
+        sanitized[field] = '[REDACTED]';
+      }
+    });
+    
+    return sanitized;
+  } catch {
+    return null;
+  }
+}
+
+function logAuditEntry(entry) {
+  // Format log message
+  const userInfo = entry.userId 
+    ? \`User: \${entry.userId}\${entry.userEmail ? \` (\${entry.userEmail})\` : ''}\${entry.userRole ? \` [\${entry.userRole}]\` : ''}\`
+    : 'User: Anonymous';
+  
+  const message = [
+    \`[\${entry.timestamp}]\`,
+    \`\${entry.method} \${entry.path}\`,
+    userInfo,
+    \`Status: \${entry.statusCode}\`,
+    \`Time: \${entry.responseTime}ms\`,
+    \`IP: \${entry.ip}\`
+  ].join(' | ');
+  
+  console.log(message);
+  
+  // Log full details for non-GET requests or errors
+  if (entry.method !== 'GET' || (entry.statusCode && entry.statusCode >= 400)) {
+    console.log('Details:', JSON.stringify({
+      query: entry.query,
+      body: entry.body,
+      userAgent: entry.userAgent
+    }, null, 2));
+  }
+}
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/middlewares/audit.${ext}`), auditLogMiddleware);
+  await fs.outputFile(path.join(projectPath, `src/middleware/audit.${ext}`), auditLogMiddleware);
 }
 
 async function generateDatabaseConnection(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
@@ -283,9 +416,11 @@ async function generateCronSetup(projectPath: string, ctx: TemplateContext, conf
 
 async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const ext = ctx.fileExt;
+  const isTS = ext === 'ts';
   
-  // Generate declarative routes helper (same as Express)
-  const declarativeRoutesContent = `// Declarative Route System
+  // Generate declarative routes helper (JS/TS versions)
+  const declarativeRoutesContent = isTS
+    ? `// Declarative Route System
 
 export const METHODS = {
   GET: 'GET',
@@ -493,14 +628,194 @@ export class RouteBuilder {
     return [...middlewares, handler];
   }
 }
+`
+    : `// Declarative Route System
+
+export const METHODS = {
+  GET: 'GET',
+  POST: 'POST',
+  PUT: 'PUT',
+  DELETE: 'DELETE',
+  PATCH: 'PATCH'
+};
+
+export class DeclarativeRouter {
+  constructor(config) {
+    this.middlewareRegistry = new Map();
+    this.controllerRegistry = new Map();
+    this.config = config;
+  }
+
+  registerMiddleware(name, middleware) {
+    this.middlewareRegistry.set(name, middleware);
+    return this;
+  }
+
+  registerController(name, controller) {
+    this.controllerRegistry.set(name, controller);
+    return this;
+  }
+
+  resolveHandler(handlerPath) {
+    const [controllerName, methodName] = handlerPath.split('.');
+    const controller = this.controllerRegistry.get(controllerName);
+    
+    if (!controller) {
+      throw new Error(\`Controller '\${controllerName}' not registered\`);
+    }
+    
+    if (!controller[methodName]) {
+      throw new Error(\`Method '\${methodName}' not found in controller '\${controllerName}'\`);
+    }
+    
+    return controller[methodName];
+  }
+
+  buildMiddlewareChain(route) {
+    const chain = [];
+    
+    let middlewares = [...this.config.defaultMiddlewares];
+    let roles = [...this.config.defaultRoles];
+
+    if (route.disabled) {
+      middlewares = middlewares.filter(m => !route.disabled.includes(m));
+    }
+
+    if (route.enabled) {
+      middlewares.push(...route.enabled);
+    }
+
+    if (route.excludeRoles) {
+      roles = roles.filter(r => !route.excludeRoles.includes(r));
+    }
+
+    if (route.roles) {
+      roles = route.roles;
+    }
+
+    for (const middlewareName of middlewares) {
+      const middleware = this.middlewareRegistry.get(middlewareName);
+      if (!middleware) {
+        throw new Error(\`Middleware '\${middlewareName}' not registered\`);
+      }
+      chain.push(middleware);
+    }
+
+    if (roles.length > 0) {
+      const roleMiddleware = this.middlewareRegistry.get('roleCheck');
+      if (roleMiddleware) {
+        chain.push(roleMiddleware(roles));
+      }
+    }
+
+    return chain;
+  }
+
+  applyToHono(app) {
+    for (const route of this.config.routes) {
+      const middlewares = this.buildMiddlewareChain(route);
+      const handler = this.resolveHandler(route.handler);
+      const method = route.method.toLowerCase();
+      
+      app[method](route.path, ...middlewares, handler);
+    }
+    
+    return app;
+  }
+
+  validate() {
+    const errors = [];
+
+    for (const route of this.config.routes) {
+      try {
+        this.resolveHandler(route.handler);
+      } catch (error) {
+        errors.push(\`Route \${route.method} \${route.path}: \${error.message}\`);
+      }
+
+      const allMiddlewares = [
+        ...this.config.defaultMiddlewares,
+        ...(route.enabled || [])
+      ];
+
+      for (const mw of allMiddlewares) {
+        if (!this.middlewareRegistry.has(mw)) {
+          errors.push(\`Route \${route.method} \${route.path}: Middleware '\${mw}' not registered\`);
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+}
+
+// Legacy RouteBuilder for backward compatibility
+export class RouteBuilder {
+  constructor(defaultMiddlewares = [], defaultRoles = []) {
+    this.defaultMiddlewares = defaultMiddlewares;
+    this.defaultRoles = defaultRoles;
+    this.middlewareRegistry = new Map();
+  }
+
+  registerMiddleware(name, middleware) {
+    this.middlewareRegistry.set(name, middleware);
+  }
+
+  buildMiddlewareChain(config) {
+    const chain = [];
+    let middlewares = [...this.defaultMiddlewares];
+    let roles = [...this.defaultRoles];
+
+    if (config) {
+      if (config.exclude) {
+        middlewares = middlewares.filter(m => !config.exclude.includes(m));
+      }
+      if (config.include) {
+        middlewares.push(...config.include);
+      }
+      if (config.excludeRole) {
+        roles = roles.filter(r => !config.excludeRole.includes(r));
+      }
+      if (config.roles) {
+        roles = config.roles;
+      }
+    }
+
+    for (const middlewareName of middlewares) {
+      const middleware = this.middlewareRegistry.get(middlewareName);
+      if (!middleware) {
+        throw new Error(\`Middleware '\${middlewareName}' not registered\`);
+      }
+      chain.push(middleware);
+    }
+
+    if (roles.length > 0) {
+      const roleMiddleware = this.middlewareRegistry.get('roleCheck');
+      if (roleMiddleware) {
+        chain.push(roleMiddleware(roles));
+      }
+    }
+
+    return chain;
+  }
+
+  route(handler, config) {
+    const middlewares = this.buildMiddlewareChain(config);
+    return [...middlewares, handler];
+  }
+}
 `;
 
   await fs.outputFile(path.join(projectPath, `src/helpers/route-builder.${ext}`), declarativeRoutesContent);
 
   // Generate router config file
-  const routerConfigContent = `import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
-import { apiAuditLog } from '../middlewares/audit.js';
-${ctx.hasAuth ? "import { authMiddleware, roleMiddleware } from '../middlewares/auth.js';" : ''}
+  const routerConfigContent = isTS
+    ? `import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
+import { apiAuditLog } from '../middleware/audit.js';
+${ctx.hasAuth ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';" : ''}
 
 // Export METHODS for use in route files
 export { METHODS };
@@ -515,6 +830,37 @@ export function createConfiguredRouter(config: {
   defaultRoles?: string[];
   routes: any[];
 }) {
+  const dr = new DeclarativeRouter({
+    defaultMiddlewares: config.defaultMiddlewares || globalDefaults.middlewares,
+    defaultRoles: config.defaultRoles || globalDefaults.roles,
+    routes: config.routes
+  });
+
+  dr.registerMiddleware('apiAuditLog', apiAuditLog);
+  ${ctx.hasAuth ? `dr.registerMiddleware('auth', authMiddleware);
+  dr.registerMiddleware('roleCheck', roleMiddleware);` : ''}
+
+  const validation = dr.validate();
+  if (!validation.valid) {
+    throw new Error(\`Route errors: \${validation.errors.join(', ')}\`);
+  }
+
+  return dr;
+}
+`
+    : `import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
+import { apiAuditLog } from '../middleware/audit.js';
+${ctx.hasAuth ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';" : ''}
+
+// Export METHODS for use in route files
+export { METHODS };
+
+export const globalDefaults = {
+  middlewares: [${ctx.hasAuth ? "'auth', " : ''}'apiAuditLog'],
+  roles: []
+};
+
+export function createConfiguredRouter(config) {
   const dr = new DeclarativeRouter({
     defaultMiddlewares: config.defaultMiddlewares || globalDefaults.middlewares,
     defaultRoles: config.defaultRoles || globalDefaults.roles,
@@ -571,7 +917,8 @@ dr.applyToHono(routes);
 
   await fs.outputFile(path.join(projectPath, `src/routes/index.${ext}`), routeContent);
 
-  const controllerContent = `import { Context } from 'hono';
+  const controllerContent = isTS
+    ? `import { Context } from 'hono';
 import { exampleService } from '../services/example.js';
 
 export const exampleController = {
@@ -589,6 +936,27 @@ export const exampleController = {
   },
 
   async adminAction(c: Context) {
+    return c.json({ message: 'Admin action performed' });
+  }
+};
+`
+    : `import { exampleService } from '../services/example.js';
+
+export const exampleController = {
+  async getExample(c) {
+    try {
+      const data = await exampleService.getData();
+      return c.json(data);
+    } catch (error) {
+      return c.json({ error: 'Failed to get data' }, 500);
+    }
+  },
+
+  async getPublic(c) {
+    return c.json({ message: 'Public endpoint' });
+  },
+
+  async adminAction(c) {
     return c.json({ message: 'Admin action performed' });
   }
 };

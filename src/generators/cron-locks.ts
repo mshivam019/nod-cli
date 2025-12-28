@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
-type CronLockBackend = 'pg' | 'mysql' | 'redis' | 'file';
+type CronLockBackend = 'pg' | 'mysql' | 'redis' | 'file' | 'supabase';
 
 export async function generateCronLocks(
   projectPath: string,
@@ -12,11 +12,12 @@ export async function generateCronLocks(
   const ext = await fs.pathExists(tsConfigPath) ? 'ts' : 'js';
   
   // Map backend names
-  const backendMap: Record<CronLockBackend, 'redis' | 'postgres' | 'mysql' | 'file'> = {
+  const backendMap: Record<CronLockBackend, 'redis' | 'postgres' | 'mysql' | 'file' | 'supabase'> = {
     'pg': 'postgres',
     'mysql': 'mysql',
     'redis': 'redis',
-    'file': 'file'
+    'file': 'file',
+    'supabase': 'supabase'
   };
   
   await generateLockAdapter(projectPath, ext, backendMap[backend]);
@@ -25,22 +26,26 @@ export async function generateCronLocks(
 export async function generateLockAdapter(
   projectPath: string,
   ext: string,
-  backend: 'redis' | 'postgres' | 'mysql' | 'file'
+  backend: 'redis' | 'postgres' | 'mysql' | 'file' | 'supabase'
 ) {
+  const isTS = ext === 'ts';
   let adapterContent = '';
 
   switch (backend) {
     case 'redis':
-      adapterContent = generateRedisAdapter();
+      adapterContent = generateRedisAdapter(isTS);
       break;
     case 'postgres':
-      adapterContent = generatePostgresAdapter();
+      adapterContent = generatePostgresAdapter(isTS);
       break;
     case 'mysql':
-      adapterContent = generateMySQLAdapter();
+      adapterContent = generateMySQLAdapter(isTS);
       break;
     case 'file':
-      adapterContent = generateFileAdapter();
+      adapterContent = generateFileAdapter(isTS);
+      break;
+    case 'supabase':
+      adapterContent = generateSupabaseAdapter(isTS);
       break;
   }
 
@@ -55,8 +60,9 @@ export async function generateLockAdapter(
   }
 }
 
-function generateRedisAdapter(): string {
-  return `import Redis from 'ioredis';
+function generateRedisAdapter(isTS: boolean): string {
+  return isTS
+    ? `import Redis from 'ioredis';
 
 const redis = new Redis({
   host: process.env.REDIS_HOST || 'localhost',
@@ -95,11 +101,52 @@ export async function releaseLock(lockKey: string): Promise<void> {
 export async function cleanup(): Promise<void> {
   await redis.quit();
 }
+`
+    : `import Redis from 'ioredis';
+
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD || undefined,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  }
+});
+
+export async function acquireLock(lockKey, ttl = 60000) {
+  try {
+    const result = await redis.set(
+      lockKey,
+      process.env.INSTANCE_ID || process.pid.toString(),
+      'PX',
+      ttl,
+      'NX'
+    );
+    return result === 'OK';
+  } catch (error) {
+    console.error('Failed to acquire lock:', error);
+    return false;
+  }
+}
+
+export async function releaseLock(lockKey) {
+  try {
+    await redis.del(lockKey);
+  } catch (error) {
+    console.error('Failed to release lock:', error);
+  }
+}
+
+export async function cleanup() {
+  await redis.quit();
+}
 `;
 }
 
-function generatePostgresAdapter(): string {
-  return `import { pool } from '../db/index.js';
+function generatePostgresAdapter(isTS: boolean): string {
+  return isTS
+    ? `import { pool } from '../db/index.js';
 
 export async function acquireLock(lockKey: string, ttl: number = 60000): Promise<boolean> {
   const client = await pool.connect();
@@ -116,7 +163,7 @@ export async function acquireLock(lockKey: string, ttl: number = 60000): Promise
       [lockKey, instanceId, expiresAt]
     );
 
-    if (result.rowCount > 0) {
+    if (result.rowCount && result.rowCount > 0) {
       return true;
     }
 
@@ -128,7 +175,7 @@ export async function acquireLock(lockKey: string, ttl: number = 60000): Promise
       [lockKey]
     );
 
-    if (expiredResult.rowCount > 0) {
+    if (expiredResult.rowCount && expiredResult.rowCount > 0) {
       // Try to acquire again
       const retryResult = await client.query(
         \`INSERT INTO cron_locks (lock_key, instance_id, expires_at)
@@ -137,7 +184,7 @@ export async function acquireLock(lockKey: string, ttl: number = 60000): Promise
          RETURNING lock_key\`,
         [lockKey, instanceId, expiresAt]
       );
-      return retryResult.rowCount > 0;
+      return retryResult.rowCount !== null && retryResult.rowCount > 0;
     }
 
     return false;
@@ -168,11 +215,82 @@ export async function cleanup(): Promise<void> {
     console.error('Failed to cleanup locks:', error);
   }
 }
+`
+    : `import { pool } from '../db/index.js';
+
+export async function acquireLock(lockKey, ttl = 60000) {
+  const client = await pool.connect();
+  try {
+    const expiresAt = new Date(Date.now() + ttl);
+    const instanceId = process.env.INSTANCE_ID || process.pid.toString();
+
+    // Try to insert lock
+    const result = await client.query(
+      \`INSERT INTO cron_locks (lock_key, instance_id, expires_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (lock_key) DO NOTHING
+       RETURNING lock_key\`,
+      [lockKey, instanceId, expiresAt]
+    );
+
+    if (result.rowCount && result.rowCount > 0) {
+      return true;
+    }
+
+    // Check if existing lock is expired
+    const expiredResult = await client.query(
+      \`DELETE FROM cron_locks
+       WHERE lock_key = $1 AND expires_at < NOW()
+       RETURNING lock_key\`,
+      [lockKey]
+    );
+
+    if (expiredResult.rowCount && expiredResult.rowCount > 0) {
+      // Try to acquire again
+      const retryResult = await client.query(
+        \`INSERT INTO cron_locks (lock_key, instance_id, expires_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (lock_key) DO NOTHING
+         RETURNING lock_key\`,
+        [lockKey, instanceId, expiresAt]
+      );
+      return retryResult.rowCount !== null && retryResult.rowCount > 0;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Failed to acquire lock:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function releaseLock(lockKey) {
+  try {
+    await pool.query(
+      'DELETE FROM cron_locks WHERE lock_key = $1',
+      [lockKey]
+    );
+  } catch (error) {
+    console.error('Failed to release lock:', error);
+  }
+}
+
+export async function cleanup() {
+  // Cleanup expired locks
+  try {
+    await pool.query('DELETE FROM cron_locks WHERE expires_at < NOW()');
+  } catch (error) {
+    console.error('Failed to cleanup locks:', error);
+  }
+}
 `;
 }
 
-function generateMySQLAdapter(): string {
-  return `import { pool } from '../db/index.js';
+function generateMySQLAdapter(isTS: boolean): string {
+  return isTS
+    ? `import { pool } from '../db/index.js';
 
 export async function acquireLock(lockKey: string, ttl: number = 60000): Promise<boolean> {
   const connection = await pool.getConnection();
@@ -236,11 +354,77 @@ export async function cleanup(): Promise<void> {
     console.error('Failed to cleanup locks:', error);
   }
 }
+`
+    : `import { pool } from '../db/index.js';
+
+export async function acquireLock(lockKey, ttl = 60000) {
+  const connection = await pool.getConnection();
+  try {
+    const expiresAt = new Date(Date.now() + ttl);
+    const instanceId = process.env.INSTANCE_ID || process.pid.toString();
+
+    // Try to insert lock
+    const [result] = await connection.query(
+      \`INSERT IGNORE INTO cron_locks (lock_key, instance_id, expires_at)
+       VALUES (?, ?, ?)\`,
+      [lockKey, instanceId, expiresAt]
+    );
+
+    if (result.affectedRows > 0) {
+      return true;
+    }
+
+    // Check if existing lock is expired
+    const [expiredResult] = await connection.query(
+      \`DELETE FROM cron_locks
+       WHERE lock_key = ? AND expires_at < NOW()\`,
+      [lockKey]
+    );
+
+    if (expiredResult.affectedRows > 0) {
+      // Try to acquire again
+      const [retryResult] = await connection.query(
+        \`INSERT IGNORE INTO cron_locks (lock_key, instance_id, expires_at)
+         VALUES (?, ?, ?)\`,
+        [lockKey, instanceId, expiresAt]
+      );
+      return retryResult.affectedRows > 0;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Failed to acquire lock:', error);
+    return false;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function releaseLock(lockKey) {
+  try {
+    await pool.query(
+      'DELETE FROM cron_locks WHERE lock_key = ?',
+      [lockKey]
+    );
+  } catch (error) {
+    console.error('Failed to release lock:', error);
+  }
+}
+
+export async function cleanup() {
+  // Cleanup expired locks
+  try {
+    await pool.query('DELETE FROM cron_locks WHERE expires_at < NOW()');
+  } catch (error) {
+    console.error('Failed to cleanup locks:', error);
+  }
+}
 `;
 }
 
-function generateFileAdapter(): string {
-  return `import * as fs from 'fs-extra';
+function generateFileAdapter(isTS: boolean): string {
+  return isTS
+    ? `import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -324,6 +508,86 @@ export async function cleanup(): Promise<void> {
     console.error('Failed to cleanup locks:', error);
   }
 }
+`
+    : `import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as os from 'os';
+
+const LOCK_DIR = path.join(os.tmpdir(), 'cron-locks');
+
+// Ensure lock directory exists
+fs.ensureDirSync(LOCK_DIR);
+
+export async function acquireLock(lockKey, ttl = 60000) {
+  const lockPath = path.join(LOCK_DIR, \`\${lockKey}.lock\`);
+  const instanceId = process.env.INSTANCE_ID || process.pid.toString();
+  const expiresAt = Date.now() + ttl;
+
+  try {
+    // Check if lock file exists
+    if (await fs.pathExists(lockPath)) {
+      const lockData = await fs.readJSON(lockPath);
+      
+      // Check if lock is expired
+      if (lockData.expiresAt < Date.now()) {
+        // Lock expired, remove it
+        await fs.remove(lockPath);
+      } else {
+        // Lock still valid
+        return false;
+      }
+    }
+
+    // Try to create lock file
+    await fs.writeJSON(lockPath, {
+      instanceId,
+      expiresAt
+    }, { flag: 'wx' }); // wx = create new file, fail if exists
+
+    return true;
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      // Another process created the lock
+      return false;
+    }
+    console.error('Failed to acquire lock:', error);
+    return false;
+  }
+}
+
+export async function releaseLock(lockKey) {
+  const lockPath = path.join(LOCK_DIR, \`\${lockKey}.lock\`);
+  try {
+    await fs.remove(lockPath);
+  } catch (error) {
+    console.error('Failed to release lock:', error);
+  }
+}
+
+export async function cleanup() {
+  // Cleanup expired locks
+  try {
+    const files = await fs.readdir(LOCK_DIR);
+    const now = Date.now();
+
+    for (const file of files) {
+      if (!file.endsWith('.lock')) continue;
+
+      const lockPath = path.join(LOCK_DIR, file);
+      try {
+        const lockData = await fs.readJSON(lockPath);
+        if (lockData.expiresAt < now) {
+          await fs.remove(lockPath);
+        }
+      } catch (error) {
+        // Invalid lock file, remove it
+        await fs.remove(lockPath);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to cleanup locks:', error);
+  }
+}
 `;
 }
 
@@ -389,4 +653,159 @@ DELIMITER ;
     path.join(projectPath, `migrations/cron_locks.sql`),
     schemaContent
   );
+}
+
+
+function generateSupabaseAdapter(isTS: boolean): string {
+  return isTS
+    ? `import { supabase } from '../helpers/supabase.helper.js';
+
+export async function acquireLock(lockKey: string, ttl: number = 60000): Promise<boolean> {
+  try {
+    const expiresAt = new Date(Date.now() + ttl).toISOString();
+    const instanceId = process.env.INSTANCE_ID || process.pid.toString();
+
+    // Try to insert lock
+    const { data, error } = await supabase
+      .from('cron_locks')
+      .insert({
+        lock_key: lockKey,
+        instance_id: instanceId,
+        expires_at: expiresAt
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      return true;
+    }
+
+    // Check if existing lock is expired
+    const { data: expiredData, error: expiredError } = await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('lock_key', lockKey)
+      .lt('expires_at', new Date().toISOString())
+      .select();
+
+    if (!expiredError && expiredData && expiredData.length > 0) {
+      // Try to acquire again
+      const { data: retryData, error: retryError } = await supabase
+        .from('cron_locks')
+        .insert({
+          lock_key: lockKey,
+          instance_id: instanceId,
+          expires_at: expiresAt
+        })
+        .select()
+        .single();
+
+      return !retryError && !!retryData;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Failed to acquire lock:', error);
+    return false;
+  }
+}
+
+export async function releaseLock(lockKey: string): Promise<void> {
+  try {
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('lock_key', lockKey);
+  } catch (error) {
+    console.error('Failed to release lock:', error);
+  }
+}
+
+export async function cleanup(): Promise<void> {
+  // Cleanup expired locks
+  try {
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .lt('expires_at', new Date().toISOString());
+  } catch (error) {
+    console.error('Failed to cleanup locks:', error);
+  }
+}
+`
+    : `import { supabase } from '../helpers/supabase.helper.js';
+
+export async function acquireLock(lockKey, ttl = 60000) {
+  try {
+    const expiresAt = new Date(Date.now() + ttl).toISOString();
+    const instanceId = process.env.INSTANCE_ID || process.pid.toString();
+
+    // Try to insert lock
+    const { data, error } = await supabase
+      .from('cron_locks')
+      .insert({
+        lock_key: lockKey,
+        instance_id: instanceId,
+        expires_at: expiresAt
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      return true;
+    }
+
+    // Check if existing lock is expired
+    const { data: expiredData, error: expiredError } = await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('lock_key', lockKey)
+      .lt('expires_at', new Date().toISOString())
+      .select();
+
+    if (!expiredError && expiredData && expiredData.length > 0) {
+      // Try to acquire again
+      const { data: retryData, error: retryError } = await supabase
+        .from('cron_locks')
+        .insert({
+          lock_key: lockKey,
+          instance_id: instanceId,
+          expires_at: expiresAt
+        })
+        .select()
+        .single();
+
+      return !retryError && !!retryData;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Failed to acquire lock:', error);
+    return false;
+  }
+}
+
+export async function releaseLock(lockKey) {
+  try {
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('lock_key', lockKey);
+  } catch (error) {
+    console.error('Failed to release lock:', error);
+  }
+}
+
+export async function cleanup() {
+  // Cleanup expired locks
+  try {
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .lt('expires_at', new Date().toISOString());
+  } catch (error) {
+    console.error('Failed to cleanup locks:', error);
+  }
+}
+`;
 }

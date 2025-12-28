@@ -1,6 +1,6 @@
 {
   "name": "nod-cli",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Backend scaffolding CLI for Express, Hono, and more - with best practices built-in",
   "main": "./dist/index.js",
   "type": "module",
@@ -19,7 +19,9 @@
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "prepublishOnly": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:e2e": "node scripts/e2e-test.js",
+    "test:e2e:cleanup": "node scripts/e2e-test.js --cleanup"
   },
   "files": [
     "dist",
@@ -43,7 +45,12 @@
     "generator",
     "boilerplate",
     "route-builder",
-    "nod-cli"
+    "nod-cli",
+    "supabase",
+    "drizzle",
+    "langfuse",
+    "ai",
+    "rag"
   ],
   "author": "",
   "license": "MIT",
