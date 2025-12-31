@@ -64,7 +64,7 @@
   "bugs": {
     "url": "https://github.com/mshivam019/nod-cli/issues"
   },
-  "homepage": "https://github.com/mshivam019/nod-cli#readme",
+  "homepage": "https://mshivam019.github.io/nod-cli/",
   "engines": {
     "node": ">=18.0.0"
   },
