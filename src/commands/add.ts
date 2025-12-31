@@ -383,22 +383,8 @@ export async function addComponent(component: string, options: any) {
       
       // Langfuse
       if (chatConfig.langfuse) {
-        deps['langfuse-langchain'] = '^3.3.0';
-        deps['langchain'] = '^0.3.0'; // Required peer dependency for langfuse-langchain
-      }
-      
-      // Database dependencies
-      if (chatConfig.chatDatabase === 'supabase') {
-        deps['@supabase/supabase-js'] = '^2.39.0';
-      } else if (chatConfig.chatDatabase === 'pg') {
-        deps['pg'] = '^8.11.0';
-      } else if (chatConfig.chatDatabase === 'mysql') {
-        deps['mysql2'] = '^3.6.0';
-      }
-      
-      // Langfuse
-      if (chatConfig.langfuse) {
-        deps['langfuse-langchain'] = '^3.3.0';
+        deps['langfuse-langchain'] = '^3.37.0';
+        deps['langchain'] = '^0.3.27'; // Required peer dependency for langfuse-langchain
       }
       
       packageJson.dependencies = {
@@ -539,7 +525,7 @@ export async function addComponent(component: string, options: any) {
     try {
       packageJson.dependencies = {
         ...packageJson.dependencies,
-        'langfuse-langchain': '^3.3.0'
+        'langfuse-langchain': '^3.37.0'
       };
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
