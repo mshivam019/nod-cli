@@ -17,20 +17,22 @@ export async function initProject(name?: string, options?: any) {
   // Check for non-interactive mode (--yes or -y flag, or CI environment)
   const isNonInteractive = options?.yes || options?.y || process.env.CI === 'true';
   
-  // Determine which preset to use
+  // Determine which preset to use from CLI or default
   let presetToUse = options?.preset;
-  if (!presetToUse && isNonInteractive && defaultPreset) {
+  if (!presetToUse && defaultPreset) {
     presetToUse = defaultPreset;
   }
   
-  // If non-interactive and we have all required options, skip prompts
-  if (isNonInteractive && name && presetToUse && options?.framework) {
+  // If non-interactive and we have name and preset, skip ALL prompts
+  if (isNonInteractive && name && presetToUse) {
     const presetDefaults = await getPresetDefaults(presetToUse, presetsConfig);
-    const isTS = options.ts !== false;
+    // Default to TypeScript (true) unless --no-ts was explicitly passed (options.ts === false)
+    const isTS = options?.ts !== false;
+    const framework = options?.framework || 'express';
     
     config = {
       name,
-      framework: options.framework || 'express',
+      framework,
       typescript: isTS,
       database: presetDefaults.database || 'pg',
       auth: presetDefaults.auth || 'jwt',
@@ -53,7 +55,10 @@ export async function initProject(name?: string, options?: any) {
         rag: presetDefaults.ai?.rag ?? false,
         chat: presetDefaults.ai?.chat ?? false,
         langfuse: presetDefaults.ai?.langfuse ?? false,
-        embeddings: presetDefaults.ai?.rag ? 'openai' : 'none',
+        embeddings: presetDefaults.ai?.rag ? (presetDefaults.ai?.embeddings || 'openai') : 'none',
+        vectorStore: presetDefaults.ai?.rag ? (presetDefaults.ai?.vectorStore || 'supabase') : 'none',
+        llmProvider: presetDefaults.ai?.chat ? (presetDefaults.ai?.llmProvider || 'openai') : 'none',
+        chatDatabase: presetDefaults.ai?.chat ? (presetDefaults.ai?.chatDatabase || 'supabase') : 'none',
       },
       deployment: {
         vercel: presetDefaults.deployment?.vercel ?? false,
@@ -113,14 +118,14 @@ export async function initProject(name?: string, options?: any) {
       initial: 'my-backend'
     },
     {
-      type: 'select',
+      type: presetToUse ? null : 'select',
       name: 'preset',
       message: `Choose a preset:${defaultPreset ? chalk.gray(` (default: ${defaultPreset})`) : ''}`,
       choices: presetChoices,
       initial: initialPresetIndex
     },
     {
-      type: 'select',
+      type: options?.framework ? null : 'select',
       name: 'framework',
       message: 'Choose your framework:',
       choices: [
@@ -130,7 +135,7 @@ export async function initProject(name?: string, options?: any) {
       initial: 0
     },
     {
-      type: 'confirm',
+      type: (options?.ts !== undefined) ? null : 'confirm',
       name: 'typescript',
       message: 'Use TypeScript?',
       initial: true
@@ -212,10 +217,55 @@ export async function initProject(name?: string, options?: any) {
       initial: (values: any) => values.preset === 'ai'
     },
     {
+      type: (_prev, values) => (values.preset === 'custom' || values.preset === 'ai') && values.rag ? 'select' : null,
+      name: 'embeddingProvider',
+      message: 'Choose embedding provider for RAG:',
+      choices: [
+        { title: 'OpenAI (text-embedding-3-small)', value: 'openai' },
+        { title: 'Google Gemini (embedding-001)', value: 'gemini' },
+        { title: 'Cohere (embed-english-v3.0)', value: 'cohere' }
+      ],
+      initial: 0
+    },
+    {
+      type: (_prev, values) => (values.preset === 'custom' || values.preset === 'ai') && values.rag ? 'select' : null,
+      name: 'vectorStore',
+      message: 'Choose vector store for RAG:',
+      choices: [
+        { title: 'Supabase (pgvector)', value: 'supabase' },
+        { title: 'Pinecone', value: 'pinecone' },
+        { title: 'Chroma (local/self-hosted)', value: 'chroma' },
+        { title: 'Weaviate', value: 'weaviate' }
+      ],
+      initial: 0
+    },
+    {
       type: (_prev, values) => values.preset === 'custom' || values.preset === 'ai' ? 'confirm' : null,
       name: 'chat',
       message: 'Include Chat service?',
       initial: (values: any) => values.preset === 'ai'
+    },
+    {
+      type: (_prev, values) => (values.preset === 'custom' || values.preset === 'ai') && values.chat ? 'select' : null,
+      name: 'llmProvider',
+      message: 'Choose LLM provider for Chat:',
+      choices: [
+        { title: 'OpenAI (GPT-4o, GPT-4o-mini)', value: 'openai' },
+        { title: 'Anthropic (Claude 3.5)', value: 'anthropic' },
+        { title: 'Google Gemini (Gemini Pro)', value: 'gemini' }
+      ],
+      initial: 0
+    },
+    {
+      type: (_prev, values) => (values.preset === 'custom' || values.preset === 'ai') && values.chat ? 'select' : null,
+      name: 'chatDatabase',
+      message: 'Choose database for chat history:',
+      choices: [
+        { title: 'Supabase (PostgreSQL)', value: 'supabase' },
+        { title: 'PostgreSQL (direct)', value: 'pg' },
+        { title: 'MySQL', value: 'mysql' }
+      ],
+      initial: 0
     },
     {
       type: (_prev, values) => (values.preset === 'custom' || values.preset === 'ai') && (values.rag || values.chat) ? 'confirm' : null,
@@ -254,17 +304,21 @@ export async function initProject(name?: string, options?: any) {
     process.exit(1);
   }
 
-  // Apply preset defaults
-  const presetDefaults = await getPresetDefaults(response.preset || 'api', presetsConfig);
+  // Apply preset defaults - use CLI option if provided
+  const selectedPreset = presetToUse || response.preset || 'api';
+  const presetDefaults = await getPresetDefaults(selectedPreset, presetsConfig);
+  
+  // Determine TypeScript setting from CLI flags (--no-ts sets options.ts to false)
+  const useTypeScript = options?.ts !== undefined ? options.ts : (response.typescript !== false);
   
   config = {
     name: name || response.name,
-    framework: response.framework || 'express',
-    typescript: response.typescript !== false,
+    framework: options?.framework || response.framework || 'express',
+    typescript: useTypeScript,
     database: response.database || presetDefaults.database || 'pg',
     auth: response.auth || presetDefaults.auth || 'jwt',
     queue: response.queue || presetDefaults.queue || 'none',
-    preset: response.preset || 'api',
+    preset: selectedPreset,
     orm: response.orm || presetDefaults.orm || 'raw',
     features: {
       cron: response.cron ?? presetDefaults.features?.cron ?? false,
@@ -282,7 +336,10 @@ export async function initProject(name?: string, options?: any) {
       rag: response.rag ?? presetDefaults.ai?.rag ?? false,
       chat: response.chat ?? presetDefaults.ai?.chat ?? false,
       langfuse: response.langfuse ?? presetDefaults.ai?.langfuse ?? false,
-      embeddings: (response.rag || presetDefaults.ai?.rag) ? 'openai' : 'none',
+      embeddings: response.embeddingProvider || (response.rag || presetDefaults.ai?.rag ? 'openai' : 'none'),
+      vectorStore: response.vectorStore || (response.rag || presetDefaults.ai?.rag ? 'supabase' : 'none'),
+      llmProvider: response.llmProvider || (response.chat || presetDefaults.ai?.chat ? 'openai' : 'none'),
+      chatDatabase: response.chatDatabase || (response.chat || presetDefaults.ai?.chat ? 'supabase' : 'none'),
     },
     deployment: {
       vercel: response.vercelCron ?? presetDefaults.deployment?.vercel ?? false,

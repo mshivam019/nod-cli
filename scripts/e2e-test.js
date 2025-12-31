@@ -456,19 +456,52 @@ async function testAddCommands(projectPath) {
   const addCommands = [
     'vercel-cron',
     'github-actions',
-    'supabase',
     'drizzle',
     'langfuse',
   ];
   
   const errors = [];
   
+  // Non-interactive commands
   for (const cmd of addCommands) {
     log(`Testing: nod add ${cmd}`, 'info');
     const result = runCommand(`node "${CLI_PATH}" add ${cmd}`, projectPath, true);
     if (!result.success) {
       errors.push(`add ${cmd} failed: ${result.error}`);
     }
+  }
+
+  // Supabase (Interactive - asks for auth)
+  log(`Testing: nod add supabase`, 'info');
+  const supabaseResult = await runInteractiveCommand(
+    `node "${CLI_PATH}" add supabase`, 
+    projectPath, 
+    ['y'] // Yes to auth
+  );
+  if (!supabaseResult.success) {
+    errors.push(`add supabase failed: ${supabaseResult.error}`);
+  }
+
+  // Interactive tests for RAG
+  log(`Testing: nod add rag`, 'info');
+  const ragResult = await runInteractiveCommand(
+    `node "${CLI_PATH}" add rag`, 
+    projectPath, 
+    ['\r', '\r', 'y'] // OpenAI, Supabase, Yes to routes
+  );
+  if (!ragResult.success) {
+    errors.push(`add rag failed: ${ragResult.error}\nOutput: ${ragResult.output}`);
+  }
+
+  // Interactive tests for Chat
+  log(`Testing: nod add chat`, 'info');
+  const chatResult = await runInteractiveCommand(
+    `node "${CLI_PATH}" add chat`, 
+    projectPath, 
+    ['\r', '\r', 'y', 'y'] // OpenAI, Supabase, Yes to Langfuse, Yes to routes
+  );
+  if (!chatResult.success) {
+    errors.push(`add chat failed: ${chatResult.error}\nOutput: ${chatResult.output}`);
   }
   
   return errors;

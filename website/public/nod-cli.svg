@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="12" fill="#18181b"/>
+  <text x="50" y="62" font-family="system-ui, sans-serif" font-size="32" font-weight="bold" fill="#fafafa" text-anchor="middle">nod</text>
+  <path d="M75 25 L80 30 L75 35" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -388,8 +388,8 @@ export default jwtAuth;
  * Permission middleware that checks user role based on source
  * Permission structure from JWT payload (req.user.app_metadata.permission):
  * {
- *   "abg": "org_admin",
- *   "hul": "org_admin", 
+ *   "icici": "org_admin",
+ *   "hdfc": "org_admin", 
  *   "default": "org_admin"
  * }
  */
@@ -450,8 +450,8 @@ export default checkPermission;
  * Permission middleware that checks user role based on source
  * Permission structure from JWT payload (req.user.app_metadata.permission):
  * {
- *   "abg": "org_admin",
- *   "hul": "org_admin", 
+ *   "icici": "org_admin",
+ *   "hdfc": "org_admin",
  *   "default": "org_admin"
  * }
  */

@@ -1,6 +1,6 @@
 {
   "name": "nod-cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Backend scaffolding CLI for Express, Hono, and more - with best practices built-in",
   "main": "./dist/index.js",
   "type": "module",
@@ -52,16 +52,19 @@
     "ai",
     "rag"
   ],
-  "author": "",
+  "author": {
+    "name": "mshivam019",
+    "url": "https://github.com/mshivam019"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/nod-cli.git"
+    "url": "https://github.com/mshivam019/nod-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/nod-cli/issues"
+    "url": "https://github.com/mshivam019/nod-cli/issues"
   },
-  "homepage": "https://github.com/yourusername/nod-cli#readme",
+  "homepage": "https://github.com/mshivam019/nod-cli#readme",
   "engines": {
     "node": ">=18.0.0"
   },

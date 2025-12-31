@@ -17,13 +17,16 @@ nod init my-api
 # Or use shorthand
 nod my-api
 
-# Non-interactive with preset
+# Non-interactive with preset (TypeScript by default)
 nod init my-api --preset 1 --framework express --yes
+
+# Non-interactive with JavaScript
+nod init my-api --preset api --no-ts --yes
 
 # Follow the interactive prompts to configure:
 # - Preset (minimal, api, full, ai, 1, or custom presets)
 # - Framework (Express/Hono)
-# - TypeScript
+# - TypeScript/JavaScript
 # - Database (PostgreSQL/MySQL/Supabase/None)
 # - ORM (Drizzle/Raw SQL)
 # - Authentication (JWT/JWKS/Supabase/None)
@@ -78,13 +81,38 @@ nod init my-api --preset mystack --yes
 nod init <project-name>
 # or shorthand
 nod <project-name>
+```
 
-# Options:
-#   --framework <framework>  express or hono (default: express)
-#   --ts                     Use TypeScript (default: true)
-#   --no-ts                  Use JavaScript
-#   --preset <preset>        Preset name
-#   -y, --yes                Skip prompts, use defaults
+#### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--framework <framework>` | Web framework: `express` or `hono` | `express` |
+| `--ts` | Use TypeScript | `true` |
+| `--no-ts` | Use JavaScript instead of TypeScript | - |
+| `--db <database>` | Database: `pg`, `mysql`, `supabase`, or `none` | `pg` |
+| `--auth <auth>` | Auth: `jwt`, `jwks`, `supabase`, or `none` | `jwt` |
+| `--queue <queue>` | Queue: `bull` or `none` | `none` |
+| `--preset <preset>` | Use a preset configuration | - |
+| `-y, --yes` | Skip prompts, use defaults | - |
+
+#### Examples
+
+```bash
+# Interactive mode
+nod init my-api
+
+# TypeScript with preset 1 (non-interactive)
+nod my-api --preset 1 --yes
+
+# JavaScript project with API preset
+nod init my-api --preset api --no-ts --yes
+
+# Hono framework with Supabase
+nod init my-api --framework hono --db supabase --auth supabase --yes
+
+# Minimal JavaScript project
+nod my-api --preset minimal --no-ts --yes
 ```
 
 ### Add Components
@@ -186,28 +214,42 @@ my-api/
 │   ├── services/        # Business logic
 │   ├── middleware/      # Custom middleware
 │   ├── config/          # App configuration
-│   ├── helpers/         # Utilities
-│   ├── utils/           # Utility modules
+│   ├── helpers/         # Utilities (route-builder, etc.)
+│   ├── utils/           # Utility modules (logger, etc.)
 │   ├── db/              # Database connection & schema
 │   ├── environments/    # Staging/production configs
-│   └── cron/            # Cron jobs
+│   ├── cron/            # Cron jobs
+│   └── types/           # TypeScript types (TS only)
+├── docs/                # Project documentation & plans
+│   └── README.md        # Documentation index
+├── temp/                # Temporary output files (git-ignored)
 ├── sql/                 # SQL schema files
-├── .env.example
+├── .github/             # GitHub workflows
+├── .env.example         # Environment variables template
+├── .gitignore
 ├── package.json
-├── tsconfig.json
-├── drizzle.config.ts    # If using Drizzle
-├── vercel.json          # If using Vercel cron
-├── Dockerfile
-├── docker-compose.yml
-└── ecosystem.config.js
+├── tsconfig.json        # TypeScript config (TS only)
+├── drizzle.config.ts    # Drizzle config (if using Drizzle)
+├── vercel.json          # Vercel config (if using Vercel cron)
+├── Dockerfile           # Docker config (if enabled)
+├── docker-compose.yml   # Docker Compose (if enabled)
+├── ecosystem.config.js  # PM2 config (if enabled)
+└── README.md            # Project README
 ```
+
+### Special Folders
+
+| Folder | Purpose |
+|--------|---------|
+| `docs/` | Project documentation, architecture decisions, API docs, and development plans. Committed to git. |
+| `temp/` | Temporary output files (PDFs, exports, generated files). Git-ignored. |
 
 ## Configuration Options
 
 | Option | Choices | Description |
 |--------|---------|-------------|
 | Framework | Express, Hono | Web framework |
-| TypeScript | Yes, No | Type safety |
+| TypeScript | Yes, No | Type safety (use `--no-ts` for JavaScript) |
 | Database | PostgreSQL, MySQL, Supabase, None | Database driver |
 | ORM | Drizzle, Raw SQL, None | ORM choice |
 | Auth | JWT, JWKS, Supabase, None | Authentication method |
@@ -225,10 +267,12 @@ my-api/
 
 ### Core
 - **Declarative Routes** - Clean, configuration-based route definitions
-- **Type Safety** - Full TypeScript support
+- **Type Safety** - Full TypeScript support (or plain JavaScript with `--no-ts`)
 - **PM2 Cluster Mode** - Thread-safe cron jobs with distributed locking
 - **Docker Ready** - Dockerfile and docker-compose included
-- **Zod Validation** - Runtime config validation
+- **Zod Validation** - Runtime config validation (TypeScript only)
+- **Documentation Folder** - Built-in `docs/` folder for project documentation
+- **Temp Output Folder** - Git-ignored `temp/` folder for generated files
 
 ### Database
 - **Supabase Integration** - Full Supabase client with storage helpers
@@ -259,11 +303,32 @@ cp .env.example .env
 npm run dev
 ```
 
+### Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server with hot reload |
+| `npm run build` | Build for production (TypeScript only) |
+| `npm start` | Start production server |
+| `npm run lint` | Lint code with ESLint |
+| `npm run format` | Format code with Prettier |
+| `npm test` | Run tests (if testing enabled) |
+
 ### Production
 
 ```bash
 npm run build
 pm2 start ecosystem.config.js
+```
+
+### PM2 Commands
+
+```bash
+npm run start:pm2    # Start with PM2
+npm run stop:pm2     # Stop PM2 processes
+npm run restart:pm2  # Restart PM2 processes
+npm run logs:pm2     # View PM2 logs
+npm run monit:pm2    # Monitor PM2 processes
 ```
 
 ### Drizzle Commands
@@ -274,22 +339,19 @@ npm run db:push      # Push to database
 npm run db:studio    # Open Drizzle Studio
 ```
 
-## Changelog
+## CI/CD & Non-Interactive Mode
 
-### v0.3.0
-- Added custom preset management (`nod preset` commands)
-- Added default preset support
-- Added `nod init` command (with `nod <name>` shorthand)
-- Fixed Langchain dependency conflicts
-- Fixed TypeScript compilation issues
-- Improved non-interactive mode with `--yes` flag
-- Added API audit logging feature
-- Updated AI dependencies to compatible versions
+For CI/CD pipelines, use the `--yes` flag to skip all prompts:
 
-### v0.2.0
-- Initial release with Express/Hono support
-- Supabase, Drizzle, Langfuse integrations
-- Transform command for existing projects
+```bash
+# In CI environment
+nod init my-api --preset api --yes
+
+# With specific options
+nod init my-api --preset 1 --framework express --no-ts --yes
+```
+
+The CLI also respects the `CI` environment variable - when `CI=true`, it automatically uses non-interactive mode.
 
 ## License
 

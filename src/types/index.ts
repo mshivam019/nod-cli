@@ -6,11 +6,20 @@ export type Preset = 'minimal' | 'api' | 'full' | 'ai' | '1' | 'custom';
 export type CronLock = 'pg' | 'mysql' | 'redis' | 'file' | 'supabase';
 export type ORM = 'drizzle' | 'raw' | 'none';
 
+// AI-related types
+export type EmbeddingProvider = 'openai' | 'gemini' | 'cohere' | 'none';
+export type VectorStore = 'supabase' | 'pinecone' | 'chroma' | 'weaviate' | 'none';
+export type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'none';
+export type ChatDatabase = 'supabase' | 'pg' | 'mysql' | 'none';
+
 export interface AIFeatures {
   rag?: boolean;
   chat?: boolean;
   langfuse?: boolean;
-  embeddings?: 'openai' | 'none';
+  embeddings?: EmbeddingProvider;
+  vectorStore?: VectorStore;
+  llmProvider?: LLMProvider;
+  chatDatabase?: ChatDatabase;
 }
 
 export interface DeploymentFeatures {

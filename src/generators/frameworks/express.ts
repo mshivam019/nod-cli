@@ -314,70 +314,224 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const isTS = ext === 'ts';
   
-  // Simple route file - no complex declarative system
-  // Only import auditLogger if both supabase auth AND apiAudit are enabled
-  const useAuditLogger = ctx.hasSupabaseAuth && ctx.hasApiAudit;
+  // Generate route-builder helper for Express
+  await generateExpressRouteBuilder(projectPath, ctx);
   
-  const routeContent = ctx.hasSupabaseAuth 
+  // Generate router config
+  await generateExpressRouterConfig(projectPath, ctx);
+  
+  // Build default middlewares list for route file
+  const defaultMiddlewares: string[] = [];
+  if (ctx.hasSupabaseAuth) {
+    defaultMiddlewares.push('jwtAuth');
+  }
+  if (ctx.hasSupabaseAuth && ctx.hasApiAudit) {
+    defaultMiddlewares.push('auditLogger');
+  }
+  if (ctx.hasSourceConfig) {
+    defaultMiddlewares.push('sourceSelection');
+  }
+  
+  const middlewareListStr = defaultMiddlewares.map(m => `'${m}'`).join(', ');
+  
+  // Generate routes using declarative pattern with METHODS.GET style
+  // defaultMiddlewares and defaultRoles arrays directly in the route file
+  const routeContent = isTS
     ? `import { Router } from 'express';
-import jwtAuth from '../middleware/jwtAuth.middleware.js';
-${useAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
+import { createConfiguredRouter, METHODS } from '../config/router.js';
 import { exampleController } from '../controllers/example.js';
 
 export const router = Router();
 
-// Protected routes (require auth${useAuditLogger ? ' + audit' : ''})
-router.get('/example', jwtAuth, ${useAuditLogger ? 'auditLogger, ' : ''}exampleController.getExample);
+/**
+ * Default middlewares applied to all routes in this file
+ * Can be overridden per-route using disabled/enabled arrays
+ */
+const defaultMiddlewares: string[] = [${middlewareListStr}];
 
-// Add more routes here:
-// router.post('/example', jwtAuth, ${useAuditLogger ? 'auditLogger, ' : ''}exampleController.createExample);
-// router.put('/example/:id', jwtAuth, ${useAuditLogger ? 'auditLogger, ' : ''}exampleController.updateExample);
-// router.delete('/example/:id', jwtAuth, ${useAuditLogger ? 'auditLogger, ' : ''}exampleController.deleteExample);
+/**
+ * Default roles - empty means no role restriction
+ * Can be overridden per-route using roles/excludeRoles arrays
+ */
+const defaultRoles: string[] = [];
+
+/**
+ * Route definitions with declarative middleware and role configuration
+ * 
+ * Each route can have:
+ * - method: METHODS.GET, METHODS.POST, etc.
+ * - path: Route path
+ * - handler: Controller method
+ * - disabled: Array of middleware names to exclude from defaults
+ * - enabled: Array of additional middleware names to include
+ * - roles: Override default roles (e.g., ['admin', 'superAdmin'])
+ * - excludeRoles: Roles to exclude from defaults
+ */
+const routes = [
+  // Protected route (uses all default middlewares)
+  {
+    method: METHODS.GET,
+    path: '/example',
+    handler: exampleController.getExample
+  },
+  
+  // Public route (disable jwtAuth)
+  {
+    method: METHODS.GET,
+    path: '/public',
+    handler: exampleController.getPublic,
+    disabled: ['jwtAuth', 'auditLogger']
+  },
+  
+  // Admin only route
+  {
+    method: METHODS.POST,
+    path: '/admin',
+    handler: exampleController.adminAction,
+    roles: ['admin', 'superAdmin']
+  },
+];
+
+// Apply routes using the configured router
+const configuredRouter = createConfiguredRouter({ 
+  defaultMiddlewares, 
+  defaultRoles, 
+  routes 
+});
+configuredRouter.applyToExpress(router);
 `
     : `import { Router } from 'express';
+import { createConfiguredRouter, METHODS } from '../config/router.js';
 import { exampleController } from '../controllers/example.js';
 
 export const router = Router();
 
-// Routes
-router.get('/example', exampleController.getExample);
+/**
+ * Default middlewares applied to all routes in this file
+ * Can be overridden per-route using disabled/enabled arrays
+ */
+const defaultMiddlewares = [${middlewareListStr}];
 
-// Add more routes here:
-// router.post('/example', exampleController.createExample);
-// router.put('/example/:id', exampleController.updateExample);
-// router.delete('/example/:id', exampleController.deleteExample);
+/**
+ * Default roles - empty means no role restriction
+ * Can be overridden per-route using roles/excludeRoles arrays
+ */
+const defaultRoles = [];
+
+/**
+ * Route definitions with declarative middleware and role configuration
+ * 
+ * Each route can have:
+ * - method: METHODS.GET, METHODS.POST, etc.
+ * - path: Route path
+ * - handler: Controller method
+ * - disabled: Array of middleware names to exclude from defaults
+ * - enabled: Array of additional middleware names to include
+ * - roles: Override default roles (e.g., ['admin', 'superAdmin'])
+ * - excludeRoles: Roles to exclude from defaults
+ */
+const routes = [
+  // Protected route (uses all default middlewares)
+  {
+    method: METHODS.GET,
+    path: '/example',
+    handler: exampleController.getExample
+  },
+  
+  // Public route (disable jwtAuth)
+  {
+    method: METHODS.GET,
+    path: '/public',
+    handler: exampleController.getPublic,
+    disabled: ['jwtAuth', 'auditLogger']
+  },
+  
+  // Admin only route
+  {
+    method: METHODS.POST,
+    path: '/admin',
+    handler: exampleController.adminAction,
+    roles: ['admin', 'superAdmin']
+  },
+];
+
+// Apply routes using the configured router
+const configuredRouter = createConfiguredRouter({ 
+  defaultMiddlewares, 
+  defaultRoles, 
+  routes 
+});
+configuredRouter.applyToExpress(router);
 `;
 
   await fs.outputFile(path.join(projectPath, `src/routes/index.${ext}`), routeContent);
 
-  // Simple controller
+  // Controller with proper pattern - includes public and admin handlers
   const controllerContent = isTS
-    ? `import { Request, Response } from 'express';
+    ? `import { Request, Response, NextFunction } from 'express';
 import { exampleService } from '../services/example.js';
 
-export const exampleController = {
-  async getExample(_req: Request, res: Response) {
-    try {
-      const data = await exampleService.getData();
-      res.json({ success: true, data });
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  },
-};
-`
-    : `import { exampleService } from '../services/example.js';
-
-export const exampleController = {
-  async getExample(req, res) {
+const exampleController = {
+  async getExample(_req: Request, res: Response, next: NextFunction) {
     try {
       const data = await exampleService.getData();
       res.json({ success: true, data });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      next(error);
+    }
+  },
+
+  async getPublic(_req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ message: 'Public endpoint - no auth required' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async adminAction(_req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ message: 'Admin action performed' });
+    } catch (error) {
+      next(error);
     }
   },
 };
+
+export default exampleController;
+export { exampleController };
+`
+    : `import { exampleService } from '../services/example.js';
+
+const exampleController = {
+  async getExample(_req, res, next) {
+    try {
+      const data = await exampleService.getData();
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getPublic(_req, res, next) {
+    try {
+      res.json({ message: 'Public endpoint - no auth required' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async adminAction(_req, res, next) {
+    try {
+      res.json({ message: 'Admin action performed' });
+    } catch (error) {
+      next(error);
+    }
+  },
+};
+
+export default exampleController;
+export { exampleController };
 `;
 
   await fs.outputFile(path.join(projectPath, `src/controllers/example.${ext}`), controllerContent);
@@ -392,4 +546,313 @@ export const exampleController = {
 `;
 
   await fs.outputFile(path.join(projectPath, `src/services/example.${ext}`), serviceContent);
+}
+
+async function generateExpressRouteBuilder(projectPath: string, ctx: TemplateContext) {
+  const ext = ctx.fileExt;
+  const isTS = ext === 'ts';
+  
+  const content = isTS
+    ? `/**
+ * Express Declarative Route Builder
+ * 
+ * Provides a declarative way to define routes with middleware and role configuration.
+ * Default middlewares and roles are applied to all routes unless explicitly disabled.
+ */
+
+export const METHODS = {
+  GET: 'get',
+  POST: 'post',
+  PUT: 'put',
+  DELETE: 'delete',
+  PATCH: 'patch'
+} as const;
+
+export type HttpMethod = typeof METHODS[keyof typeof METHODS];
+
+export interface RouteDefinition {
+  method: HttpMethod;
+  path: string;
+  handler: Function;
+  disabled?: string[];      // Middlewares to exclude from defaults
+  enabled?: string[];       // Additional middlewares to include
+  roles?: string[];         // Override default roles
+  excludeRoles?: string[];  // Roles to exclude from defaults
+}
+
+export interface RouterConfig {
+  defaultMiddlewares: string[];
+  defaultRoles: string[];
+  routes: RouteDefinition[];
+}
+
+export class DeclarativeRouter {
+  private middlewareRegistry: Map<string, Function> = new Map();
+  private config: RouterConfig;
+
+  constructor(config: RouterConfig) {
+    this.config = config;
+  }
+
+  registerMiddleware(name: string, middleware: Function): this {
+    this.middlewareRegistry.set(name, middleware);
+    return this;
+  }
+
+  private buildMiddlewareChain(route: RouteDefinition): Function[] {
+    const chain: Function[] = [];
+    
+    let middlewares = [...this.config.defaultMiddlewares];
+    let roles = [...this.config.defaultRoles];
+
+    // Remove disabled middlewares
+    if (route.disabled) {
+      middlewares = middlewares.filter(m => !route.disabled!.includes(m));
+    }
+
+    // Add enabled middlewares
+    if (route.enabled) {
+      middlewares.push(...route.enabled);
+    }
+
+    // Handle roles
+    if (route.excludeRoles) {
+      roles = roles.filter(r => !route.excludeRoles!.includes(r));
+    }
+
+    if (route.roles) {
+      roles = route.roles;
+    }
+
+    // Build middleware chain
+    for (const name of middlewares) {
+      const middleware = this.middlewareRegistry.get(name);
+      if (middleware) {
+        chain.push(middleware);
+      }
+    }
+
+    // Add role check if roles are specified
+    if (roles.length > 0) {
+      const roleMiddleware = this.middlewareRegistry.get('roleCheck');
+      if (roleMiddleware) {
+        chain.push((roleMiddleware as any)(roles));
+      }
+    }
+
+    return chain;
+  }
+
+  applyToExpress(router: any): void {
+    for (const route of this.config.routes) {
+      const middlewares = this.buildMiddlewareChain(route);
+      router[route.method](route.path, ...middlewares, route.handler);
+    }
+  }
+}
+`
+    : `/**
+ * Express Declarative Route Builder
+ * 
+ * Provides a declarative way to define routes with middleware and role configuration.
+ * Default middlewares and roles are applied to all routes unless explicitly disabled.
+ */
+
+export const METHODS = {
+  GET: 'get',
+  POST: 'post',
+  PUT: 'put',
+  DELETE: 'delete',
+  PATCH: 'patch'
+};
+
+export class DeclarativeRouter {
+  constructor(config) {
+    this.middlewareRegistry = new Map();
+    this.config = config;
+  }
+
+  registerMiddleware(name, middleware) {
+    this.middlewareRegistry.set(name, middleware);
+    return this;
+  }
+
+  buildMiddlewareChain(route) {
+    const chain = [];
+    
+    let middlewares = [...this.config.defaultMiddlewares];
+    let roles = [...this.config.defaultRoles];
+
+    // Remove disabled middlewares
+    if (route.disabled) {
+      middlewares = middlewares.filter(m => !route.disabled.includes(m));
+    }
+
+    // Add enabled middlewares
+    if (route.enabled) {
+      middlewares.push(...route.enabled);
+    }
+
+    // Handle roles
+    if (route.excludeRoles) {
+      roles = roles.filter(r => !route.excludeRoles.includes(r));
+    }
+
+    if (route.roles) {
+      roles = route.roles;
+    }
+
+    // Build middleware chain
+    for (const name of middlewares) {
+      const middleware = this.middlewareRegistry.get(name);
+      if (middleware) {
+        chain.push(middleware);
+      }
+    }
+
+    // Add role check if roles are specified
+    if (roles.length > 0) {
+      const roleMiddleware = this.middlewareRegistry.get('roleCheck');
+      if (roleMiddleware) {
+        chain.push(roleMiddleware(roles));
+      }
+    }
+
+    return chain;
+  }
+
+  applyToExpress(router) {
+    for (const route of this.config.routes) {
+      const middlewares = this.buildMiddlewareChain(route);
+      router[route.method](route.path, ...middlewares, route.handler);
+    }
+  }
+}
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/helpers/route-builder.${ext}`), content);
+}
+
+async function generateExpressRouterConfig(projectPath: string, ctx: TemplateContext) {
+  const ext = ctx.fileExt;
+  const isTS = ext === 'ts';
+  const useAuditLogger = ctx.hasSupabaseAuth && ctx.hasApiAudit;
+  
+  const content = isTS
+    ? `/**
+ * Router Configuration
+ * 
+ * Central configuration for route middlewares and role checking.
+ */
+
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
+${ctx.hasSupabaseAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
+${useAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
+${ctx.hasSourceConfig ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
+
+// Re-export METHODS for use in route files
+export { METHODS };
+
+/**
+ * Role check middleware factory
+ * Returns middleware that checks if user has one of the allowed roles
+ */
+export function roleCheck(allowedRoles: string[]) {
+  return (req: any, res: any, next: any) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const userRole = user.role || user.user_metadata?.role;
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    
+    next();
+  };
+}
+
+/**
+ * Create a configured router with registered middlewares
+ */
+export function createConfiguredRouter(config: { 
+  defaultMiddlewares: string[]; 
+  defaultRoles: string[];
+  routes: any[] 
+}) {
+  const router = new DeclarativeRouter({
+    defaultMiddlewares: config.defaultMiddlewares,
+    defaultRoles: config.defaultRoles,
+    routes: config.routes
+  });
+
+  // Register all middlewares
+  ${ctx.hasSupabaseAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
+  ${useAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
+  ${ctx.hasSourceConfig ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
+  router.registerMiddleware('roleCheck', roleCheck);
+
+  return router;
+}
+
+export default { createConfiguredRouter, METHODS, roleCheck };
+`
+    : `/**
+ * Router Configuration
+ * 
+ * Central configuration for route middlewares and role checking.
+ */
+
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
+${ctx.hasSupabaseAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
+${useAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
+${ctx.hasSourceConfig ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
+
+// Re-export METHODS for use in route files
+export { METHODS };
+
+/**
+ * Role check middleware factory
+ * Returns middleware that checks if user has one of the allowed roles
+ */
+export function roleCheck(allowedRoles) {
+  return (req, res, next) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const userRole = user.role || user.user_metadata?.role;
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    
+    next();
+  };
+}
+
+/**
+ * Create a configured router with registered middlewares
+ */
+export function createConfiguredRouter(config) {
+  const router = new DeclarativeRouter({
+    defaultMiddlewares: config.defaultMiddlewares,
+    defaultRoles: config.defaultRoles,
+    routes: config.routes
+  });
+
+  // Register all middlewares
+  ${ctx.hasSupabaseAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
+  ${useAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
+  ${ctx.hasSourceConfig ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
+  router.registerMiddleware('roleCheck', roleCheck);
+
+  return router;
+}
+
+export default { createConfiguredRouter, METHODS, roleCheck };
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/config/router.${ext}`), content);
 }

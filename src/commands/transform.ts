@@ -47,6 +47,96 @@ export async function transformProject(options: any) {
     return;
   }
 
+  const features = response.features as string[];
+  
+  // Additional prompts for RAG options
+  let ragConfig: any = { embeddingProvider: 'openai', vectorStore: 'supabase', generateRoutes: true };
+  if (features.includes('rag')) {
+    const ragResponse = await prompts([
+      {
+        type: 'select',
+        name: 'embeddingProvider',
+        message: 'Choose embedding provider for RAG:',
+        choices: [
+          { title: 'OpenAI (text-embedding-3-small)', value: 'openai' },
+          { title: 'Google Gemini (embedding-001)', value: 'gemini' },
+          { title: 'Cohere (embed-english-v3.0)', value: 'cohere' }
+        ],
+        initial: 0
+      },
+      {
+        type: 'select',
+        name: 'vectorStore',
+        message: 'Choose vector store for RAG:',
+        choices: [
+          { title: 'Supabase (pgvector)', value: 'supabase' },
+          { title: 'Pinecone', value: 'pinecone' },
+          { title: 'Chroma (local/self-hosted)', value: 'chroma' },
+          { title: 'Weaviate', value: 'weaviate' }
+        ],
+        initial: 0
+      },
+      {
+        type: 'confirm',
+        name: 'generateRoutes',
+        message: 'Generate RAG routes and controller?',
+        initial: true
+      }
+    ]);
+    ragConfig = { 
+      embeddingProvider: ragResponse.embeddingProvider || 'openai', 
+      vectorStore: ragResponse.vectorStore || 'supabase',
+      generateRoutes: ragResponse.generateRoutes ?? true
+    };
+  }
+
+  // Additional prompts for Chat options
+  let chatConfig: any = { llmProvider: 'openai', chatDatabase: 'supabase', langfuse: false, generateRoutes: true };
+  if (features.includes('chat')) {
+    const chatResponse = await prompts([
+      {
+        type: 'select',
+        name: 'llmProvider',
+        message: 'Choose LLM provider for Chat:',
+        choices: [
+          { title: 'OpenAI (GPT-4o, GPT-4o-mini)', value: 'openai' },
+          { title: 'Anthropic (Claude 3.5)', value: 'anthropic' },
+          { title: 'Google Gemini (Gemini Pro)', value: 'gemini' }
+        ],
+        initial: 0
+      },
+      {
+        type: 'select',
+        name: 'chatDatabase',
+        message: 'Choose database for chat history:',
+        choices: [
+          { title: 'Supabase (PostgreSQL)', value: 'supabase' },
+          { title: 'PostgreSQL (direct)', value: 'pg' },
+          { title: 'MySQL', value: 'mysql' }
+        ],
+        initial: 0
+      },
+      {
+        type: 'confirm',
+        name: 'langfuse',
+        message: 'Include Langfuse for LLM observability?',
+        initial: true
+      },
+      {
+        type: 'confirm',
+        name: 'generateRoutes',
+        message: 'Generate Chat routes and controller?',
+        initial: true
+      }
+    ]);
+    chatConfig = { 
+      llmProvider: chatResponse.llmProvider || 'openai', 
+      chatDatabase: chatResponse.chatDatabase || 'supabase',
+      langfuse: chatResponse.langfuse ?? false,
+      generateRoutes: chatResponse.generateRoutes ?? true
+    };
+  }
+
   const spinner = ora('Transforming project...').start();
 
   try {
@@ -110,23 +200,101 @@ export async function transformProject(options: any) {
     }
 
     if (features.includes('rag')) {
-      const { generateRAGService } = await import('../generators/ai.js');
+      const { generateRAGService, generateRAGSchema, generateRAGRoutes, generateRAGController } = await import('../generators/ai.js');
+      const framework = packageJson.dependencies?.hono ? 'hono' : 'express';
+      
       await generateRAGService(projectPath, {
         name: packageJson.name,
-        ai: { rag: true }
+        ai: { 
+          rag: true,
+          embeddings: ragConfig.embeddingProvider,
+          vectorStore: ragConfig.vectorStore
+        }
       } as any, ext);
-      depsToAdd['@langchain/openai'] = '^0.0.14';
-      depsToAdd['@langchain/core'] = '^0.1.0';
+      
+      // Generate schema
+      await generateRAGSchema(projectPath, ragConfig.vectorStore, ext);
+      
+      // Generate routes and controller if requested
+      if (ragConfig.generateRoutes) {
+        await generateRAGRoutes(projectPath, framework, ext);
+        await generateRAGController(projectPath, ext);
+      }
+      
+      depsToAdd['@langchain/core'] = '^0.3.0';
+      
+      // Embedding provider dependencies
+      if (ragConfig.embeddingProvider === 'openai') {
+        depsToAdd['@langchain/openai'] = '^0.3.0';
+      } else if (ragConfig.embeddingProvider === 'gemini') {
+        depsToAdd['@langchain/google-genai'] = '^0.1.0';
+      } else if (ragConfig.embeddingProvider === 'cohere') {
+        depsToAdd['@langchain/cohere'] = '^0.3.0';
+      }
+      
+      // Vector store dependencies
+      if (ragConfig.vectorStore === 'supabase') {
+        depsToAdd['@supabase/supabase-js'] = '^2.39.0';
+      } else if (ragConfig.vectorStore === 'pinecone') {
+        depsToAdd['@pinecone-database/pinecone'] = '^2.0.0';
+        depsToAdd['@langchain/pinecone'] = '^0.1.0';
+      } else if (ragConfig.vectorStore === 'chroma') {
+        depsToAdd['chromadb'] = '^1.7.0';
+        depsToAdd['@langchain/community'] = '^0.3.0';
+      } else if (ragConfig.vectorStore === 'weaviate') {
+        depsToAdd['weaviate-ts-client'] = '^2.0.0';
+        depsToAdd['@langchain/weaviate'] = '^0.1.0';
+      }
     }
 
     if (features.includes('chat')) {
-      const { generateChatService } = await import('../generators/ai.js');
+      const { generateChatService, generateChatSchema, generateChatRoutes, generateChatController } = await import('../generators/ai.js');
+      const framework = packageJson.dependencies?.hono ? 'hono' : 'express';
+      
       await generateChatService(projectPath, {
         name: packageJson.name,
-        ai: { chat: true, langfuse: features.includes('langfuse') }
+        ai: { 
+          chat: true, 
+          langfuse: chatConfig.langfuse,
+          llmProvider: chatConfig.llmProvider,
+          chatDatabase: chatConfig.chatDatabase
+        }
       } as any, ext);
-      depsToAdd['@langchain/openai'] = '^0.0.14';
-      depsToAdd['@langchain/core'] = '^0.1.0';
+      
+      // Generate schema
+      await generateChatSchema(projectPath, chatConfig.chatDatabase, ext);
+      
+      // Generate routes and controller if requested
+      if (chatConfig.generateRoutes) {
+        await generateChatRoutes(projectPath, framework, ext);
+        await generateChatController(projectPath, chatConfig.llmProvider, ext);
+      }
+      
+      depsToAdd['@langchain/core'] = '^0.3.0';
+      
+      // LLM provider dependencies
+      if (chatConfig.llmProvider === 'openai') {
+        depsToAdd['@langchain/openai'] = '^0.3.0';
+      } else if (chatConfig.llmProvider === 'anthropic') {
+        depsToAdd['@langchain/anthropic'] = '^0.3.0';
+      } else if (chatConfig.llmProvider === 'gemini') {
+        depsToAdd['@langchain/google-genai'] = '^0.1.0';
+      }
+      
+      // Database dependencies
+      if (chatConfig.chatDatabase === 'supabase') {
+        depsToAdd['@supabase/supabase-js'] = '^2.39.0';
+      } else if (chatConfig.chatDatabase === 'pg') {
+        depsToAdd['pg'] = '^8.11.0';
+      } else if (chatConfig.chatDatabase === 'mysql') {
+        depsToAdd['mysql2'] = '^3.6.0';
+      }
+      
+      // Langfuse
+      if (chatConfig.langfuse) {
+        depsToAdd['langfuse-langchain'] = '^3.3.0';
+        depsToAdd['langchain'] = '^0.3.0'; // Required peer dependency for langfuse-langchain
+      }
     }
 
     if (features.includes('langfuse')) {

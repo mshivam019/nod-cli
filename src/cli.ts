@@ -11,13 +11,14 @@ const program = new Command();
 program
   .name('nod-cli')
   .description('Backend scaffolding CLI with best practices built-in')
-  .version('0.3.0');
+  .version('0.3.1');
 
-program
+// Define the init command with all options
+const initCommand = program
   .command('init [name]')
   .description('Initialize a new project')
   .option('--framework <framework>', 'Framework: express or hono', 'express')
-  .option('--ts', 'Use TypeScript', true)
+  .option('--ts', 'Use TypeScript (default: true)')
   .option('--no-ts', 'Use JavaScript')
   .option('--db <database>', 'Database: pg, mysql, supabase, drizzle, or none', 'pg')
   .option('--auth <auth>', 'Auth: jwt, jwks, supabase, or none', 'jwt')
@@ -25,24 +26,6 @@ program
   .option('--preset <preset>', 'Preset: minimal, api, full, ai, 1, or custom preset name')
   .option('-y, --yes', 'Skip prompts and use defaults/provided options')
   .action(initProject);
-
-// Also allow `nod <name>` as shorthand for `nod init <name>`
-program
-  .argument('[name]', 'Project name (shorthand for nod init)')
-  .option('--framework <framework>', 'Framework: express or hono', 'express')
-  .option('--ts', 'Use TypeScript', true)
-  .option('--no-ts', 'Use JavaScript')
-  .option('--db <database>', 'Database: pg, mysql, supabase, drizzle, or none', 'pg')
-  .option('--auth <auth>', 'Auth: jwt, jwks, supabase, or none', 'jwt')
-  .option('--queue <queue>', 'Queue: bull or none', 'none')
-  .option('--preset <preset>', 'Preset: minimal, api, full, ai, 1, or custom preset name')
-  .option('-y, --yes', 'Skip prompts and use defaults/provided options')
-  .action((name, options) => {
-    // Only run if name is provided and it's not a subcommand
-    if (name && !['init', 'add', 'transform', 'validate', 'preset'].includes(name)) {
-      initProject(name, options);
-    }
-  });
 
 program
   .command('add <component>')
@@ -64,5 +47,15 @@ program
   .command('preset [action] [name]')
   .description('Manage presets: list, create, delete, default, show')
   .action(presetCommand);
+
+// Handle shorthand: `nod myproject` -> `nod init myproject`
+// Check if the first argument is not a known command
+const knownCommands = ['init', 'add', 'transform', 'validate', 'preset', 'help', '-h', '--help', '-V', '--version'];
+const args = process.argv.slice(2);
+
+if (args.length > 0 && !knownCommands.includes(args[0]) && !args[0].startsWith('-')) {
+  // Insert 'init' as the first argument
+  process.argv.splice(2, 0, 'init');
+}
 
 program.parse();

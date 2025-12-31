@@ -11,7 +11,7 @@ export async function generateProject(config: ProjectConfig) {
   await fs.ensureDir(projectPath);
 
   // Create directory structure based on preset
-  const structure = ['src/routes', 'src/controllers', 'src/services', 'src/config', 'src/helpers', 'src/utils'];
+  const structure = ['src/routes', 'src/controllers', 'src/services', 'src/config', 'src/helpers', 'src/utils', 'docs', 'temp'];
 
   if (config.preset !== 'minimal') {
     structure.push('src/middleware');
@@ -64,6 +64,8 @@ export async function generateProject(config: ProjectConfig) {
   await generateTsConfig(projectPath, config);
   await generateGitIgnore(projectPath);
   await generateLogger(projectPath, ext);
+  await generateDocsFolder(projectPath, config);
+  await generateTempFolder(projectPath);
   
   if (config.features.docker !== false) {
     await generateDockerFiles(projectPath, config);
@@ -607,9 +609,49 @@ dist/
 coverage/
 .vscode/
 .idea/
+
+# Temp output folder
+temp/
 `;
 
   await fs.outputFile(path.join(projectPath, '.gitignore'), gitignore);
+}
+
+async function generateDocsFolder(projectPath: string, config: ProjectConfig) {
+  const readmeContent = `# ${config.name} Documentation
+
+This folder contains project documentation, plans, and instructions.
+
+## Structure
+
+- \`README.md\` - This file
+- \`architecture.md\` - System architecture and design decisions
+- \`api.md\` - API documentation
+- \`setup.md\` - Setup and deployment instructions
+
+## Getting Started
+
+Add your project documentation here. Consider including:
+
+- Project requirements and specifications
+- Architecture diagrams and decisions
+- API endpoint documentation
+- Development workflow and guidelines
+- Deployment procedures
+`;
+
+  await fs.outputFile(path.join(projectPath, 'docs/README.md'), readmeContent);
+}
+
+async function generateTempFolder(projectPath: string) {
+  const gitkeepContent = `# Temp Output Folder
+
+This folder is for temporary output files (PDFs, exports, generated files, etc.).
+
+**Note:** This folder is git-ignored. Files here will not be committed.
+`;
+
+  await fs.outputFile(path.join(projectPath, 'temp/.gitkeep'), gitkeepContent);
 }
 
 async function generateDockerFiles(projectPath: string, config: ProjectConfig) {
