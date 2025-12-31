@@ -293,7 +293,6 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     devDependencies['@types/node'] = '^20.10.0';
     devDependencies['typescript'] = '^5.3.3';
     devDependencies['tsx'] = '^4.7.0';
-    devDependencies['ts-node-dev'] = '^2.0.0';
   }
 
   if (config.framework === 'express') {
@@ -401,7 +400,7 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   const ext = config.typescript ? 'ts' : 'js';
   const scripts: Record<string, string> = {
     dev: config.typescript 
-      ? `ts-node-dev --respawn --transpile-only src/server.${ext}`
+      ? `tsx watch src/server.${ext}`
       : `nodemon src/server.${ext}`,
     build: config.typescript ? 'tsc' : 'echo "No build needed for JS"',
     start: config.typescript ? 'node dist/server.js' : `node src/server.${ext}`,

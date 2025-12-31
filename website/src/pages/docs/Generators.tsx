@@ -46,23 +46,45 @@ export function Generators() {
           Route Generator
         </h2>
 
-        <p>Creates routes with controllers and services:</p>
+        <p>Creates routes with controllers and services using a declarative pattern:</p>
 
         <CodeBlock
-          code={`// src/routes/users.ts
+          code={`// src/routes/index.ts
 import { Router } from 'express';
-import { UsersController } from '../controllers/usersController';
+import { createConfiguredRouter, METHODS } from '../config/router.js';
+import { usersController } from '../controllers/users.js';
 
-const router = Router();
-const controller = new UsersController();
+export const router = Router();
 
-router.get('/', controller.getAll);
-router.get('/:id', controller.getById);
-router.post('/', controller.create);
-router.put('/:id', controller.update);
-router.delete('/:id', controller.delete);
+const defaultMiddlewares: string[] = ['jwtAuth', 'auditLogger'];
+const defaultRoles: string[] = [];
 
-export default router;`}
+const routes = [
+  {
+    method: METHODS.GET,
+    path: '/users',
+    handler: usersController.getUsers
+  },
+  {
+    method: METHODS.GET,
+    path: '/users/public',
+    handler: usersController.getPublic,
+    disabled: ['jwtAuth', 'auditLogger']
+  },
+  {
+    method: METHODS.POST,
+    path: '/users/admin',
+    handler: usersController.adminAction,
+    roles: ['admin', 'superAdmin']
+  },
+];
+
+const configuredRouter = createConfiguredRouter({ 
+  defaultMiddlewares, 
+  defaultRoles, 
+  routes 
+});
+configuredRouter.applyToExpress(router);`}
           language="typescript"
         />
 

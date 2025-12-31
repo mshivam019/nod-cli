@@ -207,45 +207,52 @@ async function addRouteToFile(projectRoot: string, name: string, config: any) {
         }
       }
     } else {
-      // For Express, add middleware imports if needed
-      if (config.middleware && config.middleware.length > 0) {
-        const middlewareFileMap: Record<string, string> = {
-          'authMiddleware': 'auth',
-          'loggingMiddleware': 'logging',
-          'roleMiddleware': 'auth'
-        };
-        
-        for (const mw of config.middleware) {
-          const mwFile = middlewareFileMap[mw] || 'auth';
-          const mwImport = `import { ${mw} } from '../middlewares/${mwFile}.js';`;
-          if (!content.includes(`import { ${mw} }`)) {
-            const importMatches = content.match(/^import .+$/gm);
-            if (importMatches && importMatches.length > 0) {
-              const lastImport = importMatches[importMatches.length - 1];
-              const lastImportIndex = content.lastIndexOf(lastImport);
-              const endOfLastImport = content.indexOf('\n', lastImportIndex);
-              content = content.slice(0, endOfLastImport + 1) + mwImport + '\n' + content.slice(endOfLastImport + 1);
-            }
-          }
+      // For Express, add route to the declarative routes array
+      // Build disabled middlewares array if not all defaults are wanted
+      let disabledStr = '';
+      let rolesStr = '';
+      
+      // If middleware selection doesn't include auth, add it to disabled
+      if (config.middleware && !config.middleware.includes('authMiddleware')) {
+        // Check if project has default auth middleware
+        if (content.includes("'jwtAuth'") || content.includes("'auth'")) {
+          disabledStr = `,\n    disabled: ['jwtAuth', 'auditLogger']`;
         }
       }
-
-      // Add route after the export statement
-      const middlewareChain = config.middleware && config.middleware.length > 0 
-        ? config.middleware.join(', ') + ', ' 
-        : '';
       
-      const routeLine = `router.${config.method}('${config.path}', ${middlewareChain}${name}Controller.get${capitalize(name)});`;
+      // If roleMiddleware is selected, add roles
+      if (config.middleware && config.middleware.includes('roleMiddleware')) {
+        rolesStr = `,\n    roles: ['admin']`;
+      }
       
-      // Find the export const router line and add route after it
-      const exportRouterMatch = content.match(/export const router = Router\(\);/);
-      if (exportRouterMatch) {
-        const exportIndex = content.indexOf(exportRouterMatch[0]);
-        const endOfExport = content.indexOf('\n', exportIndex);
-        content = content.slice(0, endOfExport + 1) + '\n' + routeLine + '\n' + content.slice(endOfExport + 1);
+      const routeEntry = `  {
+    method: METHODS.${config.method.toUpperCase()},
+    path: '${config.path}',
+    handler: ${name}Controller.get${capitalize(name)}${disabledStr}${rolesStr}
+  }`;
+      
+      // Find the routes array and add the new route
+      const routesArrayMatch = content.match(/const routes = \[/);
+      if (routesArrayMatch) {
+        const routesArrayIndex = content.indexOf(routesArrayMatch[0]);
+        const insertIndex = routesArrayIndex + routesArrayMatch[0].length;
+        content = content.slice(0, insertIndex) + '\n' + routeEntry + ',' + content.slice(insertIndex);
       } else {
-        // Fallback: add at the end
-        content += '\n' + routeLine + '\n';
+        // Fallback for older projects without declarative pattern
+        const middlewareChain = config.middleware && config.middleware.length > 0 
+          ? config.middleware.join(', ') + ', ' 
+          : '';
+        
+        const routeLine = `router.${config.method}('${config.path}', ${middlewareChain}${name}Controller.get${capitalize(name)});`;
+        
+        const exportRouterMatch = content.match(/export const router = Router\(\);/);
+        if (exportRouterMatch) {
+          const exportIndex = content.indexOf(exportRouterMatch[0]);
+          const endOfExport = content.indexOf('\n', exportIndex);
+          content = content.slice(0, endOfExport + 1) + '\n' + routeLine + '\n' + content.slice(endOfExport + 1);
+        } else {
+          content += '\n' + routeLine + '\n';
+        }
       }
     }
 

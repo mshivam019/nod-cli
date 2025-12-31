@@ -450,7 +450,6 @@ export interface RouteConfig {
 
 export class DeclarativeRouter {
   private middlewareRegistry: Map<string, Function> = new Map();
-  private controllerRegistry: Map<string, any> = new Map();
   private config: RouteConfig;
 
   constructor(config: RouteConfig) {
@@ -460,26 +459,6 @@ export class DeclarativeRouter {
   registerMiddleware(name: string, middleware: Function) {
     this.middlewareRegistry.set(name, middleware);
     return this;
-  }
-
-  registerController(name: string, controller: any) {
-    this.controllerRegistry.set(name, controller);
-    return this;
-  }
-
-  private resolveHandler(handlerPath: string): Function {
-    const [controllerName, methodName] = handlerPath.split('.');
-    const controller = this.controllerRegistry.get(controllerName);
-    
-    if (!controller) {
-      throw new Error(\`Controller '\${controllerName}' not registered\`);
-    }
-    
-    if (!controller[methodName]) {
-      throw new Error(\`Method '\${methodName}' not found in controller '\${controllerName}'\`);
-    }
-    
-    return controller[methodName];
   }
 
   private buildMiddlewareChain(route: RouteDefinition): Function[] {
@@ -525,10 +504,9 @@ export class DeclarativeRouter {
   applyToHono(app: any) {
     for (const route of this.config.routes) {
       const middlewares = this.buildMiddlewareChain(route);
-      const handler = this.resolveHandler(route.handler);
       const method = route.method.toLowerCase();
       
-      app[method](route.path, ...middlewares, handler);
+      app[method](route.path, ...middlewares, route.handler);
     }
     
     return app;
@@ -538,10 +516,8 @@ export class DeclarativeRouter {
     const errors: string[] = [];
 
     for (const route of this.config.routes) {
-      try {
-        this.resolveHandler(route.handler);
-      } catch (error: any) {
-        errors.push(\`Route \${route.method} \${route.path}: \${error.message}\`);
+      if (typeof route.handler !== 'function') {
+        errors.push(\`Route \${route.method} \${route.path}: Handler is not a function\`);
       }
 
       const allMiddlewares = [
@@ -642,33 +618,12 @@ export const METHODS = {
 export class DeclarativeRouter {
   constructor(config) {
     this.middlewareRegistry = new Map();
-    this.controllerRegistry = new Map();
     this.config = config;
   }
 
   registerMiddleware(name, middleware) {
     this.middlewareRegistry.set(name, middleware);
     return this;
-  }
-
-  registerController(name, controller) {
-    this.controllerRegistry.set(name, controller);
-    return this;
-  }
-
-  resolveHandler(handlerPath) {
-    const [controllerName, methodName] = handlerPath.split('.');
-    const controller = this.controllerRegistry.get(controllerName);
-    
-    if (!controller) {
-      throw new Error(\`Controller '\${controllerName}' not registered\`);
-    }
-    
-    if (!controller[methodName]) {
-      throw new Error(\`Method '\${methodName}' not found in controller '\${controllerName}'\`);
-    }
-    
-    return controller[methodName];
   }
 
   buildMiddlewareChain(route) {
@@ -714,10 +669,9 @@ export class DeclarativeRouter {
   applyToHono(app) {
     for (const route of this.config.routes) {
       const middlewares = this.buildMiddlewareChain(route);
-      const handler = this.resolveHandler(route.handler);
       const method = route.method.toLowerCase();
       
-      app[method](route.path, ...middlewares, handler);
+      app[method](route.path, ...middlewares, route.handler);
     }
     
     return app;
@@ -727,10 +681,8 @@ export class DeclarativeRouter {
     const errors = [];
 
     for (const route of this.config.routes) {
-      try {
-        this.resolveHandler(route.handler);
-      } catch (error) {
-        errors.push(\`Route \${route.method} \${route.path}: \${error.message}\`);
+      if (typeof route.handler !== 'function') {
+        errors.push(\`Route \${route.method} \${route.path}: Handler is not a function\`);
       }
 
       const allMiddlewares = [

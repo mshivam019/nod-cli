@@ -4,10 +4,14 @@ import { Check, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface CodeBlockProps {
-  code: string
+  /** Single code block (no toggle) */
+  code?: string
   language?: string
   filename?: string
   showLineNumbers?: boolean
+  /** For JS/TS toggle - provide both versions */
+  tsCode?: string
+  jsCode?: string
 }
 
 export function CodeBlock({
@@ -15,20 +19,57 @@ export function CodeBlock({
   language = 'bash',
   filename,
   showLineNumbers = false,
+  tsCode,
+  jsCode,
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
+  const [activeTab, setActiveTab] = useState<'ts' | 'js'>('ts')
+
+  // Determine if we should show the toggle
+  const showToggle = tsCode && jsCode
+  const displayCode = showToggle ? (activeTab === 'ts' ? tsCode : jsCode) : (code || '')
+  const displayLanguage = showToggle ? (activeTab === 'ts' ? 'typescript' : 'javascript') : language
 
   const copyToClipboard = async () => {
-    await navigator.clipboard.writeText(code)
+    await navigator.clipboard.writeText(displayCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   return (
     <div className="relative group rounded-lg border border-border bg-muted">
-      {filename && (
+      {/* Header with filename and/or toggle */}
+      {(filename || showToggle) && (
         <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-          <span className="text-sm text-muted-foreground font-mono">{filename}</span>
+          <span className="text-sm text-muted-foreground font-mono">
+            {filename || ''}
+          </span>
+          {showToggle && (
+            <div className="flex items-center gap-1 bg-background/50 rounded-md p-0.5">
+              <button
+                onClick={() => setActiveTab('ts')}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                  activeTab === 'ts'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                TypeScript
+              </button>
+              <button
+                onClick={() => setActiveTab('js')}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                  activeTab === 'js'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                JavaScript
+              </button>
+            </div>
+          )}
         </div>
       )}
       <div className="relative">
@@ -39,6 +80,7 @@ export function CodeBlock({
             'bg-background/80 hover:bg-background border border-border',
             'opacity-0 group-hover:opacity-100 transition-opacity'
           )}
+          aria-label="Copy code"
         >
           {copied ? (
             <Check className="h-4 w-4 text-green-500" />
@@ -46,7 +88,7 @@ export function CodeBlock({
             <Copy className="h-4 w-4 text-muted-foreground" />
           )}
         </button>
-        <Highlight theme={themes.nightOwl} code={code.trim()} language={language}>
+        <Highlight theme={themes.nightOwl} code={displayCode.trim()} language={displayLanguage}>
           {({ className, style, tokens, getLineProps, getTokenProps }) => (
             <pre
               className={cn(className, 'p-4 overflow-x-auto text-sm')}

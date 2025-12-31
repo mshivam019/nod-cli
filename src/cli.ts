@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('nod-cli')
   .description('Backend scaffolding CLI with best practices built-in')
-  .version('0.3.1');
+  .version('0.4.0');
 
 // Define the init command with all options
 const initCommand = program

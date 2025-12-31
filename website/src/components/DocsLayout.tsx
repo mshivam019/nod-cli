@@ -4,18 +4,6 @@ import { Menu, X, Moon, Sun, Github, Terminal, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CodeBlock } from './CodeBlock'
 
-const navigation = [
-  { name: 'Introduction', href: '/docs' },
-  { name: 'Installation', href: '/docs/installation' },
-  { name: 'CLI', href: '/docs/cli' },
-  { name: 'Presets', href: '/docs/presets' },
-  { name: 'Components', href: '/docs/components' },
-  { name: 'Add Command', href: '/docs/add' },
-  { name: 'Transform', href: '/docs/transform' },
-  { name: 'Generators', href: '/docs/generators' },
-  { name: 'Configuration', href: '/docs/configuration' },
-]
-
 type Theme = 'light' | 'dark' | 'system'
 
 export function DocsLayout() {
@@ -74,12 +62,19 @@ export function DocsLayout() {
     return <Sun className="h-5 w-5" />
   }
 
+  const isActive = (href: string) => {
+    if (href === '/docs') {
+      return location.pathname === '/docs'
+    }
+    return location.pathname === href
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-14 items-center px-4 md:px-6 max-w-screen-2xl mx-auto">
-          {/* Mobile menu button - moved to left */}
+          {/* Mobile menu button */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="inline-flex md:hidden items-center justify-center rounded-md text-sm font-medium h-9 w-9 hover:bg-accent hover:text-accent-foreground mr-2"
@@ -106,13 +101,13 @@ export function DocsLayout() {
               Docs
             </Link>
             <Link
-              to="/docs/generators"
+              to="/docs/components"
               className={cn(
                 "transition-colors hover:text-foreground",
-                location.pathname === '/docs/generators' ? 'text-foreground' : 'text-muted-foreground'
+                location.pathname.startsWith('/docs/components') ? 'text-foreground' : 'text-muted-foreground'
               )}
             >
-              Generators
+              Components
             </Link>
           </nav>
 
@@ -155,40 +150,257 @@ export function DocsLayout() {
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
-          <div className="p-4 lg:p-6">
-            <div className="flex flex-col space-y-1">
-              <h4 className="mb-2 px-2 text-sm font-semibold text-foreground">Getting Started</h4>
-              {navigation.slice(0, 5).map((item) => (
+          <div className="p-4 lg:p-6 space-y-6">
+            {/* Getting Started */}
+            <div className="space-y-1">
+              <h4 className="px-2 text-sm font-semibold text-foreground">Getting Started</h4>
+              <nav className="flex flex-col space-y-0.5">
                 <Link
-                  key={item.name}
-                  to={item.href}
+                  to="/docs"
                   className={cn(
-                    'block rounded-md px-3 py-2 text-sm transition-colors',
-                    location.pathname === item.href
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs')
                       ? 'bg-accent font-medium text-accent-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                   )}
                 >
-                  {item.name}
+                  Introduction
                 </Link>
-              ))}
+                <Link
+                  to="/docs/installation"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/installation')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Installation
+                </Link>
+                <Link
+                  to="/docs/cli"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/cli')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  CLI
+                </Link>
+                <Link
+                  to="/docs/presets"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/presets')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Presets
+                </Link>
+                <Link
+                  to="/docs/faq"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/faq')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  FAQ
+                </Link>
+              </nav>
             </div>
-            <div className="flex flex-col space-y-1 mt-6">
-              <h4 className="mb-2 px-2 text-sm font-semibold text-foreground">Commands</h4>
-              {navigation.slice(5).map((item) => (
+
+            {/* Components */}
+            <div className="space-y-1">
+              <h4 className="px-2 text-sm font-semibold text-foreground">Components</h4>
+              <nav className="flex flex-col space-y-0.5">
                 <Link
-                  key={item.name}
-                  to={item.href}
+                  to="/docs/components/route"
                   className={cn(
-                    'block rounded-md px-3 py-2 text-sm transition-colors',
-                    location.pathname === item.href
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/route')
                       ? 'bg-accent font-medium text-accent-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                   )}
                 >
-                  {item.name}
+                  Route
                 </Link>
-              ))}
+                <Link
+                  to="/docs/components/middleware"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/middleware')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Middleware
+                </Link>
+                <Link
+                  to="/docs/components/service"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/service')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Service
+                </Link>
+                <Link
+                  to="/docs/components/supabase"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/supabase')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Supabase
+                </Link>
+                <Link
+                  to="/docs/components/drizzle"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/drizzle')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Drizzle
+                </Link>
+                <Link
+                  to="/docs/components/rag"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/rag')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  RAG
+                </Link>
+                <Link
+                  to="/docs/components/chat"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/chat')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Chat
+                </Link>
+                <Link
+                  to="/docs/components/langfuse"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/langfuse')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Langfuse
+                </Link>
+                <Link
+                  to="/docs/components/pm2"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/pm2')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  PM2
+                </Link>
+                <Link
+                  to="/docs/components/vercel-cron"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/vercel-cron')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Vercel Cron
+                </Link>
+                <Link
+                  to="/docs/components/github-actions"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/github-actions')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  GitHub Actions
+                </Link>
+                <Link
+                  to="/docs/components/cron"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/cron')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Cron
+                </Link>
+              </nav>
+            </div>
+
+            {/* Commands */}
+            <div className="space-y-1">
+              <h4 className="px-2 text-sm font-semibold text-foreground">Commands</h4>
+              <nav className="flex flex-col space-y-0.5">
+                <Link
+                  to="/docs/add"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/add')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Add Command
+                </Link>
+                <Link
+                  to="/docs/transform"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/transform')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Transform
+                </Link>
+                <Link
+                  to="/docs/generators"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/generators')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Generators
+                </Link>
+                <Link
+                  to="/docs/configuration"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/configuration')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Configuration
+                </Link>
+              </nav>
             </div>
           </div>
         </aside>

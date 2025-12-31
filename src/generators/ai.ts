@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { ProjectConfig, EmbeddingProvider, VectorStore, LLMProvider, ChatDatabase } from '../types/index.js';
 
@@ -501,6 +501,56 @@ await weaviateClient.schema.classCreator().withClass(schemaConfig).do();
     : 'rag-schema.sql';
   
   await fs.outputFile(path.join(projectPath, `sql/${filename}`), schemaContent);
+
+  // Update Drizzle schema if it exists and using postgres/supabase
+  if (vectorStore === 'supabase' || vectorStore === 'none') {
+    const schemaPath = path.join(projectPath, `src/db/schema.${ext}`);
+    if (await fs.pathExists(schemaPath)) {
+      let currentSchema = await fs.readFile(schemaPath, 'utf-8');
+      
+      if (!currentSchema.includes('export const documents')) {
+        // Add vector to imports if not present
+        if (!currentSchema.includes('vector')) {
+          if (currentSchema.includes("from 'drizzle-orm/pg-core'")) {
+            currentSchema = currentSchema.replace(
+              /import { (.*?) } from 'drizzle-orm\/pg-core';/, 
+              "import { $1, vector } from 'drizzle-orm/pg-core';"
+            );
+          } else {
+            // Fallback if import line is different or not found (unlikely in our generated code)
+            const importLine = ext === 'ts' 
+              ? "import { pgTable, uuid, text, timestamp, jsonb, vector } from 'drizzle-orm/pg-core';"
+              : "import { pgTable, uuid, text, timestamp, jsonb, vector } from 'drizzle-orm/pg-core';";
+             currentSchema = importLine + '\n' + currentSchema;
+          }
+        }
+
+        const drizzleContent = `
+// RAG Documents table
+export const documents = pgTable('documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  content: text('content').notNull(),
+  metadata: jsonb('metadata').default({}),
+  embedding: vector('embedding', { dimensions: 1536 }),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  embeddingIdx: index('documents_embedding_idx').using('ivfflat', table.embedding.op('vector_cosine_ops')),
+}));
+`;
+        // We also need to import 'index' if we use it
+        if (!currentSchema.includes('index')) {
+           currentSchema = currentSchema.replace(
+              /import { (.*?) } from 'drizzle-orm\/pg-core';/, 
+              "import { $1, index } from 'drizzle-orm/pg-core';"
+            );
+        }
+
+        await fs.writeFile(schemaPath, currentSchema + drizzleContent);
+        console.log('✓ Updated Drizzle schema with documents table');
+      }
+    }
+  }
 }
 
 // ============================================================================
@@ -515,78 +565,177 @@ export async function generateRAGRoutes(projectPath: string, framework: string, 
   
   if (framework === 'express') {
     routesContent = isTS ? `import { Router } from 'express';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import ragController from '../controllers/rag.controller.js';
 
 const router = Router();
 
-// Search documents
-router.post('/search', ragController.search);
+/**
+ * Default middlewares for RAG routes
+ * All routes are protected by default
+ */
+const defaultMiddlewares: string[] = [];
+const defaultRoles: string[] = [];
 
-// Get context for a query
-router.post('/context', ragController.getContext);
+/**
+ * RAG route definitions
+ */
+const routes = [
+  {
+    method: METHODS.POST,
+    path: '/search',
+    handler: ragController.search
+  },
+  {
+    method: METHODS.POST,
+    path: '/context',
+    handler: ragController.getContext
+  },
+  {
+    method: METHODS.POST,
+    path: '/documents',
+    handler: ragController.storeDocument
+  },
+  {
+    method: METHODS.POST,
+    path: '/embed',
+    handler: ragController.createEmbedding
+  },
+];
 
-// Store a new document
-router.post('/documents', ragController.storeDocument);
-
-// Create embedding for text
-router.post('/embed', ragController.createEmbedding);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.applyToExpress(router);
 
 export default router;
 ` : `import { Router } from 'express';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import ragController from '../controllers/rag.controller.js';
 
 const router = Router();
 
-// Search documents
-router.post('/search', ragController.search);
+/**
+ * Default middlewares for RAG routes
+ */
+const defaultMiddlewares = [];
+const defaultRoles = [];
 
-// Get context for a query
-router.post('/context', ragController.getContext);
+/**
+ * RAG route definitions
+ */
+const routes = [
+  {
+    method: METHODS.POST,
+    path: '/search',
+    handler: ragController.search
+  },
+  {
+    method: METHODS.POST,
+    path: '/context',
+    handler: ragController.getContext
+  },
+  {
+    method: METHODS.POST,
+    path: '/documents',
+    handler: ragController.storeDocument
+  },
+  {
+    method: METHODS.POST,
+    path: '/embed',
+    handler: ragController.createEmbedding
+  },
+];
 
-// Store a new document
-router.post('/documents', ragController.storeDocument);
-
-// Create embedding for text
-router.post('/embed', ragController.createEmbedding);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.applyToExpress(router);
 
 export default router;
 `;
   } else {
     // Hono
     routesContent = isTS ? `import { Hono } from 'hono';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import ragController from '../controllers/rag.controller.js';
 
 const ragRoutes = new Hono();
 
-// Search documents
-ragRoutes.post('/search', ragController.search);
+/**
+ * Default middlewares for RAG routes
+ */
+const defaultMiddlewares: string[] = [];
+const defaultRoles: string[] = [];
 
-// Get context for a query
-ragRoutes.post('/context', ragController.getContext);
+/**
+ * RAG route definitions
+ */
+const routes = [
+  {
+    method: METHODS.POST,
+    path: '/search',
+    handler: 'ragController.search'
+  },
+  {
+    method: METHODS.POST,
+    path: '/context',
+    handler: 'ragController.getContext'
+  },
+  {
+    method: METHODS.POST,
+    path: '/documents',
+    handler: 'ragController.storeDocument'
+  },
+  {
+    method: METHODS.POST,
+    path: '/embed',
+    handler: 'ragController.createEmbedding'
+  },
+];
 
-// Store a new document
-ragRoutes.post('/documents', ragController.storeDocument);
-
-// Create embedding for text
-ragRoutes.post('/embed', ragController.createEmbedding);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.registerController('ragController', ragController);
+dr.applyToHono(ragRoutes);
 
 export default ragRoutes;
 ` : `import { Hono } from 'hono';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import ragController from '../controllers/rag.controller.js';
 
 const ragRoutes = new Hono();
 
-// Search documents
-ragRoutes.post('/search', ragController.search);
+/**
+ * Default middlewares for RAG routes
+ */
+const defaultMiddlewares = [];
+const defaultRoles = [];
 
-// Get context for a query
-ragRoutes.post('/context', ragController.getContext);
+/**
+ * RAG route definitions
+ */
+const routes = [
+  {
+    method: METHODS.POST,
+    path: '/search',
+    handler: 'ragController.search'
+  },
+  {
+    method: METHODS.POST,
+    path: '/context',
+    handler: 'ragController.getContext'
+  },
+  {
+    method: METHODS.POST,
+    path: '/documents',
+    handler: 'ragController.storeDocument'
+  },
+  {
+    method: METHODS.POST,
+    path: '/embed',
+    handler: 'ragController.createEmbedding'
+  },
+];
 
-// Store a new document
-ragRoutes.post('/documents', ragController.storeDocument);
-
-// Create embedding for text
-ragRoutes.post('/embed', ragController.createEmbedding);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.registerController('ragController', ragController);
+dr.applyToHono(ragRoutes);
 
 export default ragRoutes;
 `;
@@ -1696,6 +1845,40 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
   
   const filename = 'chat-schema.sql';
   await fs.outputFile(path.join(projectPath, `sql/${filename}`), schemaContent);
+
+  // Update Drizzle schema if it exists and using postgres/supabase
+  if (chatDatabase === 'supabase' || chatDatabase === 'pg') {
+    const schemaPath = path.join(projectPath, `src/db/schema.${ext}`);
+    if (await fs.pathExists(schemaPath)) {
+      let currentSchema = await fs.readFile(schemaPath, 'utf-8');
+      
+      if (!currentSchema.includes('export const conversations')) {
+        const drizzleContent = `
+// Chat Tables
+export const conversations = pgTable('conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id'),
+  title: text('title'),
+  module: text('module').default('general'),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const conversationMessages = pgTable('conversation_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  messageType: text('message_type').notNull(), // 'user', 'assistant', 'system'
+  content: text('content').notNull(),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+`;
+        await fs.writeFile(schemaPath, currentSchema + drizzleContent);
+        console.log('✓ Updated Drizzle schema with chat tables');
+      }
+    }
+  }
 }
 
 // ============================================================================
@@ -1710,86 +1893,269 @@ export async function generateChatRoutes(projectPath: string, framework: string,
   
   if (framework === 'express') {
     routesContent = isTS ? `import { Router } from 'express';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import chatController from '../controllers/chat.controller.js';
 
 const router = Router();
 
-// Conversations
-router.get('/conversations', chatController.getUserConversations);
-router.post('/conversations', chatController.createConversation);
-router.get('/conversations/:id', chatController.getConversation);
-router.patch('/conversations/:id', chatController.updateConversation);
-router.delete('/conversations/:id', chatController.deleteConversation);
+/**
+ * Default middlewares for Chat routes
+ * All routes are protected by default
+ */
+const defaultMiddlewares: string[] = [];
+const defaultRoles: string[] = [];
 
-// Messages
-router.get('/conversations/:id/messages', chatController.getMessages);
-router.post('/conversations/:id/messages', chatController.sendMessage);
+/**
+ * Chat route definitions
+ */
+const routes = [
+  // Conversations
+  {
+    method: METHODS.GET,
+    path: '/conversations',
+    handler: chatController.getUserConversations
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations',
+    handler: chatController.createConversation
+  },
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id',
+    handler: chatController.getConversation
+  },
+  {
+    method: METHODS.PATCH,
+    path: '/conversations/:id',
+    handler: chatController.updateConversation
+  },
+  {
+    method: METHODS.DELETE,
+    path: '/conversations/:id',
+    handler: chatController.deleteConversation
+  },
+  // Messages
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id/messages',
+    handler: chatController.getMessages
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations/:id/messages',
+    handler: chatController.sendMessage
+  },
+  // Generate response
+  {
+    method: METHODS.POST,
+    path: '/generate',
+    handler: chatController.generateResponse
+  },
+];
 
-// Generate response
-router.post('/generate', chatController.generateResponse);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.applyToExpress(router);
 
 export default router;
 ` : `import { Router } from 'express';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import chatController from '../controllers/chat.controller.js';
 
 const router = Router();
 
-// Conversations
-router.get('/conversations', chatController.getUserConversations);
-router.post('/conversations', chatController.createConversation);
-router.get('/conversations/:id', chatController.getConversation);
-router.patch('/conversations/:id', chatController.updateConversation);
-router.delete('/conversations/:id', chatController.deleteConversation);
+/**
+ * Default middlewares for Chat routes
+ */
+const defaultMiddlewares = [];
+const defaultRoles = [];
 
-// Messages
-router.get('/conversations/:id/messages', chatController.getMessages);
-router.post('/conversations/:id/messages', chatController.sendMessage);
+/**
+ * Chat route definitions
+ */
+const routes = [
+  // Conversations
+  {
+    method: METHODS.GET,
+    path: '/conversations',
+    handler: chatController.getUserConversations
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations',
+    handler: chatController.createConversation
+  },
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id',
+    handler: chatController.getConversation
+  },
+  {
+    method: METHODS.PATCH,
+    path: '/conversations/:id',
+    handler: chatController.updateConversation
+  },
+  {
+    method: METHODS.DELETE,
+    path: '/conversations/:id',
+    handler: chatController.deleteConversation
+  },
+  // Messages
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id/messages',
+    handler: chatController.getMessages
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations/:id/messages',
+    handler: chatController.sendMessage
+  },
+  // Generate response
+  {
+    method: METHODS.POST,
+    path: '/generate',
+    handler: chatController.generateResponse
+  },
+];
 
-// Generate response
-router.post('/generate', chatController.generateResponse);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.applyToExpress(router);
 
 export default router;
 `;
   } else {
     // Hono
     routesContent = isTS ? `import { Hono } from 'hono';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import chatController from '../controllers/chat.controller.js';
 
 const chatRoutes = new Hono();
 
-// Conversations
-chatRoutes.get('/conversations', chatController.getUserConversations);
-chatRoutes.post('/conversations', chatController.createConversation);
-chatRoutes.get('/conversations/:id', chatController.getConversation);
-chatRoutes.patch('/conversations/:id', chatController.updateConversation);
-chatRoutes.delete('/conversations/:id', chatController.deleteConversation);
+/**
+ * Default middlewares for Chat routes
+ */
+const defaultMiddlewares: string[] = [];
+const defaultRoles: string[] = [];
 
-// Messages
-chatRoutes.get('/conversations/:id/messages', chatController.getMessages);
-chatRoutes.post('/conversations/:id/messages', chatController.sendMessage);
+/**
+ * Chat route definitions
+ */
+const routes = [
+  // Conversations
+  {
+    method: METHODS.GET,
+    path: '/conversations',
+    handler: 'chatController.getUserConversations'
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations',
+    handler: 'chatController.createConversation'
+  },
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id',
+    handler: 'chatController.getConversation'
+  },
+  {
+    method: METHODS.PATCH,
+    path: '/conversations/:id',
+    handler: 'chatController.updateConversation'
+  },
+  {
+    method: METHODS.DELETE,
+    path: '/conversations/:id',
+    handler: 'chatController.deleteConversation'
+  },
+  // Messages
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id/messages',
+    handler: 'chatController.getMessages'
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations/:id/messages',
+    handler: 'chatController.sendMessage'
+  },
+  // Generate response
+  {
+    method: METHODS.POST,
+    path: '/generate',
+    handler: 'chatController.generateResponse'
+  },
+];
 
-// Generate response
-chatRoutes.post('/generate', chatController.generateResponse);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.registerController('chatController', chatController);
+dr.applyToHono(chatRoutes);
 
 export default chatRoutes;
 ` : `import { Hono } from 'hono';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import chatController from '../controllers/chat.controller.js';
 
 const chatRoutes = new Hono();
 
-// Conversations
-chatRoutes.get('/conversations', chatController.getUserConversations);
-chatRoutes.post('/conversations', chatController.createConversation);
-chatRoutes.get('/conversations/:id', chatController.getConversation);
-chatRoutes.patch('/conversations/:id', chatController.updateConversation);
-chatRoutes.delete('/conversations/:id', chatController.deleteConversation);
+/**
+ * Default middlewares for Chat routes
+ */
+const defaultMiddlewares = [];
+const defaultRoles = [];
 
-// Messages
-chatRoutes.get('/conversations/:id/messages', chatController.getMessages);
-chatRoutes.post('/conversations/:id/messages', chatController.sendMessage);
+/**
+ * Chat route definitions
+ */
+const routes = [
+  // Conversations
+  {
+    method: METHODS.GET,
+    path: '/conversations',
+    handler: 'chatController.getUserConversations'
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations',
+    handler: 'chatController.createConversation'
+  },
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id',
+    handler: 'chatController.getConversation'
+  },
+  {
+    method: METHODS.PATCH,
+    path: '/conversations/:id',
+    handler: 'chatController.updateConversation'
+  },
+  {
+    method: METHODS.DELETE,
+    path: '/conversations/:id',
+    handler: 'chatController.deleteConversation'
+  },
+  // Messages
+  {
+    method: METHODS.GET,
+    path: '/conversations/:id/messages',
+    handler: 'chatController.getMessages'
+  },
+  {
+    method: METHODS.POST,
+    path: '/conversations/:id/messages',
+    handler: 'chatController.sendMessage'
+  },
+  // Generate response
+  {
+    method: METHODS.POST,
+    path: '/generate',
+    handler: 'chatController.generateResponse'
+  },
+];
 
-// Generate response
-chatRoutes.post('/generate', chatController.generateResponse);
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.registerController('chatController', chatController);
+dr.applyToHono(chatRoutes);
 
 export default chatRoutes;
 `;

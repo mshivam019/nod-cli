@@ -1,6 +1,6 @@
 {
   "name": "nod-cli",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Backend scaffolding CLI for Express, Hono, and more - with best practices built-in",
   "main": "./dist/index.js",
   "type": "module",
