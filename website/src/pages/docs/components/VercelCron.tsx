@@ -39,15 +39,15 @@ export function VercelCronComponent() {
           language="json"
         />
 
-        <h3 className="font-semibold mt-6">Cron Middleware (src/middleware/cron.middleware.ts)</h3>
+        <h3 className="font-semibold mt-6">Cron Middleware</h3>
         <CodeBlock
-          code={`import { Request, Response, NextFunction } from 'express';
+          tsCode={`import { Request, Response, NextFunction } from 'express';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
 export function cronAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
-  
+
   if (!CRON_SECRET) {
     console.error('CRON_SECRET not configured');
     return res.status(500).json({ error: 'Server configuration error' });
@@ -59,12 +59,27 @@ export function cronAuth(req: Request, res: Response, next: NextFunction) {
 
   next();
 }`}
-          language="typescript"
+          jsCode={`const CRON_SECRET = process.env.CRON_SECRET;
+
+export function cronAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!CRON_SECRET) {
+    console.error('CRON_SECRET not configured');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  if (authHeader !== \`Bearer \${CRON_SECRET}\`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  next();
+}`}
         />
 
-        <h3 className="font-semibold mt-6">Cron Routes (src/routes/cron.routes.ts)</h3>
+        <h3 className="font-semibold mt-6">Cron Routes</h3>
         <CodeBlock
-          code={`import { Router } from 'express';
+          tsCode={`import { Router } from 'express';
 import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import { cronAuth } from '../middleware/cron.middleware.js';
 import { cronController } from '../controllers/cron.controller.js';
@@ -95,37 +110,91 @@ dr.registerMiddleware('cronAuth', cronAuth);
 dr.applyToExpress(router);
 
 export default router;`}
-          language="typescript"
+          jsCode={`import { Router } from 'express';
+import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
+import { cronAuth } from '../middleware/cron.middleware.js';
+import { cronController } from '../controllers/cron.controller.js';
+
+const router = Router();
+
+/**
+ * Default middlewares - all cron routes require authentication
+ */
+const defaultMiddlewares = ['cronAuth'];
+const defaultRoles = [];
+
+const routes = [
+  {
+    method: METHODS.GET,
+    path: '/daily-cleanup',
+    handler: cronController.dailyCleanup
+  },
+  {
+    method: METHODS.GET,
+    path: '/hourly-sync',
+    handler: cronController.hourlySync
+  },
+];
+
+const dr = new DeclarativeRouter({ defaultMiddlewares, defaultRoles, routes });
+dr.registerMiddleware('cronAuth', cronAuth);
+dr.applyToExpress(router);
+
+export default router;`}
         />
 
-        <h3 className="font-semibold mt-6">Cron Service (src/services/cron.service.ts)</h3>
+        <h3 className="font-semibold mt-6">Cron Service</h3>
         <CodeBlock
-          code={`import logger from '../utils/logger.js';
+          tsCode={`import logger from '../utils/logger.js';
 
 export const cronService = {
   async dailyCleanup() {
     logger.info('Running daily cleanup...');
-    
+
     // TODO: Implement cleanup logic
     // - Delete old sessions
     // - Archive old data
     // - Clean temp files
-    
+
     return { cleaned: 0 };
   },
 
   async hourlySync() {
     logger.info('Running hourly sync...');
-    
+
     // TODO: Implement sync logic
     // - Sync with external APIs
     // - Update caches
     // - Process queued jobs
-    
+
     return { synced: 0 };
   }
 };`}
-          language="typescript"
+          jsCode={`import logger from '../utils/logger.js';
+
+export const cronService = {
+  async dailyCleanup() {
+    logger.info('Running daily cleanup...');
+
+    // TODO: Implement cleanup logic
+    // - Delete old sessions
+    // - Archive old data
+    // - Clean temp files
+
+    return { cleaned: 0 };
+  },
+
+  async hourlySync() {
+    logger.info('Running hourly sync...');
+
+    // TODO: Implement sync logic
+    // - Sync with external APIs
+    // - Update caches
+    // - Process queued jobs
+
+    return { synced: 0 };
+  }
+};`}
         />
       </section>
 
@@ -168,10 +237,12 @@ CRON_SECRET=your-secure-random-string`}
         </h2>
         <p>Import the cron routes in your app:</p>
         <CodeBlock
-          code={`import cronRoutes from './routes/cron.routes.js';
+          tsCode={`import cronRoutes from './routes/cron.routes.js';
 
 app.use('/api/cron', cronRoutes);`}
-          language="typescript"
+          jsCode={`import cronRoutes from './routes/cron.routes.js';
+
+app.use('/api/cron', cronRoutes);`}
         />
       </section>
     </div>

@@ -46,7 +46,7 @@ LANGFUSE_HOST=https://cloud.langfuse.com  # or self-hosted URL`}
           Usage with LangChain
         </h2>
         <CodeBlock
-          code={`import { ChatOpenAI } from '@langchain/openai';
+          tsCode={`import { ChatOpenAI } from '@langchain/openai';
 import { CallbackHandler } from 'langfuse-langchain';
 
 // Create Langfuse callback handler
@@ -75,7 +75,35 @@ const handlerWithMetadata = new CallbackHandler({
   sessionId: 'session-456',
   metadata: { feature: 'chat', version: '1.0' },
 });`}
-          language="typescript"
+          jsCode={`import { ChatOpenAI } from '@langchain/openai';
+import { CallbackHandler } from 'langfuse-langchain';
+
+// Create Langfuse callback handler
+const langfuseHandler = new CallbackHandler({
+  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+  secretKey: process.env.LANGFUSE_SECRET_KEY,
+  baseUrl: process.env.LANGFUSE_HOST,
+});
+
+// Use with LangChain
+const llm = new ChatOpenAI({
+  modelName: 'gpt-4o-mini',
+  callbacks: [langfuseHandler],
+});
+
+// All calls are now traced
+const response = await llm.invoke([
+  { role: 'user', content: 'Hello!' }
+]);
+
+// Add custom metadata to traces
+const handlerWithMetadata = new CallbackHandler({
+  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+  secretKey: process.env.LANGFUSE_SECRET_KEY,
+  userId: 'user-123',
+  sessionId: 'session-456',
+  metadata: { feature: 'chat', version: '1.0' },
+});`}
         />
       </section>
 
@@ -84,7 +112,7 @@ const handlerWithMetadata = new CallbackHandler({
           Manual Tracing
         </h2>
         <CodeBlock
-          code={`import { Langfuse } from 'langfuse';
+          tsCode={`import { Langfuse } from 'langfuse';
 
 const langfuse = new Langfuse({
   publicKey: process.env.LANGFUSE_PUBLIC_KEY,
@@ -119,7 +147,41 @@ const generation = trace.generation({
 
 // Flush at the end
 await langfuse.flushAsync();`}
-          language="typescript"
+          jsCode={`import { Langfuse } from 'langfuse';
+
+const langfuse = new Langfuse({
+  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+  secretKey: process.env.LANGFUSE_SECRET_KEY,
+});
+
+// Create a trace
+const trace = langfuse.trace({
+  name: 'rag-query',
+  userId: 'user-123',
+  metadata: { query: 'What is RAG?' },
+});
+
+// Add spans for sub-operations
+const span = trace.span({
+  name: 'embedding-generation',
+  input: { text: 'What is RAG?' },
+});
+
+// ... do embedding work ...
+
+span.end({ output: { dimensions: 1536 } });
+
+// Add generation for LLM calls
+const generation = trace.generation({
+  name: 'llm-response',
+  model: 'gpt-4o-mini',
+  input: messages,
+  output: response,
+  usage: { promptTokens: 100, completionTokens: 50 },
+});
+
+// Flush at the end
+await langfuse.flushAsync();`}
         />
       </section>
 

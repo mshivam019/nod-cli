@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 
 type CronLockBackend = 'pg' | 'mysql' | 'redis' | 'file' | 'supabase';
@@ -424,7 +424,7 @@ export async function cleanup() {
 
 function generateFileAdapter(isTS: boolean): string {
   return isTS
-    ? `import * as fs from 'fs-extra';
+    ? `import fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -509,7 +509,7 @@ export async function cleanup(): Promise<void> {
   }
 }
 `
-    : `import * as fs from 'fs-extra';
+    : `import fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
 

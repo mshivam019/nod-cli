@@ -125,7 +125,7 @@ npx drizzle-kit studio`}
           Usage
         </h2>
         <CodeBlock
-          code={`import { db } from './db/index.js';
+          tsCode={`import { db } from './db/index.js';
 import { users, apiAudit } from './db/schema.js';
 import { eq } from 'drizzle-orm';
 
@@ -148,7 +148,29 @@ await db.update(users)
 
 // Delete
 await db.delete(users).where(eq(users.id, userId));`}
-          language="typescript"
+          jsCode={`import { db } from './db/index.js';
+import { users, apiAudit } from './db/schema.js';
+import { eq } from 'drizzle-orm';
+
+// Select all users
+const allUsers = await db.select().from(users);
+
+// Select by ID
+const user = await db.select().from(users).where(eq(users.id, userId));
+
+// Insert
+const newUser = await db.insert(users).values({
+  email: 'user@example.com',
+  name: 'John Doe'
+}).returning();
+
+// Update
+await db.update(users)
+  .set({ name: 'Jane Doe' })
+  .where(eq(users.id, userId));
+
+// Delete
+await db.delete(users).where(eq(users.id, userId));`}
         />
       </section>
     </div>

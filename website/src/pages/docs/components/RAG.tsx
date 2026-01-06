@@ -47,14 +47,14 @@ export function RAGComponent() {
           Generated Files
         </h2>
         
-        <h3 className="font-semibold mt-4">Retriever (src/utils/retriever.ts)</h3>
+        <h3 className="font-semibold mt-4">Retriever</h3>
         <CodeBlock
-          code={`import { OpenAIEmbeddings } from '@langchain/openai';
+          tsCode={`import { OpenAIEmbeddings } from '@langchain/openai';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-export const embeddings = new OpenAIEmbeddings({ 
+export const embeddings = new OpenAIEmbeddings({
   openAIApiKey: process.env.OPENAI_API_KEY,
   model: 'text-embedding-3-small'
 });
@@ -62,12 +62,24 @@ export const embeddings = new OpenAIEmbeddings({
 const sbApiKey = process.env.SUPABASE_API_KEY;
 const sbUrl = process.env.SUPABASE_URL;
 export const client = createClient(sbUrl!, sbApiKey!);`}
-          language="typescript"
+          jsCode={`import { OpenAIEmbeddings } from '@langchain/openai';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config();
+
+export const embeddings = new OpenAIEmbeddings({
+  openAIApiKey: process.env.OPENAI_API_KEY,
+  model: 'text-embedding-3-small'
+});
+
+const sbApiKey = process.env.SUPABASE_API_KEY;
+const sbUrl = process.env.SUPABASE_URL;
+export const client = createClient(sbUrl, sbApiKey);`}
         />
 
-        <h3 className="font-semibold mt-6">RAG Service (src/services/rag.service.ts)</h3>
+        <h3 className="font-semibold mt-6">RAG Service</h3>
         <CodeBlock
-          code={`import { embeddings, client } from '../utils/retriever.js';
+          tsCode={`import { embeddings, client } from '../utils/retriever.js';
 import logger from '../utils/logger.js';
 
 export const ragService = {
@@ -125,7 +137,60 @@ export const ragService = {
     }
   }
 };`}
-          language="typescript"
+          jsCode={`import { embeddings, client } from '../utils/retriever.js';
+import logger from '../utils/logger.js';
+
+export const ragService = {
+  async search(
+    query,
+    options = {}
+  ) {
+    const {
+      matchFunction = 'match_documents',
+      matchCount = 5,
+      minSimilarity = 0.7
+    } = options;
+
+    // Generate embedding for query
+    const queryEmbedding = await embeddings.embedQuery(query);
+
+    // Search vector store
+    const { data, error } = await client.rpc(matchFunction, {
+      query_embedding: queryEmbedding,
+      match_count: matchCount,
+    });
+
+    if (error) {
+      logger.error('Vector search failed:', error.message);
+      throw error;
+    }
+
+    return (data || [])
+      .filter((d) => d.similarity >= minSimilarity)
+      .map((d) => ({
+        content: d.content,
+        metadata: d.metadata,
+        similarity: d.similarity
+      }));
+  },
+
+  async storeDocument(
+    content,
+    metadata = {},
+    tableName = 'documents'
+  ) {
+    const embedding = await embeddings.embedQuery(content);
+
+    const { error } = await client
+      .from(tableName)
+      .insert({ content, embedding, metadata });
+
+    if (error) {
+      logger.error('Error storing document:', error.message);
+      throw error;
+    }
+  }
+};`}
         />
       </section>
 
@@ -213,7 +278,7 @@ SUPABASE_API_KEY=your-anon-key`}
           Usage
         </h2>
         <CodeBlock
-          code={`import { ragService } from './services/rag.service.js';
+          tsCode={`import { ragService } from './services/rag.service.js';
 
 // Search for similar documents
 const results = await ragService.search('How do I reset my password?', {
@@ -226,7 +291,19 @@ await ragService.storeDocument(
   'To reset your password, click on the forgot password link...',
   { category: 'faq', source: 'help-center' }
 );`}
-          language="typescript"
+          jsCode={`import { ragService } from './services/rag.service.js';
+
+// Search for similar documents
+const results = await ragService.search('How do I reset my password?', {
+  matchCount: 5,
+  minSimilarity: 0.75
+});
+
+// Store a new document
+await ragService.storeDocument(
+  'To reset your password, click on the forgot password link...',
+  { category: 'faq', source: 'help-center' }
+);`}
         />
       </section>
     </div>

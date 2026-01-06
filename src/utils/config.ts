@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { NodConfig, ProjectConfig, Framework, Database, ORM, Auth } from '../types/index.js';
 

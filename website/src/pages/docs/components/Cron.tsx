@@ -61,9 +61,9 @@ export function CronComponent() {
           Generated Files
         </h2>
         
-        <h3 className="font-semibold mt-4">Cron Lock Utility (src/utils/cronLock.ts)</h3>
+        <h3 className="font-semibold mt-4">Cron Lock Utility</h3>
         <CodeBlock
-          code={`import { pool } from '../config/database.js';
+          tsCode={`import { pool } from '../config/database.js';
 import logger from './logger.js';
 
 interface LockResult {
@@ -73,22 +73,22 @@ interface LockResult {
 
 export async function acquireLock(lockName: string): Promise<LockResult> {
   const lockId = hashLockName(lockName);
-  
+
   try {
     // Try to acquire PostgreSQL advisory lock
     const result = await pool.query(
       'SELECT pg_try_advisory_lock($1) as acquired',
       [lockId]
     );
-    
+
     const acquired = result.rows[0]?.acquired === true;
-    
+
     if (acquired) {
       logger.info(\`Lock acquired: \${lockName}\`);
     } else {
       logger.debug(\`Lock not acquired (already held): \${lockName}\`);
     }
-    
+
     return {
       acquired,
       release: async () => {
@@ -113,12 +113,56 @@ function hashLockName(name: string): number {
   }
   return Math.abs(hash);
 }`}
-          language="typescript"
+          jsCode={`import { pool } from '../config/database.js';
+import logger from './logger.js';
+
+export async function acquireLock(lockName) {
+  const lockId = hashLockName(lockName);
+
+  try {
+    // Try to acquire PostgreSQL advisory lock
+    const result = await pool.query(
+      'SELECT pg_try_advisory_lock($1) as acquired',
+      [lockId]
+    );
+
+    const acquired = result.rows[0]?.acquired === true;
+
+    if (acquired) {
+      logger.info(\`Lock acquired: \${lockName}\`);
+    } else {
+      logger.debug(\`Lock not acquired (already held): \${lockName}\`);
+    }
+
+    return {
+      acquired,
+      release: async () => {
+        if (acquired) {
+          await pool.query('SELECT pg_advisory_unlock($1)', [lockId]);
+          logger.info(\`Lock released: \${lockName}\`);
+        }
+      }
+    };
+  } catch (error) {
+    logger.error(\`Failed to acquire lock \${lockName}:\`, error);
+    return { acquired: false, release: async () => {} };
+  }
+}
+
+function hashLockName(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    const char = name.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}`}
         />
 
-        <h3 className="font-semibold mt-6">Cron Job Example (src/cron/dailyCleanup.ts)</h3>
+        <h3 className="font-semibold mt-6">Cron Job Example</h3>
         <CodeBlock
-          code={`import cron from 'node-cron';
+          tsCode={`import cron from 'node-cron';
 import { acquireLock } from '../utils/cronLock.js';
 import logger from '../utils/logger.js';
 
@@ -128,18 +172,18 @@ export function scheduleDailyCleanup() {
   // Run at midnight every day
   cron.schedule('0 0 * * *', async () => {
     const lock = await acquireLock(JOB_NAME);
-    
+
     if (!lock.acquired) {
       logger.debug(\`\${JOB_NAME}: Another instance is running\`);
       return;
     }
-    
+
     try {
       logger.info(\`\${JOB_NAME}: Starting...\`);
-      
+
       // Your cleanup logic here
       await performCleanup();
-      
+
       logger.info(\`\${JOB_NAME}: Completed\`);
     } catch (error) {
       logger.error(\`\${JOB_NAME}: Failed\`, error);
@@ -147,7 +191,7 @@ export function scheduleDailyCleanup() {
       await lock.release();
     }
   });
-  
+
   logger.info(\`Scheduled: \${JOB_NAME}\`);
 }
 
@@ -157,7 +201,45 @@ async function performCleanup() {
   // - Archive old records
   // - Clean temp files
 }`}
-          language="typescript"
+          jsCode={`import cron from 'node-cron';
+import { acquireLock } from '../utils/cronLock.js';
+import logger from '../utils/logger.js';
+
+const JOB_NAME = 'daily-cleanup';
+
+export function scheduleDailyCleanup() {
+  // Run at midnight every day
+  cron.schedule('0 0 * * *', async () => {
+    const lock = await acquireLock(JOB_NAME);
+
+    if (!lock.acquired) {
+      logger.debug(\`\${JOB_NAME}: Another instance is running\`);
+      return;
+    }
+
+    try {
+      logger.info(\`\${JOB_NAME}: Starting...\`);
+
+      // Your cleanup logic here
+      await performCleanup();
+
+      logger.info(\`\${JOB_NAME}: Completed\`);
+    } catch (error) {
+      logger.error(\`\${JOB_NAME}: Failed\`, error);
+    } finally {
+      await lock.release();
+    }
+  });
+
+  logger.info(\`Scheduled: \${JOB_NAME}\`);
+}
+
+async function performCleanup() {
+  // TODO: Implement cleanup
+  // - Delete expired sessions
+  // - Archive old records
+  // - Clean temp files
+}`}
         />
       </section>
 
@@ -167,19 +249,30 @@ async function performCleanup() {
         </h2>
         <p>Initialize cron jobs in your app:</p>
         <CodeBlock
-          code={`// src/index.ts
+          tsCode={`// src/index.ts
 import { scheduleDailyCleanup } from './cron/dailyCleanup.js';
 import { scheduleHourlySync } from './cron/hourlySync.js';
 
 // Start the server
 app.listen(PORT, () => {
   console.log(\`Server running on port \${PORT}\`);
-  
+
   // Initialize cron jobs
   scheduleDailyCleanup();
   scheduleHourlySync();
 });`}
-          language="typescript"
+          jsCode={`// src/index.js
+import { scheduleDailyCleanup } from './cron/dailyCleanup.js';
+import { scheduleHourlySync } from './cron/hourlySync.js';
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(\`Server running on port \${PORT}\`);
+
+  // Initialize cron jobs
+  scheduleDailyCleanup();
+  scheduleHourlySync();
+});`}
         />
       </section>
 

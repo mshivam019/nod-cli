@@ -44,9 +44,9 @@ export function ServiceComponent() {
           Generated Files
         </h2>
         
-        <h3 className="font-semibold mt-4">Service without Database (src/services/email.ts)</h3>
+        <h3 className="font-semibold mt-4">Service without Database</h3>
         <CodeBlock
-          code={`export const emailService = {
+          tsCode={`export const emailService = {
   async getAll() {
     // TODO: Implement get all logic
     return [];
@@ -72,12 +72,37 @@ export function ServiceComponent() {
     return { success: true, id };
   }
 };`}
-          language="typescript"
+          jsCode={`export const emailService = {
+  async getAll() {
+    // TODO: Implement get all logic
+    return [];
+  },
+
+  async getById(id) {
+    // TODO: Implement get by id logic
+    return { id };
+  },
+
+  async create(data) {
+    // TODO: Implement create logic
+    return { success: true, data };
+  },
+
+  async update(id, data) {
+    // TODO: Implement update logic
+    return { success: true, id, data };
+  },
+
+  async delete(id) {
+    // TODO: Implement delete logic
+    return { success: true, id };
+  }
+};`}
         />
 
-        <h3 className="font-semibold mt-6">Service with Database (src/services/products.ts)</h3>
+        <h3 className="font-semibold mt-6">Service with Database</h3>
         <CodeBlock
-          code={`import { pool } from '../config/database';
+          tsCode={`import { pool } from '../config/database';
 
 export const productsService = {
   async getAll() {
@@ -111,7 +136,40 @@ export const productsService = {
     return { success: true };
   }
 };`}
-          language="typescript"
+          jsCode={`import { pool } from '../config/database';
+
+export const productsService = {
+  async getAll() {
+    const result = await pool.query('SELECT * FROM products');
+    return result.rows;
+  },
+
+  async getById(id) {
+    const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+    return result.rows[0];
+  },
+
+  async create(data) {
+    const result = await pool.query(
+      'INSERT INTO products (name, description) VALUES ($1, $2) RETURNING *',
+      [data.name, data.description]
+    );
+    return result.rows[0];
+  },
+
+  async update(id, data) {
+    const result = await pool.query(
+      'UPDATE products SET name = $1, description = $2 WHERE id = $3 RETURNING *',
+      [data.name, data.description, id]
+    );
+    return result.rows[0];
+  },
+
+  async delete(id) {
+    await pool.query('DELETE FROM products WHERE id = $1', [id]);
+    return { success: true };
+  }
+};`}
         />
       </section>
 

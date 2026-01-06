@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { ProjectConfig } from '../types/index.js';
 import { generateExpressProject } from './frameworks/express.js';

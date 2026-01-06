@@ -31,9 +31,9 @@ export function SupabaseComponent() {
           Generated Files
         </h2>
         
-        <h3 className="font-semibold mt-4">Supabase Helper (src/helpers/supabase.helper.ts)</h3>
+        <h3 className="font-semibold mt-4">Supabase Helper</h3>
         <CodeBlock
-          code={`import { createClient } from '@supabase/supabase-js';
+          tsCode={`import { createClient } from '@supabase/supabase-js';
 import config from '../config/config.js';
 import logger from '../utils/logger.js';
 
@@ -47,21 +47,21 @@ export const downloadFromSupabase = async (bucketName: string, filePath: string)
   const { data, error } = await supabase.storage
     .from(bucketName)
     .download(filePath);
-  
+
   if (error) throw error;
   return data;
 };
 
 export const uploadToSupabase = async (
-  bucketName: string, 
-  filePath: string, 
-  fileBuffer: Buffer | Blob, 
+  bucketName: string,
+  filePath: string,
+  fileBuffer: Buffer | Blob,
   options: any = {}
 ) => {
   const { data, error } = await supabase.storage
     .from(bucketName)
     .upload(filePath, fileBuffer, { upsert: true, ...options });
-  
+
   if (error) throw error;
   return data;
 };
@@ -70,18 +70,60 @@ export const getSignedUrl = async (bucketName: string, filePath: string, expires
   const { data, error } = await supabase.storage
     .from(bucketName)
     .createSignedUrl(filePath, expiresIn);
-  
+
   if (error) return null;
   return data.signedUrl;
 };
 
 export default supabase;`}
-          language="typescript"
+          jsCode={`import { createClient } from '@supabase/supabase-js';
+import config from '../config/config.js';
+import logger from '../utils/logger.js';
+
+const sbApiKey = config.supabaseApiKey;
+const sbUrl = config.supabaseUrl;
+
+export const supabase = createClient(sbUrl, sbApiKey);
+export const supabaseAuthAdmin = supabase.auth.admin;
+
+export const downloadFromSupabase = async (bucketName, filePath) => {
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .download(filePath);
+
+  if (error) throw error;
+  return data;
+};
+
+export const uploadToSupabase = async (
+  bucketName,
+  filePath,
+  fileBuffer,
+  options = {}
+) => {
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, fileBuffer, { upsert: true, ...options });
+
+  if (error) throw error;
+  return data;
+};
+
+export const getSignedUrl = async (bucketName, filePath, expiresIn = 86400) => {
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .createSignedUrl(filePath, expiresIn);
+
+  if (error) return null;
+  return data.signedUrl;
+};
+
+export default supabase;`}
         />
 
-        <h3 className="font-semibold mt-6">JWT Auth Middleware (src/middleware/jwtAuth.middleware.ts)</h3>
+        <h3 className="font-semibold mt-6">JWT Auth Middleware</h3>
         <CodeBlock
-          code={`import { jwtVerify, createRemoteJWKSet } from 'jose';
+          tsCode={`import { jwtVerify, createRemoteJWKSet } from 'jose';
 import config from '../config/config.js';
 
 const SUPABASE_JWT_ISSUER = \`https://\${config.supabaseProject}.supabase.co/auth/v1\`;
@@ -127,7 +169,43 @@ const jwtAuth = async (req: any, res: any, next: any) => {
 };
 
 export default jwtAuth;`}
-          language="typescript"
+          jsCode={`import { jwtVerify, createRemoteJWKSet } from 'jose';
+import config from '../config/config.js';
+
+const SUPABASE_JWT_ISSUER = \`https://\${config.supabaseProject}.supabase.co/auth/v1\`;
+const JWKS = createRemoteJWKSet(new URL(\`\${SUPABASE_JWT_ISSUER}/.well-known/jwks.json\`));
+
+const jwtAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: SUPABASE_JWT_ISSUER,
+      algorithms: ['RS256', 'ES256'],
+    });
+
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      app_metadata: payload.app_metadata,
+      user_metadata: payload.user_metadata,
+    };
+
+    next();
+  } catch (error) {
+    if (error.code === 'ERR_JWT_EXPIRED') {
+      return res.status(401).json({ message: 'Token expired' });
+    }
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+export default jwtAuth;`}
         />
       </section>
 
@@ -148,7 +226,7 @@ SUPABASE_PROJECT=your-project-id`}
           Usage
         </h2>
         <CodeBlock
-          code={`import supabase, { uploadToSupabase, getSignedUrl } from './helpers/supabase.helper.js';
+          tsCode={`import supabase, { uploadToSupabase, getSignedUrl } from './helpers/supabase.helper.js';
 import { METHODS } from '../config/router.js';
 
 // Declarative route with JWT auth (from defaultMiddlewares)
@@ -166,7 +244,24 @@ const data = await uploadToSupabase('avatars', 'user-123/avatar.png', fileBuffer
 
 // Get signed URL
 const url = await getSignedUrl('avatars', 'user-123/avatar.png', 3600);`}
-          language="typescript"
+          jsCode={`import supabase, { uploadToSupabase, getSignedUrl } from './helpers/supabase.helper.js';
+import { METHODS } from '../config/router.js';
+
+// Declarative route with JWT auth (from defaultMiddlewares)
+const routes = [
+  {
+    method: METHODS.GET,
+    path: '/profile',
+    handler: profileController.getProfile
+    // jwtAuth is applied from defaultMiddlewares
+  },
+];
+
+// Upload file
+const data = await uploadToSupabase('avatars', 'user-123/avatar.png', fileBuffer);
+
+// Get signed URL
+const url = await getSignedUrl('avatars', 'user-123/avatar.png', 3600);`}
         />
       </section>
     </div>

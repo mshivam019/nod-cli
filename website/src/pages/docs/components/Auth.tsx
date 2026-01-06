@@ -16,15 +16,23 @@ export function AuthComponent() {
         </h2>
         <CodeBlock code={`nod add auth`} language="bash" />
         <p className="text-muted-foreground">
-          You'll be prompted to select which auth features to include:
+          You'll first be prompted to select an <strong>Authentication Mode</strong>:
+        </p>
+        <ul className="list-disc list-inside space-y-2 text-muted-foreground mb-4">
+          <li><strong>Email/Password + OAuth</strong> (Default) - Traditional login + social providers</li>
+          <li><strong>Email/Password only</strong> - Traditional email/password login</li>
+          <li><strong>OAuth only</strong> - Social login only (Google, etc.), no passwords</li>
+        </ul>
+        <p className="text-muted-foreground">
+          Then select features to include (based on mode):
         </p>
         <ul className="list-disc list-inside space-y-2 text-muted-foreground">
           <li><strong>Supabase Admin auth</strong> - Create users when public signups are disabled</li>
           <li><strong>Custom JWT signing</strong> - Roll your own tokens with RSA keys</li>
           <li><strong>JWKS auto-generation</strong> - Automatic RSA key pair generation with public JWKS endpoint</li>
-          <li><strong>Forgot password flow</strong> - JWT-based password reset</li>
-          <li><strong>Google OAuth</strong> - Server-side token verification using Google's API directly</li>
-          <li><strong>Email service</strong> - Nodemailer integration for password reset and verification emails</li>
+          <li><strong>Forgot password flow</strong> - JWT-based password reset (Email/Password modes only)</li>
+          <li><strong>Google OAuth</strong> - Server-side token verification using Google's API directly (OAuth modes only)</li>
+          <li><strong>Email service</strong> - Nodemailer integration for password reset and verification emails (Email/Password modes only)</li>
         </ul>
       </section>
 
@@ -34,28 +42,28 @@ export function AuthComponent() {
         </h2>
         
         <div className="space-y-6">
-          <div>
-            <h3 className="font-semibold">Core Services</h3>
-            <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-              <li><code>src/auth/jwks.service.ts</code> - RSA key pair auto-generation</li>
-              <li><code>src/auth/jwt.service.ts</code> - Custom JWT signing/verification</li>
-              <li><code>src/auth/password.service.ts</code> - Password hashing with bcrypt</li>
-              <li><code>src/auth/auth.service.ts</code> - Main auth orchestration</li>
-              <li><code>src/auth/auth.controller.ts</code> - Route handlers</li>
-              <li><code>src/auth/auth.routes.ts</code> - Auth routes</li>
-              <li><code>src/middleware/auth.middleware.ts</code> - JWT verification middleware</li>
-            </ul>
-          </div>
-          
-          <div>
-            <h3 className="font-semibold">Optional Services (based on selection)</h3>
-            <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-              <li><code>src/auth/supabase-admin.service.ts</code> - Supabase Admin API</li>
-              <li><code>src/auth/forgot-password.service.ts</code> - Password reset flow</li>
-              <li><code>src/auth/google-oauth.service.ts</code> - Google OAuth verification</li>
-              <li><code>src/auth/email.service.ts</code> - Email service with templates</li>
-            </ul>
-          </div>
+           <div>
+             <h3 className="font-semibold">Core Services</h3>
+             <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
+               <li><code>src/auth/jwks.service.ts</code> - RSA key pair auto-generation</li>
+               <li><code>src/auth/jwt.service.ts</code> - Custom JWT signing/verification</li>
+               <li><code>src/auth/auth.service.ts</code> - Main auth orchestration</li>
+               <li><code>src/auth/auth.controller.ts</code> - Route handlers</li>
+               <li><code>src/auth/auth.routes.ts</code> - Auth routes</li>
+               <li><code>src/middleware/auth.middleware.ts</code> - JWT verification middleware</li>
+             </ul>
+           </div>
+
+           <div>
+             <h3 className="font-semibold">Conditional Services (based on auth mode and selections)</h3>
+             <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
+               <li><code>src/auth/password.service.ts</code> - Password hashing with bcrypt (Email/Password modes)</li>
+               <li><code>src/auth/google-oauth.service.ts</code> - Google OAuth verification (OAuth modes)</li>
+               <li><code>src/auth/forgot-password.service.ts</code> - Password reset flow (Email/Password modes)</li>
+               <li><code>src/auth/email.service.ts</code> - Email service with templates (Email/Password modes)</li>
+               <li><code>src/auth/supabase-admin.service.ts</code> - Supabase Admin API (if selected)</li>
+             </ul>
+           </div>
           
           <div>
             <h3 className="font-semibold">Database Schema</h3>
@@ -91,14 +99,16 @@ export function AuthComponent() {
 import { pgTable, uuid, varchar, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 
 // Users table - stores user account and profile information
-// Password hashing is handled by bcrypt in password.service.ts
+// Fields are generated based on authMode:
+// - password_hash: Included in Email/Password modes
+// - google_id: Included in OAuth modes
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: text('password_hash'), // bcrypt hash, null for OAuth-only users
+  passwordHash: text('password_hash'), // bcrypt hash (Email/Password modes only)
   name: varchar('name', { length: 255 }),
   emailVerified: boolean('email_verified').default(false),
-  googleId: varchar('google_id', { length: 255 }).unique(),
+  googleId: varchar('google_id', { length: 255 }).unique(), // Google ID (OAuth modes only)
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -114,13 +124,16 @@ export type NewUser = typeof users.$inferInsert;`}
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table - stores user account and profile information
+-- Fields are generated based on authMode:
+-- - password_hash: Included in Email/Password modes
+-- - google_id: Included in OAuth modes
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash TEXT, -- bcrypt hash, null for OAuth-only users
+  password_hash TEXT, -- bcrypt hash (Email/Password modes only)
   name VARCHAR(255),
   email_verified BOOLEAN DEFAULT FALSE,
-  google_id VARCHAR(255) UNIQUE,
+  google_id VARCHAR(255) UNIQUE, -- Google ID (OAuth modes only)
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -147,7 +160,7 @@ CREATE INDEX idx_users_google_id ON users(google_id);`}
           The public key is exposed via a JWKS endpoint for other services to verify your tokens.
         </p>
         <CodeBlock
-          code={`import { initializeJWKS } from './auth/jwks.service.js';
+          tsCode={`import { initializeJWKS } from './auth/jwks.service.js';
 
 // Initialize JWKS before starting server
 await initializeJWKS();
@@ -157,7 +170,16 @@ await initializeJWKS();
 // .keys/public.pem  - Public key
 
 // JWKS endpoint: GET /api/auth/.well-known/jwks.json`}
-          language="typescript"
+          jsCode={`import { initializeJWKS } from './auth/jwks.service.js';
+
+// Initialize JWKS before starting server
+await initializeJWKS();
+
+// Keys are stored in:
+// .keys/private.pem - Private key (chmod 600)
+// .keys/public.pem  - Public key
+
+// JWKS endpoint: GET /api/auth/.well-known/jwks.json`}
         />
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <p className="text-yellow-800 dark:text-yellow-200 text-sm">
@@ -175,10 +197,10 @@ await initializeJWKS();
           Sign and verify JWTs using your own RSA keys. Supports access tokens, refresh tokens, and reset tokens.
         </p>
         <CodeBlock
-          code={`import { 
-  generateTokenPair, 
+          tsCode={`import {
+  generateTokenPair,
   verifyAccessToken,
-  signResetToken 
+  signResetToken
 } from './auth/jwt.service.js';
 
 // Generate access + refresh token pair
@@ -196,7 +218,27 @@ const payload = await verifyAccessToken(token);
 
 // Sign a password reset token (1h expiry)
 const resetToken = await signResetToken(userId, email);`}
-          language="typescript"
+          jsCode={`import {
+  generateTokenPair,
+  verifyAccessToken,
+  signResetToken
+} from './auth/jwt.service.js';
+
+// Generate access + refresh token pair
+const tokens = await generateTokenPair({
+  sub: user.id,
+  email: user.email,
+  name: user.name,
+  role: 'user'
+});
+// Returns: { accessToken, refreshToken, expiresIn }
+
+// Verify an access token
+const payload = await verifyAccessToken(token);
+// Returns: { sub, email, name, role, type: 'access', ... }
+
+// Sign a password reset token (1h expiry)
+const resetToken = await signResetToken(userId, email);`}
         />
       </section>
 
@@ -208,10 +250,10 @@ const resetToken = await signResetToken(userId, email);`}
           Secure password hashing with bcrypt. Includes password strength validation to enforce security requirements.
         </p>
         <CodeBlock
-          code={`import { 
-  hashPassword, 
+          tsCode={`import {
+  hashPassword,
   verifyPassword,
-  validatePasswordStrength 
+  validatePasswordStrength
 } from './auth/password.service.js';
 
 // Validate password meets requirements
@@ -228,7 +270,26 @@ const hash = await hashPassword('MyP@ssw0rd!');
 // Verify password during login
 const isValid = await verifyPassword('MyP@ssw0rd!', hash);
 // Returns: true/false`}
-          language="typescript"
+          jsCode={`import {
+  hashPassword,
+  verifyPassword,
+  validatePasswordStrength
+} from './auth/password.service.js';
+
+// Validate password meets requirements
+const validation = validatePasswordStrength('MyP@ssw0rd!');
+if (!validation.valid) {
+  console.log(validation.errors);
+  // ['Password must be at least 8 characters']
+}
+
+// Hash password before storing
+const hash = await hashPassword('MyP@ssw0rd!');
+// Returns: $2b$10$...
+
+// Verify password during login
+const isValid = await verifyPassword('MyP@ssw0rd!', hash);
+// Returns: true/false`}
         />
         <h3 className="font-semibold mt-4">Password Requirements</h3>
         <ul className="list-disc list-inside space-y-1 text-muted-foreground">
@@ -248,7 +309,7 @@ const isValid = await verifyPassword('MyP@ssw0rd!', hash);
           Create users programmatically using Supabase's Admin API. This works even when public signups are disabled in the Supabase dashboard.
         </p>
         <CodeBlock
-          code={`import { createUser, getUserByEmail } from './auth/supabase-admin.service.js';
+          tsCode={`import { createUser, getUserByEmail } from './auth/supabase-admin.service.js';
 
 // Create a user (bypasses disabled signups)
 const { user, error } = await createUser({
@@ -265,7 +326,23 @@ const { user, error } = await createUser({
 
 // Get user by email
 const { user } = await getUserByEmail('user@example.com');`}
-          language="typescript"
+          jsCode={`import { createUser, getUserByEmail } from './auth/supabase-admin.service.js';
+
+// Create a user (bypasses disabled signups)
+const { user, error } = await createUser({
+  email: 'user@example.com',
+  password: 'securepassword',
+  emailConfirm: true, // Auto-confirm email
+  userData: {
+    name: 'John Doe'
+  },
+  appMetadata: {
+    role: 'admin'
+  }
+});
+
+// Get user by email
+const { user } = await getUserByEmail('user@example.com');`}
         />
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <p className="text-blue-800 dark:text-blue-200 text-sm">
@@ -283,11 +360,11 @@ const { user } = await getUserByEmail('user@example.com');`}
           Nodemailer integration for transactional emails. Includes pre-built templates for password reset, verification, and welcome emails.
         </p>
         <CodeBlock
-          code={`import { 
+          tsCode={`import {
   sendEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
-  sendWelcomeEmail 
+  sendWelcomeEmail
 } from './auth/email.service.js';
 
 // Send password reset email
@@ -314,7 +391,37 @@ await sendEmail({
   text: 'Plain text content',
   html: '<h1>HTML content</h1>'
 });`}
-          language="typescript"
+          jsCode={`import {
+  sendEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+  sendWelcomeEmail
+} from './auth/email.service.js';
+
+// Send password reset email
+await sendPasswordResetEmail(
+  'user@example.com',
+  'John Doe',
+  'https://yourapp.com/reset?token=xxx'
+);
+
+// Send email verification
+await sendVerificationEmail(
+  'user@example.com',
+  'John Doe',
+  'https://yourapp.com/verify?token=xxx'
+);
+
+// Send welcome email
+await sendWelcomeEmail('user@example.com', 'John Doe');
+
+// Send custom email
+await sendEmail({
+  to: 'user@example.com',
+  subject: 'Custom Email',
+  text: 'Plain text content',
+  html: '<h1>HTML content</h1>'
+});`}
         />
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <p className="text-blue-800 dark:text-blue-200 text-sm">
@@ -359,7 +466,7 @@ google.accounts.id.initialize({
 
         <h3 className="font-semibold mt-4">Backend: Verify Token</h3>
         <CodeBlock
-          code={`import { verifyGoogleIdToken } from './auth/google-oauth.service.js';
+          tsCode={`import { verifyGoogleIdToken } from './auth/google-oauth.service.js';
 
 // Verify the ID token server-side
 const result = await verifyGoogleIdToken(idToken);
@@ -367,7 +474,7 @@ const result = await verifyGoogleIdToken(idToken);
 if (result.success) {
   const { user } = result;
   // user = { id, email, emailVerified, name, picture, ... }
-  
+
   // Create or get existing user, then issue your JWT
   const tokens = await generateTokenPair({
     sub: user.id,
@@ -375,24 +482,30 @@ if (result.success) {
     name: user.name
   });
 }`}
-          language="typescript"
+          jsCode={`import { verifyGoogleIdToken } from './auth/google-oauth.service.js';
+
+// Verify the ID token server-side
+const result = await verifyGoogleIdToken(idToken);
+
+if (result.success) {
+  const { user } = result;
+  // user = { id, email, emailVerified, name, picture, ... }
+
+  // Create or get existing user, then issue your JWT
+  const tokens = await generateTokenPair({
+    sub: user.id,
+    email: user.email,
+    name: user.name
+  });
+}`}
         />
 
-        <h3 className="font-semibold mt-4">Alternative: Authorization Code Flow</h3>
-        <CodeBlock
-          code={`import { getGoogleAuthUrl, exchangeCodeForTokens } from './auth/google-oauth.service.js';
-
-// 1. Generate auth URL and redirect user
-const authUrl = getGoogleAuthUrl('https://yourapp.com/callback', 'optional-state');
-// Redirect user to authUrl
-
-// 2. Handle callback - exchange code for tokens
-const { accessToken, idToken } = await exchangeCodeForTokens(code, redirectUri);
-
-// 3. Verify the ID token
-const result = await verifyGoogleIdToken(idToken);`}
-          language="typescript"
-        />
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+            <strong>Note:</strong> Currently only ID token verification is implemented. Authorization code flow
+            and callback handling are not yet generated by the CLI.
+          </p>
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -403,10 +516,10 @@ const result = await verifyGoogleIdToken(idToken);`}
           JWT-based password reset flow. Issue a short-lived reset token, send it via email, then verify and update the password.
         </p>
         <CodeBlock
-          code={`import { 
-  initiateForgotPassword, 
+          tsCode={`import {
+  initiateForgotPassword,
   resetPassword,
-  validateResetToken 
+  validateResetToken
 } from './auth/forgot-password.service.js';
 
 // 1. User requests password reset
@@ -423,7 +536,26 @@ const { valid, email } = await validateResetToken(token);
 // 3. Reset password with token
 const resetResult = await resetPassword(token, newPassword);
 // Returns: { success, message }`}
-          language="typescript"
+          jsCode={`import {
+  initiateForgotPassword,
+  resetPassword,
+  validateResetToken
+} from './auth/forgot-password.service.js';
+
+// 1. User requests password reset
+const result = await initiateForgotPassword('user@example.com');
+if (result.success && result.resetToken) {
+  // Send email with reset link containing the token
+  // e.g., https://yourapp.com/reset-password?token=xxx
+  await sendResetEmail(email, result.resetToken);
+}
+
+// 2. Validate token (optional - for UI feedback)
+const { valid, email } = await validateResetToken(token);
+
+// 3. Reset password with token
+const resetResult = await resetPassword(token, newPassword);
+// Returns: { success, message }`}
         />
       </section>
 
@@ -441,15 +573,9 @@ const resetResult = await resetPassword(token, newPassword);
               </tr>
             </thead>
             <tbody className="text-muted-foreground">
-              <tr className="border-b">
-                <td className="py-2 px-4"><code>POST</code></td>
-                <td className="py-2 px-4"><code>/register</code></td>
-                <td className="py-2 px-4">Register new user</td>
-              </tr>
-              <tr className="border-b">
-                <td className="py-2 px-4"><code>POST</code></td>
-                <td className="py-2 px-4"><code>/login</code></td>
-                <td className="py-2 px-4">Login with email/password</td>
+              {/* Common Routes */}
+              <tr className="bg-muted/50">
+                <td colSpan={3} className="py-2 px-4 font-semibold text-foreground">Common Routes (All Modes)</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>POST</code></td>
@@ -468,18 +594,28 @@ const resetResult = await resetPassword(token, newPassword);
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>POST</code></td>
-                <td className="py-2 px-4"><code>/google</code></td>
-                <td className="py-2 px-4">Google OAuth with ID token</td>
+                <td className="py-2 px-4"><code>/logout</code></td>
+                <td className="py-2 px-4">Logout user (protected)</td>
               </tr>
-              <tr className="border-b">
-                <td className="py-2 px-4"><code>GET</code></td>
-                <td className="py-2 px-4"><code>/google/url</code></td>
-                <td className="py-2 px-4">Get Google OAuth URL</td>
+
+              {/* Email/Password Routes */}
+              <tr className="bg-muted/50">
+                <td colSpan={3} className="py-2 px-4 font-semibold text-foreground">Email/Password Routes (Email/Password & Both Modes)</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>POST</code></td>
-                <td className="py-2 px-4"><code>/google/callback</code></td>
-                <td className="py-2 px-4">Handle Google OAuth callback</td>
+                <td className="py-2 px-4"><code>/register</code></td>
+                <td className="py-2 px-4">Register new user</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>POST</code></td>
+                <td className="py-2 px-4"><code>/login</code></td>
+                <td className="py-2 px-4">Login with email/password</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>PUT</code></td>
+                <td className="py-2 px-4"><code>/change-password</code></td>
+                <td className="py-2 px-4">Change password (protected)</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>POST</code></td>
@@ -491,15 +627,15 @@ const resetResult = await resetPassword(token, newPassword);
                 <td className="py-2 px-4"><code>/reset-password</code></td>
                 <td className="py-2 px-4">Reset password with token</td>
               </tr>
-              <tr className="border-b">
-                <td className="py-2 px-4"><code>GET</code></td>
-                <td className="py-2 px-4"><code>/validate-reset-token</code></td>
-                <td className="py-2 px-4">Validate reset token</td>
+
+              {/* OAuth Routes */}
+              <tr className="bg-muted/50">
+                <td colSpan={3} className="py-2 px-4 font-semibold text-foreground">OAuth Routes (OAuth-Only & Both Modes)</td>
               </tr>
               <tr className="border-b">
-                <td className="py-2 px-4"><code>PUT</code></td>
-                <td className="py-2 px-4"><code>/change-password</code></td>
-                <td className="py-2 px-4">Change password (protected)</td>
+                <td className="py-2 px-4"><code>POST</code></td>
+                <td className="py-2 px-4"><code>/google</code></td>
+                <td className="py-2 px-4">Google OAuth with ID token</td>
               </tr>
             </tbody>
           </table>
@@ -570,6 +706,12 @@ app.get('/api/protected', authMiddleware, (req, res) => {
 app.listen(3000);`}
           language="typescript"
         />
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <p className="text-blue-800 dark:text-blue-200 text-sm">
+            <strong>Note:</strong> Imported services and routes are generated based on your selected auth mode and features.
+            The example shows a full setup - your actual imports may vary depending on configuration.
+          </p>
+        </div>
       </section>
 
       <section className="space-y-4">
