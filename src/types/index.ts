@@ -1,6 +1,7 @@
 export type Framework = 'express' | 'hono';
 export type Database = 'pg' | 'mysql' | 'none' | 'supabase' | 'drizzle';
 export type Auth = 'jwt' | 'jwks' | 'supabase' | 'none';
+export type AuthMode = 'email-password' | 'oauth-only' | 'both';
 export type Queue = 'bull' | 'none';
 export type Preset = 'minimal' | 'api' | 'full' | 'ai' | '1' | 'custom';
 export type CronLock = 'pg' | 'mysql' | 'redis' | 'file' | 'supabase';
@@ -11,6 +12,17 @@ export type EmbeddingProvider = 'openai' | 'gemini' | 'cohere' | 'none';
 export type VectorStore = 'supabase' | 'pinecone' | 'chroma' | 'weaviate' | 'none';
 export type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'none';
 export type ChatDatabase = 'supabase' | 'pg' | 'mysql' | 'none';
+
+// Auth-related types
+export interface AuthFeatures {
+  supabaseAdmin?: boolean;
+  customJwt?: boolean;
+  jwks?: boolean;
+  forgotPassword?: boolean;
+  googleOAuth?: boolean;
+  emailService?: boolean;
+  authMode?: AuthMode;
+}
 
 export interface AIFeatures {
   rag?: boolean;
@@ -99,4 +111,57 @@ export interface TemplateContext {
   hasDrizzle: boolean;
   hasSupabase: boolean;
   hasApiAudit: boolean;
+}
+
+/**
+ * nod.config.json schema - stores project configuration for component generation
+ * Similar to shadcn's components.json
+ */
+export interface NodConfig {
+  $schema?: string;
+  name: string;
+  framework: Framework;
+  typescript: boolean;
+  database: Database;
+  orm: ORM;
+  auth: Auth;
+  
+  // Paths for code generation
+  paths: {
+    src: string;
+    routes: string;
+    controllers: string;
+    services: string;
+    middleware: string;
+    db: string;
+    auth: string;
+  };
+  
+  // Component-specific settings
+  components: {
+    auth?: {
+      supabaseAdmin?: boolean;
+      customJwt?: boolean;
+      jwks?: boolean;
+      forgotPassword?: boolean;
+      googleOAuth?: boolean;
+      emailService?: boolean;
+      authMode?: AuthMode;
+    };
+    ai?: {
+      rag?: boolean;
+      chat?: boolean;
+      langfuse?: boolean;
+      embeddings?: EmbeddingProvider;
+      vectorStore?: VectorStore;
+      llmProvider?: LLMProvider;
+      chatDatabase?: ChatDatabase;
+    };
+  };
+  
+  // Supabase-specific settings
+  supabase?: {
+    usePooler?: boolean;
+    project?: string;
+  };
 }

@@ -4,6 +4,7 @@ import { ProjectConfig } from '../types/index.js';
 import { generateExpressProject } from './frameworks/express.js';
 import { generateHonoProject } from './frameworks/hono.js';
 import { getTemplateContext } from '../utils/template.js';
+import { createNodConfig, saveNodConfig } from '../utils/config.js';
 
 export async function generateProject(config: ProjectConfig) {
   const projectPath = path.join(process.cwd(), config.name);
@@ -66,6 +67,10 @@ export async function generateProject(config: ProjectConfig) {
   await generateLogger(projectPath, ext);
   await generateDocsFolder(projectPath, config);
   await generateTempFolder(projectPath);
+  
+  // Generate nod.config.json for component generation context
+  const nodConfig = createNodConfig(config);
+  await saveNodConfig(projectPath, nodConfig);
   
   if (config.features.docker !== false) {
     await generateDockerFiles(projectPath, config);

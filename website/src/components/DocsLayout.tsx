@@ -262,6 +262,17 @@ export function DocsLayout() {
                   Supabase
                 </Link>
                 <Link
+                  to="/docs/components/auth"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/auth')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  Auth
+                </Link>
+                <Link
                   to="/docs/components/drizzle"
                   className={cn(
                     'block rounded-md px-2 py-1.5 text-sm transition-colors',

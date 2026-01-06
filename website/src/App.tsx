@@ -14,6 +14,7 @@ import { RouteComponent } from './pages/docs/components/Route'
 import { MiddlewareComponent } from './pages/docs/components/Middleware'
 import { ServiceComponent } from './pages/docs/components/Service'
 import { SupabaseComponent } from './pages/docs/components/Supabase'
+import { AuthComponent } from './pages/docs/components/Auth'
 import { DrizzleComponent } from './pages/docs/components/Drizzle'
 import { RAGComponent } from './pages/docs/components/RAG'
 import { ChatComponent } from './pages/docs/components/Chat'
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="components/middleware" element={<MiddlewareComponent />} />
         <Route path="components/service" element={<ServiceComponent />} />
         <Route path="components/supabase" element={<SupabaseComponent />} />
+        <Route path="components/auth" element={<AuthComponent />} />
         <Route path="components/drizzle" element={<DrizzleComponent />} />
         <Route path="components/rag" element={<RAGComponent />} />
         <Route path="components/chat" element={<ChatComponent />} />

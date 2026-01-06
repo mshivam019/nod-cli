@@ -129,6 +129,9 @@ Then add components:
 # Add route with controller and service
 nod add route users
 
+# Add complete auth module
+nod add auth
+
 # Add middleware
 nod add middleware rateLimit
 
@@ -213,6 +216,7 @@ my-api/
 │   ├── controllers/     # Request handlers
 │   ├── services/        # Business logic
 │   ├── middleware/      # Custom middleware
+│   ├── auth/            # Auth services (nod add auth)
 │   ├── config/          # App configuration
 │   ├── helpers/         # Utilities (route-builder, etc.)
 │   ├── utils/           # Utility modules (logger, etc.)
@@ -280,7 +284,11 @@ my-api/
 - **Environment Config** - Separate staging/production configurations
 
 ### Authentication
+- **Complete Auth Module** - `nod add auth` generates JWKS, JWT, password hashing, Google OAuth, forgot password, email service
 - **Supabase JWT Auth** - JWKS-based JWT verification using jose library
+- **Custom JWT** - Roll your own tokens with auto-generated RSA keys
+- **Password Hashing** - Bcrypt-based password hashing with strength validation
+- **Google OAuth** - Server-side token verification
 - **Permission Middleware** - Role-based access control from JWT payload
 
 ### AI Features

@@ -10,7 +10,7 @@ import fs from 'fs-extra';
 import path from 'path';
 
 export async function addComponent(component: string, options: any) {
-  const validComponents = ['route', 'middleware', 'service', 'controller', 'cron', 'pm2', 'rag', 'chat', 'vercel-cron', 'github-actions', 'supabase', 'drizzle', 'langfuse'];
+  const validComponents = ['route', 'middleware', 'service', 'controller', 'cron', 'pm2', 'rag', 'chat', 'vercel-cron', 'github-actions', 'supabase', 'drizzle', 'langfuse', 'auth'];
   
   if (!validComponents.includes(component)) {
     console.log(chalk.red(`\n❌ Invalid component: ${component}`));
@@ -520,7 +520,7 @@ export async function addComponent(component: string, options: any) {
     return;
   }
 
-  if (component === 'langfuse') {
+if (component === 'langfuse') {
     const spinner = ora('Adding Langfuse integration...').start();
     try {
       packageJson.dependencies = {
@@ -536,6 +536,212 @@ export async function addComponent(component: string, options: any) {
       console.log(chalk.blue('\n📚 Langfuse docs: https://langfuse.com/docs\n'));
     } catch (error) {
       spinner.fail(chalk.red('Failed to add Langfuse'));
+      console.error(error);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (component === 'auth') {
+    // Ask for auth mode first
+    const modeResponse = await prompts({
+      type: 'select',
+      name: 'authMode',
+      message: 'Authentication mode:',
+      choices: [
+        { title: 'Email/Password + OAuth', value: 'both', description: 'Traditional login + social providers' },
+        { title: 'Email/Password only', value: 'email-password', description: 'Traditional email/password login' },
+        { title: 'OAuth only', value: 'oauth-only', description: 'Social login only (Google, etc.)' }
+      ],
+      initial: 0
+    });
+
+    if (!modeResponse.authMode) {
+      console.log(chalk.red('\n❌ Setup cancelled'));
+      process.exit(1);
+    }
+
+    const authMode = modeResponse.authMode as 'email-password' | 'oauth-only' | 'both';
+    const needsPassword = authMode === 'email-password' || authMode === 'both';
+    const needsOAuth = authMode === 'oauth-only' || authMode === 'both';
+
+    // Ask for auth features based on mode
+    const featuresResponse = await prompts([
+      {
+        type: 'confirm',
+        name: 'supabaseAdmin',
+        message: 'Include Supabase Admin auth (for when signups are disabled)?',
+        initial: true
+      },
+      {
+        type: 'confirm',
+        name: 'customJwt',
+        message: 'Include custom JWT signing (roll your own tokens)?',
+        initial: true
+      },
+      {
+        type: 'confirm',
+        name: 'jwks',
+        message: 'Include JWKS auto-generation (/.well-known/jwks.json endpoint)?',
+        initial: true
+      },
+      {
+        type: needsPassword ? 'confirm' : null,
+        name: 'forgotPassword',
+        message: 'Include forgot password flow?',
+        initial: true
+      },
+      {
+        type: needsOAuth ? 'confirm' : null,
+        name: 'googleOAuth',
+        message: 'Include Google OAuth (server-side verification)?',
+        initial: true
+      },
+      {
+        type: needsPassword ? 'confirm' : null,
+        name: 'emailService',
+        message: 'Include email service (nodemailer for password reset emails)?',
+        initial: true
+      }
+    ]);
+
+    if (featuresResponse.customJwt === undefined) {
+      console.log(chalk.red('\n❌ Setup cancelled'));
+      process.exit(1);
+    }
+
+    const spinner = ora('Adding auth module...').start();
+    try {
+      const { generateAuth } = await import('../generators/auth.js');
+      
+      await generateAuth(process.cwd(), {
+        supabaseAdmin: featuresResponse.supabaseAdmin,
+        customJwt: featuresResponse.customJwt,
+        jwks: featuresResponse.jwks,
+        forgotPassword: needsPassword ? featuresResponse.forgotPassword : false,
+        googleOAuth: needsOAuth ? featuresResponse.googleOAuth : false,
+        emailService: needsPassword ? featuresResponse.emailService : false,
+        authMode,
+        framework
+      }, ext);
+      
+      // Add dependencies
+      const deps: Record<string, string> = {
+        'jose': '^5.2.0'
+      };
+      
+      // Only add bcrypt if using password auth
+      if (needsPassword) {
+        deps['bcrypt'] = '^5.1.1';
+      }
+      
+      if (featuresResponse.supabaseAdmin) {
+        deps['@supabase/supabase-js'] = '^2.39.0';
+      }
+      
+      if (needsPassword && featuresResponse.emailService) {
+        deps['nodemailer'] = '^6.9.0';
+      }
+      
+      packageJson.dependencies = {
+        ...packageJson.dependencies,
+        ...deps
+      };
+      
+      // Add TypeScript types for password-related deps
+      if (isTypeScript) {
+        const devDeps: Record<string, string> = {};
+        if (needsPassword) {
+          devDeps['@types/bcrypt'] = '^5.0.2';
+          if (featuresResponse.emailService) {
+            devDeps['@types/nodemailer'] = '^6.4.14';
+          }
+        }
+        if (Object.keys(devDeps).length > 0) {
+          packageJson.devDependencies = {
+            ...packageJson.devDependencies,
+            ...devDeps
+          };
+        }
+      }
+      
+      await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
+      
+      spinner.succeed(chalk.green(`Auth module added! (mode: ${authMode})`));
+      console.log(chalk.gray('\nnpm install'));
+      console.log(chalk.yellow('\n📁 Generated files:'));
+      console.log(chalk.gray('  src/auth/jwks.service.ts       - JWKS auto-generation'));
+      console.log(chalk.gray('  src/auth/jwt.service.ts        - Custom JWT signing/verification'));
+      if (needsPassword) {
+        console.log(chalk.gray('  src/auth/password.service.ts   - Password hashing with bcrypt'));
+      }
+      console.log(chalk.gray('  src/auth/auth.service.ts       - Main auth orchestration'));
+      console.log(chalk.gray('  src/auth/auth.controller.ts    - Route handlers'));
+      console.log(chalk.gray('  src/auth/auth.routes.ts        - Auth routes'));
+      console.log(chalk.gray('  src/middleware/auth.middleware.ts - JWT verification middleware'));
+      
+      if (featuresResponse.supabaseAdmin) {
+        console.log(chalk.gray('  src/auth/supabase-admin.service.ts - Supabase Admin API'));
+      }
+      if (featuresResponse.forgotPassword) {
+        console.log(chalk.gray('  src/auth/forgot-password.service.ts - Password reset flow'));
+      }
+      if (featuresResponse.googleOAuth) {
+        console.log(chalk.gray('  src/auth/google-oauth.service.ts - Google OAuth verification'));
+      }
+      if (featuresResponse.emailService) {
+        console.log(chalk.gray('  src/auth/email.service.ts      - Email service with templates'));
+      }
+      
+      // Check for Drizzle to show appropriate schema file
+      const hasDrizzle = packageJson.dependencies?.['drizzle-orm'];
+      if (hasDrizzle) {
+        console.log(chalk.gray('  src/db/schema/auth.ts          - Drizzle auth schema'));
+      } else {
+        console.log(chalk.gray('  sql/auth-schema.sql            - Database schema'));
+      }
+      
+      console.log(chalk.yellow('\n⚙️  Environment variables needed:'));
+      console.log(chalk.gray('  JWT_ISSUER, JWT_AUDIENCE'));
+      if (featuresResponse.supabaseAdmin) {
+        console.log(chalk.gray('  SUPABASE_URL, SUPABASE_API_KEY, SUPABASE_SERVICE_ROLE_KEY'));
+      }
+      if (featuresResponse.googleOAuth) {
+        console.log(chalk.gray('  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET'));
+      }
+      if (featuresResponse.emailService) {
+        console.log(chalk.gray('  SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, APP_URL'));
+      }
+      
+      // Database schema instructions
+      console.log(chalk.yellow('\n🗄️  Database setup:'));
+      if (hasDrizzle) {
+        console.log(chalk.gray('  1. Review src/db/schema/auth.ts'));
+        console.log(chalk.gray('  2. Run: npx drizzle-kit generate'));
+        console.log(chalk.gray('  3. Run: npx drizzle-kit push'));
+      } else {
+        console.log(chalk.gray('  Run sql/auth-schema.sql in your database'));
+      }
+      
+      console.log(chalk.yellow('\n📝 Import auth routes in your app:'));
+      if (framework === 'express') {
+        console.log(chalk.gray(`  import authRoutes from './auth/auth.routes.js';`));
+        console.log(chalk.gray(`  import { initializeJWKS } from './auth/jwks.service.js';`));
+        console.log(chalk.gray(`  await initializeJWKS(); // Call before starting server`));
+        console.log(chalk.gray(`  app.use('/api/auth', authRoutes);`));
+      } else {
+        console.log(chalk.gray(`  import authRoutes from './auth/auth.routes.js';`));
+        console.log(chalk.gray(`  import { initializeJWKS } from './auth/jwks.service.js';`));
+        console.log(chalk.gray(`  await initializeJWKS(); // Call before starting server`));
+        console.log(chalk.gray(`  app.route('/api/auth', authRoutes);`));
+      }
+      
+      console.log(chalk.yellow('\n🔑 JWKS endpoint: GET /api/auth/.well-known/jwks.json'));
+      console.log(chalk.blue('\n📚 Docs: https://nod-cli.dev/docs/components/auth\n'));
+      
+      process.exit(0);
+    } catch (error) {
+      spinner.fail(chalk.red('Failed to add auth module'));
       console.error(error);
       process.exit(1);
     }
