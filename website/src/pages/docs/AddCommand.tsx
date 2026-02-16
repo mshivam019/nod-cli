@@ -24,6 +24,21 @@ nod add <component> [options]`}
           language="bash"
         />
 
+        <CodeBlock
+          code={`# Non-interactive examples (AI/CI friendly)
+nod add cron --lock-backend file --yes
+nod add rag --embedding-provider openai --vector-store supabase --generate-routes true --yes
+nod add chat --llm-provider anthropic --chat-database pg --langfuse true --generate-routes true --yes
+nod add route --name users --method get --path /users --create-controller true --create-service true --middleware authMiddleware --yes`}
+          language="bash"
+        />
+
+        <p>
+          Projects generated with <code>nod init</code> include an <code>AGENTS.md</code> file in
+          the root. Keep that file in sync as you evolve the codebase with <code>nod add</code>{' '}
+          commands.
+        </p>
+
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           Routes
         </h2>

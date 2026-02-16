@@ -3,64 +3,92 @@ import fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-export async function addRoute(name: string) {
-  const response = await prompts([
-    {
-      type: 'select',
-      name: 'method',
-      message: 'HTTP method:',
-      choices: [
-        { title: 'GET', value: 'get' },
-        { title: 'POST', value: 'post' },
-        { title: 'PUT', value: 'put' },
-        { title: 'DELETE', value: 'delete' },
-        { title: 'PATCH', value: 'patch' }
-      ]
-    },
-    {
-      type: 'text',
-      name: 'path',
-      message: 'Route path:',
-      initial: `/${name}`
-    },
-    {
-      type: 'confirm',
-      name: 'createController',
-      message: 'Create controller?',
-      initial: true
-    },
-    {
-      type: 'confirm',
-      name: 'createService',
-      message: 'Create service?',
-      initial: true
-    },
-    {
-      type: 'multiselect',
-      name: 'middleware',
-      message: 'Include middleware (optional):',
-      choices: [
-        { title: 'Auth', value: 'authMiddleware' },
-        { title: 'Logging', value: 'loggingMiddleware' },
-        { title: 'Role Check', value: 'roleMiddleware' }
-      ]
-    }
-  ]);
+interface AddRouteOptions {
+  nonInteractive?: boolean;
+  method?: 'get' | 'post' | 'put' | 'delete' | 'patch';
+  path?: string;
+  createController?: boolean;
+  createService?: boolean;
+  middleware?: string[];
+}
+
+export async function addRoute(name: string, options: AddRouteOptions = {}) {
+  const defaults = {
+    method: options.method || 'get',
+    path: options.path || `/${name}`,
+    createController: options.createController ?? true,
+    createService: options.createService ?? true,
+    middleware: options.middleware || []
+  };
+
+  const response = options.nonInteractive
+    ? defaults
+    : await prompts([
+        {
+          type: options.method ? null : 'select',
+          name: 'method',
+          message: 'HTTP method:',
+          choices: [
+            { title: 'GET', value: 'get' },
+            { title: 'POST', value: 'post' },
+            { title: 'PUT', value: 'put' },
+            { title: 'DELETE', value: 'delete' },
+            { title: 'PATCH', value: 'patch' }
+          ],
+          initial: ['get', 'post', 'put', 'delete', 'patch'].indexOf(defaults.method)
+        },
+        {
+          type: options.path ? null : 'text',
+          name: 'path',
+          message: 'Route path:',
+          initial: defaults.path
+        },
+        {
+          type: options.createController !== undefined ? null : 'confirm',
+          name: 'createController',
+          message: 'Create controller?',
+          initial: defaults.createController
+        },
+        {
+          type: options.createService !== undefined ? null : 'confirm',
+          name: 'createService',
+          message: 'Create service?',
+          initial: defaults.createService
+        },
+        {
+          type: options.middleware ? null : 'multiselect',
+          name: 'middleware',
+          message: 'Include middleware (optional):',
+          choices: [
+            { title: 'Auth', value: 'authMiddleware' },
+            { title: 'Logging', value: 'loggingMiddleware' },
+            { title: 'Role Check', value: 'roleMiddleware' }
+          ]
+        }
+      ]);
+
+  const resolved = {
+    method: response.method || defaults.method,
+    path: response.path || defaults.path,
+    createController: response.createController ?? defaults.createController,
+    createService: response.createService ?? defaults.createService,
+    middleware: response.middleware || defaults.middleware
+  };
 
   const projectRoot = process.cwd();
   
   // Create service if requested
-  if (response.createService) {
+  if (resolved.createService) {
     await createService(projectRoot, name);
   }
 
   // Create controller if requested
-  if (response.createController) {
-    await createController(projectRoot, name, response.createService);
+  if (resolved.createController) {
+    await createController(projectRoot, name, resolved.createService);
   }
 
   // Add route to routes file
-  await addRouteToFile(projectRoot, name, response);
+  await addRouteToFile(projectRoot, name, resolved);
 }
 
 async function createService(projectRoot: string, name: string) {

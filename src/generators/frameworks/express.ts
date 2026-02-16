@@ -10,11 +10,11 @@ export async function generateExpressProject(
   await generateAppFile(projectPath, config, ctx);
   await generateServerFile(projectPath, config, ctx);
   await generateMiddleware(projectPath, config, ctx);
-  
+
   if (config.database !== 'none') {
     await generateDatabaseConnection(projectPath, config, ctx);
   }
-  
+
   if (config.features.cron) {
     await generateCronSetup(projectPath, ctx, config);
   }
@@ -25,11 +25,12 @@ export async function generateExpressProject(
 async function generateAppFile(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const isTS = ext === 'ts';
-  
+
   const appContent = isTS
-    ? `import express, { Express, Request, Response, NextFunction } from 'express';
+    ? `import express, { Express, Request, Response } from 'express';
 import { router } from './routes/index.js';
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
+import errorHandler from './middleware/errorHandler.js';
 
 export function createApp(): Express {
   const app = express();
@@ -42,14 +43,11 @@ export function createApp(): Express {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Routes
+  // API routes
   app.use('/api', router);
 
-  // Error handler
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Internal server error' });
-  });
+  // Error handler (must be last)
+  app.use(errorHandler);
 
   ${ctx.hasCron ? 'initCronJobs();' : ''}
 
@@ -59,6 +57,7 @@ export function createApp(): Express {
     : `import express from 'express';
 import { router } from './routes/index.js';
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
+import errorHandler from './middleware/errorHandler.js';
 
 export function createApp() {
   const app = express();
@@ -71,14 +70,11 @@ export function createApp() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Routes
+  // API routes
   app.use('/api', router);
 
-  // Error handler
-  app.use((err, _req, res, _next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Internal server error' });
-  });
+  // Error handler (must be last)
+  app.use(errorHandler);
 
   ${ctx.hasCron ? 'initCronJobs();' : ''}
 
@@ -92,16 +88,16 @@ export function createApp() {
 async function generateServerFile(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
-  
+
   const serverContent = `import { createApp } from './app.js';
 import { config } from './config/index.js';
 ${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ''}
 
 async function startServer() {
   ${needsDbConnect ? 'await connectDatabase();' : ''}
-  
+
   const app = createApp();
-  
+
   app.listen(config.port, () => {
     console.log(\`🚀 Server running on port \${config.port}\`);
   });
@@ -116,14 +112,229 @@ startServer().catch(console.error);
 async function generateMiddleware(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const isTS = ext === 'ts';
-  
-  // Note: Using 'middleware' (singular) folder, not 'middlewares'
-  
+
+  // Response wrapper for automatic response handling
+  const responseWrapperContent = isTS
+    ? `/**
+ * Response Wrapper for Automatic Response Handling
+ *
+ * Controllers return { success, data, message } - framework handles JSON
+ * Services throw errors with .statusCode - framework handles status
+ */
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+  statusCode?: number;
+}
+
+export interface ApiError extends Error {
+  statusCode?: number;
+}
+
+/**
+ * Wrap async controller handler with automatic response/error handling
+ */
+export function wrapHandler<T>(
+  handler: (req: any, res: any) => Promise<ApiResponse<T>>
+): (req: any, res: any, _next: any) => void {
+  return async (req: any, res: any, _next: any) => {
+    try {
+      const response = await handler(req, res);
+
+      if (response.success !== false) {
+        // Success response - default 200 or custom status
+        const statusCode = response.statusCode || 200;
+        res.status(statusCode).json({
+          success: true,
+          ...(response.data !== undefined && { data: response.data }),
+          ...(response.message && { message: response.message })
+        });
+      } else {
+        // Explicit error response
+        const statusCode = response.statusCode || 400;
+        res.status(statusCode).json({
+          success: false,
+          ...(response.error && { error: response.error }),
+          ...(response.message && { message: response.message })
+        });
+      }
+    } catch (error) {
+      // Handle thrown errors with status codes
+      const statusCode = (error as ApiError).statusCode || 500;
+      const message = (error as Error).message || 'Internal server error';
+
+      res.status(statusCode).json({
+        success: false,
+        error: message,
+        ...(process.env.NODE_ENV !== 'production' && (error as Error).stack && { stack: (error as Error).stack })
+      });
+    }
+  };
+}
+
+/**
+ * Create error with status code (for services to throw)
+ */
+export function createError(message: string, statusCode: number = 500): ApiError {
+  const error = new Error(message) as ApiError;
+  error.statusCode = statusCode;
+  return error;
+}
+
+/**
+ * Helper to create successful response
+ */
+export function success<T>(data: T, message?: string): ApiResponse<T> {
+  return {
+    success: true,
+    data,
+    ...(message && { message })
+  };
+}
+
+/**
+ * Helper to create error response
+ */
+export function fail(message: string, statusCode: number = 400): ApiResponse {
+  return {
+    success: false,
+    error: message,
+    statusCode
+  };
+}
+`
+    : `/**
+ * Response Wrapper for Automatic Response Handling
+ *
+ * Controllers return { success, data, message } - framework handles JSON
+ * Services throw errors with .statusCode - framework handles status
+ */
+
+/**
+ * Wrap async controller handler with automatic response/error handling
+ */
+export function wrapHandler(handler) {
+  return async (req, res, _next) => {
+    try {
+      const response = await handler(req, res);
+
+      if (response.success !== false) {
+        // Success response - default 200 or custom status
+        const statusCode = response.statusCode || 200;
+        res.status(statusCode).json({
+          success: true,
+          ...(response.data !== undefined && { data: response.data }),
+          ...(response.message && { message: response.message })
+        });
+      } else {
+        // Explicit error response
+        const statusCode = response.statusCode || 400;
+        res.status(statusCode).json({
+          success: false,
+          ...(response.error && { error: response.error }),
+          ...(response.message && { message: response.message })
+        });
+      }
+    } catch (error) {
+      // Handle thrown errors with status codes
+      const statusCode = error.statusCode || 500;
+      const message = error.message || 'Internal server error';
+
+      res.status(statusCode).json({
+        success: false,
+        error: message,
+        ...(process.env.NODE_ENV !== 'production' && error.stack && { stack: error.stack })
+      });
+    }
+  };
+}
+
+/**
+ * Create error with status code (for services to throw)
+ */
+export function createError(message, statusCode = 500) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+/**
+ * Helper to create successful response
+ */
+export function success(data, message) {
+  return {
+    success: true,
+    data,
+    ...(message && { message })
+  };
+}
+
+/**
+ * Helper to create error response
+ */
+export function fail(message, statusCode = 400) {
+  return {
+    success: false,
+    error: message,
+    statusCode
+  };
+}
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/helpers/response-wrapper.${ext}`), responseWrapperContent);
+
+  // Error handler middleware
+  const errorHandlerContent = isTS
+    ? `import logger from '../utils/logger.js';
+
+interface ErrorWithStatus extends Error {
+  statusCode?: number;
+}
+
+const errorHandler = (err: ErrorWithStatus, _req: any, res: any, _next: any) => {
+  logger.error(err.stack || err.message);
+
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    success: false,
+    error: message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+};
+
+export default errorHandler;
+`
+    : `import logger from '../utils/logger.js';
+
+const errorHandler = (err, _req, res, _next) => {
+  logger.error(err.stack || err.message);
+
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    success: false,
+    error: message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+};
+
+export default errorHandler;
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/middleware/errorHandler.${ext}`), errorHandlerContent);
+
+  // Auth middleware (if enabled)
   if (ctx.hasAuth && !ctx.hasSupabaseAuth) {
-    // Only generate basic JWT auth if not using Supabase auth
-    const authMiddleware = isTS
+    const authContent = isTS
       ? `import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { createError } from '../helpers/response-wrapper.js';
 import { config } from '../config/index.js';
 
 export interface AuthRequest extends Request {
@@ -134,8 +345,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    res.status(401).json({ error: 'No token provided' });
-    return;
+    throw createError('No token provided', 401);
   }
 
   try {
@@ -143,29 +353,28 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    throw createError('Invalid token', 401);
   }
 }
 
 export function roleMiddleware(roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {
-      res.status(403).json({ error: 'Insufficient permissions' });
-      return;
+      throw createError('Insufficient permissions', 403);
     }
     next();
   };
 }
 `
       : `import jwt from 'jsonwebtoken';
+import { createError } from '../helpers/response-wrapper.js';
 import { config } from '../config/index.js';
 
 export function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    res.status(401).json({ error: 'No token provided' });
-    return;
+    throw createError('No token provided', 401);
   }
 
   try {
@@ -173,69 +382,22 @@ export function authMiddleware(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    throw createError('Invalid token', 401);
   }
 }
 
 export function roleMiddleware(roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      res.status(403).json({ error: 'Insufficient permissions' });
-      return;
+      throw createError('Insufficient permissions', 403);
     }
     next();
   };
 }
 `;
 
-    await fs.outputFile(path.join(projectPath, `src/middleware/auth.${ext}`), authMiddleware);
+    await fs.outputFile(path.join(projectPath, `src/middleware/auth.${ext}`), authContent);
   }
-
-  // Error handler middleware
-  const errorHandlerContent = isTS
-    ? `import { Request, Response, NextFunction } from 'express';
-import logger from '../utils/logger.js';
-
-interface ErrorWithStatus extends Error {
-  statusCode?: number;
-}
-
-const errorHandler = (err: ErrorWithStatus, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error(err.stack || err.message);
-
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-
-  res.status(statusCode).json({
-    status: 'error',
-    statusCode,
-    message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
-};
-
-export default errorHandler;
-`
-    : `import logger from '../utils/logger.js';
-
-const errorHandler = (err, req, res, next) => {
-  logger.error(err.stack || err.message);
-
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-
-  res.status(statusCode).json({
-    status: 'error',
-    statusCode,
-    message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
-};
-
-export default errorHandler;
-`;
-
-  await fs.outputFile(path.join(projectPath, `src/middleware/errorHandler.${ext}`), errorHandlerContent);
 }
 
 async function generateDatabaseConnection(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
@@ -298,7 +460,7 @@ export async function connectDatabase() {
 
 async function generateCronSetup(projectPath: string, ctx: TemplateContext, config: ProjectConfig) {
   const { generateThreadSafeCron } = await import('../pm2.js');
-  
+
   // Determine lock backend based on database
   let lockBackend: 'redis' | 'postgres' | 'mysql' | 'file' = 'file';
   if (config.database === 'pg') {
@@ -306,20 +468,14 @@ async function generateCronSetup(projectPath: string, ctx: TemplateContext, conf
   } else if (config.database === 'mysql') {
     lockBackend = 'mysql';
   }
-  
+
   await generateThreadSafeCron(projectPath, ctx.fileExt, lockBackend);
 }
 
 async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const isTS = ext === 'ts';
-  
-  // Generate route-builder helper for Express
-  await generateExpressRouteBuilder(projectPath, ctx);
-  
-  // Generate router config
-  await generateExpressRouterConfig(projectPath, ctx);
-  
+
   // Build default middlewares list for route file
   const defaultMiddlewares: string[] = [];
   if (ctx.hasSupabaseAuth) {
@@ -331,169 +487,180 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   if (ctx.hasSourceConfig) {
     defaultMiddlewares.push('sourceSelection');
   }
-  
+
   const middlewareListStr = defaultMiddlewares.map(m => `'${m}'`).join(', ');
-  
-  // Generate routes using declarative pattern with METHODS.GET style
-  // defaultMiddlewares and defaultRoles arrays directly in the route file
+
+  // Generate route-builder helper
+  await generateRouteBuilder(projectPath, ext, {
+    hasAuth: ctx.hasSupabaseAuth,
+    hasAuditLogger: ctx.hasApiAudit,
+    hasSourceSelection: ctx.hasSourceConfig
+  });
+
+  // Generate router config (simple re-export)
+  await generateRouterConfigSimple(projectPath, ext);
+
+  // Generate declarative routes
   const routeContent = isTS
     ? `import { Router } from 'express';
-import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { exampleController } from '../controllers/example.js';
+import { createConfiguredRouter, METHODS, wrapHandler, success } from '../config/router.js';
+import { exampleService } from '../services/example.js';
 
 export const router = Router();
 
 /**
- * Default middlewares applied to all routes in this file
- * Can be overridden per-route using disabled/enabled arrays
+ * Default middlewares applied to all routes
+ * Can be overridden per-route using disabled/enabled
  */
 const defaultMiddlewares: string[] = [${middlewareListStr}];
 
 /**
  * Default roles - empty means no role restriction
- * Can be overridden per-route using roles/excludeRoles arrays
+ * Can be overridden per-route using roles
  */
 const defaultRoles: string[] = [];
 
 /**
- * Route definitions with declarative middleware and role configuration
- * 
+ * Declarative route definitions
+ *
  * Each route can have:
  * - method: METHODS.GET, METHODS.POST, etc.
  * - path: Route path
- * - handler: Controller method
+ * - handler: Controller method (wrapped automatically for response handling)
  * - disabled: Array of middleware names to exclude from defaults
  * - enabled: Array of additional middleware names to include
  * - roles: Override default roles (e.g., ['admin', 'superAdmin'])
  * - excludeRoles: Roles to exclude from defaults
+ *
+ * Controller examples:
+ *   - return success(data, 'message') → 200 OK with data
+ *   - return { success: true, data, message } → 200 OK
+ *   - throw createError('msg', 404) → 404 Not Found
+ *   - throw new Error('msg') (with .statusCode = 400) → 400 Bad Request
  */
 const routes = [
-  // Protected route (uses all default middlewares)
   {
     method: METHODS.GET,
     path: '/example',
-    handler: exampleController.getExample
+    handler: wrapHandler(async (_req: any, _res: any) => {
+      const data = await exampleService.getData();
+      return success(data, 'Data fetched successfully');
+    })
   },
-  
-  // Public route (disable jwtAuth)
+
   {
     method: METHODS.GET,
     path: '/public',
-    handler: exampleController.getPublic,
-    disabled: ['jwtAuth', 'auditLogger']
+    handler: wrapHandler(async (_req: any, _res: any) => success({ message: 'Public endpoint - no auth required' })),
+    disabled: ${defaultMiddlewares.length > 0 ? `[${middlewareListStr}]` : '[]'}
   },
-  
-  // Admin only route
+
   {
     method: METHODS.POST,
     path: '/admin',
-    handler: exampleController.adminAction,
+    handler: wrapHandler(async (_req: any, _res: any) => {
+      return success({ message: 'Admin action performed' });
+    }),
     roles: ['admin', 'superAdmin']
   },
 ];
 
-// Apply routes using the configured router
-const configuredRouter = createConfiguredRouter({ 
-  defaultMiddlewares, 
-  defaultRoles, 
-  routes 
+// Apply routes with automatic response handling
+const configuredRouter = createConfiguredRouter({
+  defaultMiddlewares,
+  defaultRoles,
+  routes
 });
 configuredRouter.applyToExpress(router);
 `
     : `import { Router } from 'express';
-import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { exampleController } from '../controllers/example.js';
+import { createConfiguredRouter, METHODS, wrapHandler, success } from '../config/router.js';
+import { exampleService } from '../services/example.js';
 
 export const router = Router();
 
 /**
- * Default middlewares applied to all routes in this file
- * Can be overridden per-route using disabled/enabled arrays
+ * Default middlewares applied to all routes
+ * Can be overridden per-route using disabled/enabled
  */
 const defaultMiddlewares = [${middlewareListStr}];
 
 /**
  * Default roles - empty means no role restriction
- * Can be overridden per-route using roles/excludeRoles arrays
+ * Can be overridden per-route using roles
  */
 const defaultRoles = [];
 
 /**
- * Route definitions with declarative middleware and role configuration
- * 
- * Each route can have:
- * - method: METHODS.GET, METHODS.POST, etc.
- * - path: Route path
- * - handler: Controller method
- * - disabled: Array of middleware names to exclude from defaults
- * - enabled: Array of additional middleware names to include
- * - roles: Override default roles (e.g., ['admin', 'superAdmin'])
- * - excludeRoles: Roles to exclude from defaults
+ * Declarative route definitions
+ *
+ * Controller examples:
+ *   - return success(data, 'message') → 200 OK with data
+ *   - throw createError('msg', 404) → 404 Not Found
  */
 const routes = [
-  // Protected route (uses all default middlewares)
   {
     method: METHODS.GET,
     path: '/example',
-    handler: exampleController.getExample
+    handler: wrapHandler(async (_req, _res) => {
+      const data = await exampleService.getData();
+      return success(data, 'Data fetched successfully');
+    })
   },
-  
-  // Public route (disable jwtAuth)
+
   {
     method: METHODS.GET,
     path: '/public',
-    handler: exampleController.getPublic,
-    disabled: ['jwtAuth', 'auditLogger']
+    handler: wrapHandler(async (_req, _res) => success({ message: 'Public endpoint' })),
+    disabled: ${defaultMiddlewares.length > 0 ? `[${middlewareListStr}]` : '[]'}
   },
-  
-  // Admin only route
+
   {
     method: METHODS.POST,
     path: '/admin',
-    handler: exampleController.adminAction,
+    handler: wrapHandler(async (_req, _res) => {
+      return success({ message: 'Admin action' });
+    }),
     roles: ['admin', 'superAdmin']
   },
 ];
 
-// Apply routes using the configured router
-const configuredRouter = createConfiguredRouter({ 
-  defaultMiddlewares, 
-  defaultRoles, 
-  routes 
+// Apply routes with automatic response handling
+const configuredRouter = createConfiguredRouter({
+  defaultMiddlewares,
+  defaultRoles,
+  routes
 });
 configuredRouter.applyToExpress(router);
 `;
 
   await fs.outputFile(path.join(projectPath, `src/routes/index.${ext}`), routeContent);
 
-  // Controller with proper pattern - includes public and admin handlers
+  // Controller
   const controllerContent = isTS
-    ? `import { Request, Response, NextFunction } from 'express';
-import { exampleService } from '../services/example.js';
+    ? `import { exampleService } from '../services/example.js';
+import { success } from '../helpers/response-wrapper.js';
 
 const exampleController = {
-  async getExample(_req: Request, res: Response, next: NextFunction) {
+  async getData(_req: any, _res: any) {
     try {
       const data = await exampleService.getData();
-      res.json({ success: true, data });
+      return success(data, 'Data fetched successfully');
     } catch (error) {
-      next(error);
+      throw error; // Re-throw for wrapHandler to handle
     }
   },
 
-  async getPublic(_req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json({ message: 'Public endpoint - no auth required' });
-    } catch (error) {
-      next(error);
-    }
+  async getPublic(_req: any, _res: any) {
+    return success({ message: 'Public endpoint - no auth required' });
   },
 
-  async adminAction(_req: Request, res: Response, next: NextFunction) {
+  async adminAction(_req: any, _res: any) {
     try {
-      res.json({ message: 'Admin action performed' });
+      // Admin logic here
+      return success({ message: 'Admin action performed' });
     } catch (error) {
-      next(error);
+      throw error;
     }
   },
 };
@@ -502,44 +669,42 @@ export default exampleController;
 export { exampleController };
 `
     : `import { exampleService } from '../services/example.js';
+import { success } from '../helpers/response-wrapper.js';
 
 const exampleController = {
-  async getExample(_req, res, next) {
+  async getData(_req, _res) {
     try {
       const data = await exampleService.getData();
-      res.json({ success: true, data });
+      return success(data, 'Data fetched successfully');
     } catch (error) {
-      next(error);
+      throw error;
     }
   },
 
-  async getPublic(_req, res, next) {
-    try {
-      res.json({ message: 'Public endpoint - no auth required' });
-    } catch (error) {
-      next(error);
-    }
+  async getPublic(_req, _res) {
+    return success({ message: 'Public endpoint - no auth required' });
   },
 
-  async adminAction(_req, res, next) {
+  async adminAction(_req, _res) {
     try {
-      res.json({ message: 'Admin action performed' });
+      return success({ message: 'Admin action performed' });
     } catch (error) {
-      next(error);
+      throw error;
     }
   },
 };
 
 export default exampleController;
-export { exampleController };
 `;
 
   await fs.outputFile(path.join(projectPath, `src/controllers/example.${ext}`), controllerContent);
 
-  // Simple service
+  // Service
   const serviceContent = `export const exampleService = {
   async getData() {
     // TODO: Implement your business logic here
+    // Example: fetch from database, call external API, etc.
+
     return { message: 'Hello from nod-cli!' };
   },
 };
@@ -548,24 +713,38 @@ export { exampleController };
   await fs.outputFile(path.join(projectPath, `src/services/example.${ext}`), serviceContent);
 }
 
-async function generateExpressRouteBuilder(projectPath: string, ctx: TemplateContext) {
-  const ext = ctx.fileExt;
+// Helper functions for route generation
+async function generateRouteBuilder(projectPath: string, ext: string, options: {
+  hasAuth: boolean;
+  hasAuditLogger: boolean;
+  hasSourceSelection: boolean;
+}) {
   const isTS = ext === 'ts';
-  
+  const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
+
   const content = isTS
     ? `/**
  * Express Declarative Route Builder
- * 
+ *
  * Provides a declarative way to define routes with middleware and role configuration.
- * Default middlewares and roles are applied to all routes unless explicitly disabled.
+ * Controllers just return data - framework handles JSON responses and errors.
+ *
+ * Usage:
+ * - Routes: { method: METHODS.GET, path: '/path', handler: controller.method }
+ * - Controllers return: { success: true, data: {...}, message: '...' }
+ * - Services throw: new Error('msg') with optional .statusCode
  */
+
+import { wrapHandler, createError, success, fail } from '../helpers/response-wrapper.js';
 
 export const METHODS = {
   GET: 'get',
   POST: 'post',
   PUT: 'put',
   DELETE: 'delete',
-  PATCH: 'patch'
+  PATCH: 'patch',
+  HEAD: 'head',
+  OPTIONS: 'options'
 } as const;
 
 export type HttpMethod = typeof METHODS[keyof typeof METHODS];
@@ -574,10 +753,10 @@ export interface RouteDefinition {
   method: HttpMethod;
   path: string;
   handler: Function;
-  disabled?: string[];      // Middlewares to exclude from defaults
-  enabled?: string[];       // Additional middlewares to include
-  roles?: string[];         // Override default roles
-  excludeRoles?: string[];  // Roles to exclude from defaults
+  disabled?: string[];
+  enabled?: string[];
+  roles?: string[];
+  excludeRoles?: string[];
 }
 
 export interface RouterConfig {
@@ -601,22 +780,18 @@ export class DeclarativeRouter {
 
   private buildMiddlewareChain(route: RouteDefinition): Function[] {
     const chain: Function[] = [];
-    
     let middlewares = [...this.config.defaultMiddlewares];
     let roles = [...this.config.defaultRoles];
 
-    // Remove disabled middlewares
-    if (route.disabled) {
+    if (route.disabled && route.disabled.length > 0) {
       middlewares = middlewares.filter(m => !route.disabled!.includes(m));
     }
 
-    // Add enabled middlewares
-    if (route.enabled) {
+    if (route.enabled && route.enabled.length > 0) {
       middlewares.push(...route.enabled);
     }
 
-    // Handle roles
-    if (route.excludeRoles) {
+    if (route.excludeRoles && route.excludeRoles.length > 0) {
       roles = roles.filter(r => !route.excludeRoles!.includes(r));
     }
 
@@ -624,7 +799,6 @@ export class DeclarativeRouter {
       roles = route.roles;
     }
 
-    // Build middleware chain
     for (const name of middlewares) {
       const middleware = this.middlewareRegistry.get(name);
       if (middleware) {
@@ -632,7 +806,6 @@ export class DeclarativeRouter {
       }
     }
 
-    // Add role check if roles are specified
     if (roles.length > 0) {
       const roleMiddleware = this.middlewareRegistry.get('roleCheck');
       if (roleMiddleware) {
@@ -650,20 +823,61 @@ export class DeclarativeRouter {
     }
   }
 }
+
+export function roleCheck(allowedRoles: string[]) {
+  return (req: any, _res: any, next: any) => {
+    const user = req.user;
+    if (!user) {
+      throw createError('Authentication required', 401);
+    }
+
+    const userRole = user.role || user.user_metadata?.role;
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      throw createError('Insufficient permissions', 403);
+    }
+
+    next();
+  };
+}
+
+export function createConfiguredRouter(config: {
+  defaultMiddlewares: string[];
+  defaultRoles: string[];
+  routes: any[];
+}) {
+  const router = new DeclarativeRouter({
+    defaultMiddlewares: config.defaultMiddlewares,
+    defaultRoles: config.defaultRoles,
+    routes: config.routes
+  });
+
+  ${hasAuth ? "router.registerMiddleware('jwtAuth', (req, res, next) => { /* your auth middleware */ next(); });" : ''}
+  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (req, res, next) => { /* your audit middleware */ next(); });" : ''}
+  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (req, res, next) => { /* your source middleware */ next(); });" : ''}
+  router.registerMiddleware('roleCheck', roleCheck);
+
+  return router;
+}
+
+// Export helpers
+export { wrapHandler, success, fail, createError };
 `
     : `/**
  * Express Declarative Route Builder
- * 
- * Provides a declarative way to define routes with middleware and role configuration.
- * Default middlewares and roles are applied to all routes unless explicitly disabled.
+ *
+ * Controllers just return data - framework handles JSON responses and errors.
  */
+
+import { wrapHandler, createError, success, fail } from '../helpers/response-wrapper.js';
 
 export const METHODS = {
   GET: 'get',
   POST: 'post',
   PUT: 'put',
   DELETE: 'delete',
-  PATCH: 'patch'
+  PATCH: 'patch',
+  HEAD: 'head',
+  OPTIONS: 'options'
 };
 
 export class DeclarativeRouter {
@@ -679,22 +893,18 @@ export class DeclarativeRouter {
 
   buildMiddlewareChain(route) {
     const chain = [];
-    
     let middlewares = [...this.config.defaultMiddlewares];
     let roles = [...this.config.defaultRoles];
 
-    // Remove disabled middlewares
-    if (route.disabled) {
+    if (route.disabled && route.disabled.length > 0) {
       middlewares = middlewares.filter(m => !route.disabled.includes(m));
     }
 
-    // Add enabled middlewares
-    if (route.enabled) {
+    if (route.enabled && route.enabled.length > 0) {
       middlewares.push(...route.enabled);
     }
 
-    // Handle roles
-    if (route.excludeRoles) {
+    if (route.excludeRoles && route.excludeRoles.length > 0) {
       roles = roles.filter(r => !route.excludeRoles.includes(r));
     }
 
@@ -702,7 +912,6 @@ export class DeclarativeRouter {
       roles = route.roles;
     }
 
-    // Build middleware chain
     for (const name of middlewares) {
       const middleware = this.middlewareRegistry.get(name);
       if (middleware) {
@@ -710,7 +919,6 @@ export class DeclarativeRouter {
       }
     }
 
-    // Add role check if roles are specified
     if (roles.length > 0) {
       const roleMiddleware = this.middlewareRegistry.get('roleCheck');
       if (roleMiddleware) {
@@ -728,113 +936,23 @@ export class DeclarativeRouter {
     }
   }
 }
-`;
 
-  await fs.outputFile(path.join(projectPath, `src/helpers/route-builder.${ext}`), content);
-}
-
-async function generateExpressRouterConfig(projectPath: string, ctx: TemplateContext) {
-  const ext = ctx.fileExt;
-  const isTS = ext === 'ts';
-  const useAuditLogger = ctx.hasSupabaseAuth && ctx.hasApiAudit;
-  
-  const content = isTS
-    ? `/**
- * Router Configuration
- * 
- * Central configuration for route middlewares and role checking.
- */
-
-import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
-${ctx.hasSupabaseAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
-${useAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
-${ctx.hasSourceConfig ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
-
-// Re-export METHODS for use in route files
-export { METHODS };
-
-/**
- * Role check middleware factory
- * Returns middleware that checks if user has one of the allowed roles
- */
-export function roleCheck(allowedRoles: string[]) {
-  return (req: any, res: any, next: any) => {
+function roleCheck(allowedRoles) {
+  return (req, _res, next) => {
     const user = req.user;
     if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      throw createError('Authentication required', 401);
     }
-    
+
     const userRole = user.role || user.user_metadata?.role;
     if (!userRole || !allowedRoles.includes(userRole)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      throw createError('Insufficient permissions', 403);
     }
-    
+
     next();
   };
 }
 
-/**
- * Create a configured router with registered middlewares
- */
-export function createConfiguredRouter(config: { 
-  defaultMiddlewares: string[]; 
-  defaultRoles: string[];
-  routes: any[] 
-}) {
-  const router = new DeclarativeRouter({
-    defaultMiddlewares: config.defaultMiddlewares,
-    defaultRoles: config.defaultRoles,
-    routes: config.routes
-  });
-
-  // Register all middlewares
-  ${ctx.hasSupabaseAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
-  ${useAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
-  ${ctx.hasSourceConfig ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
-  router.registerMiddleware('roleCheck', roleCheck);
-
-  return router;
-}
-
-export default { createConfiguredRouter, METHODS, roleCheck };
-`
-    : `/**
- * Router Configuration
- * 
- * Central configuration for route middlewares and role checking.
- */
-
-import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
-${ctx.hasSupabaseAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
-${useAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
-${ctx.hasSourceConfig ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
-
-// Re-export METHODS for use in route files
-export { METHODS };
-
-/**
- * Role check middleware factory
- * Returns middleware that checks if user has one of the allowed roles
- */
-export function roleCheck(allowedRoles) {
-  return (req, res, next) => {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    const userRole = user.role || user.user_metadata?.role;
-    if (!userRole || !allowedRoles.includes(userRole)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-    
-    next();
-  };
-}
-
-/**
- * Create a configured router with registered middlewares
- */
 export function createConfiguredRouter(config) {
   const router = new DeclarativeRouter({
     defaultMiddlewares: config.defaultMiddlewares,
@@ -842,16 +960,58 @@ export function createConfiguredRouter(config) {
     routes: config.routes
   });
 
-  // Register all middlewares
-  ${ctx.hasSupabaseAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
-  ${useAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
-  ${ctx.hasSourceConfig ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
+  ${hasAuth ? "router.registerMiddleware('jwtAuth', (req, res, next) => { next(); });" : ''}
+  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (req, res, next) => { next(); });" : ''}
+  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (req, res, next) => { next(); });" : ''}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;
 }
 
-export default { createConfiguredRouter, METHODS, roleCheck };
+// Export helpers
+export { wrapHandler, success, fail, createError };
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/helpers/route-builder.${ext}`), content);
+}
+
+async function generateRouterConfig(projectPath: string, ext: string, options: {
+  hasAuth: boolean;
+  hasAuditLogger: boolean;
+  hasSourceSelection: boolean;
+}) {
+  const isTS = ext === 'ts';
+  const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
+
+  const content = isTS
+    ? `/**
+ * Router Configuration
+ */
+
+import { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError } from '../helpers/route-builder.js';
+
+export { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError };
+`
+    : `/**
+ * Router Configuration
+ */
+
+import { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError } from '../helpers/route-builder.js';
+
+export { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError };
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/config/router.${ext}`), content);
+}
+
+async function generateRouterConfigSimple(projectPath: string, ext: string) {
+  const content = `/**
+ * Router Configuration (simple re-export for convenience)
+ */
+
+import { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError } from '../helpers/route-builder.js';
+
+export { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError };
 `;
 
   await fs.outputFile(path.join(projectPath, `src/config/router.${ext}`), content);

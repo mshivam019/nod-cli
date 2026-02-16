@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ProjectConfig } from '../types/index.js';
 import { generateExpressProject } from './frameworks/express.js';
 import { generateHonoProject } from './frameworks/hono.js';
+import { generateAgentsGuide } from './agents.js';
 import { getTemplateContext } from '../utils/template.js';
 import { createNodConfig, saveNodConfig } from '../utils/config.js';
 
@@ -154,6 +155,11 @@ export async function generateProject(config: ProjectConfig) {
     await generateApiAudit(projectPath, ext, auditTableName);
     await generateAuditSchema(projectPath, auditTableName);
   }
+
+  await generateAgentsGuide(projectPath, {
+    mode: 'init',
+    config
+  });
 }
 
 async function generateLogger(projectPath: string, ext: string) {

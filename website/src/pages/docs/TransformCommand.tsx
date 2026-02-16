@@ -29,6 +29,28 @@ nod transform`}
           language="bash"
         />
 
+        <p className="text-sm text-muted-foreground">
+          For AI agents and CI pipelines, use non-interactive mode with explicit flags.
+        </p>
+
+        <CodeBlock
+          code={`# Non-interactive transform (AI/CI-safe)
+nod transform --features environments,drizzle,migrateRoutes --yes
+
+# Configure RAG/Chat options without prompts
+nod transform \
+  --features rag,chat,langfuse \
+  --rag-embedding openai \
+  --rag-vector-store supabase \
+  --rag-generate-routes true \
+  --chat-llm-provider anthropic \
+  --chat-database pg \
+  --chat-langfuse true \
+  --chat-generate-routes true \
+  --yes`}
+          language="bash"
+        />
+
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           Available Features
         </h2>
@@ -137,6 +159,11 @@ nod transform`}
   ◯ Response Formatter`}
           language="plaintext"
         />
+
+        <p>
+          On success, transform also updates/creates <code>AGENTS.md</code> in your project root
+          with feature-aware guidance for AI-assisted development.
+        </p>
       </div>
     </div>
   )

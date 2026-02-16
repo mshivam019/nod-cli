@@ -39,6 +39,12 @@ nod <project-name> [options]`}
           language="plaintext"
         />
 
+        <p>
+          Every successful <code>nod init</code> run writes a project-specific <code>AGENTS.md</code>{' '}
+          file in the project root so AI contributors know the expected file layout and coding
+          conventions.
+        </p>
+
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           add
         </h2>
@@ -55,6 +61,38 @@ nod add service email
 nod add rag
 nod add chat`}
           language="bash"
+        />
+
+        <CodeBlock
+          code={`add options (for non-interactive use):
+-n, --name <name>
+-y, --yes
+--lock-backend <backend>
+--embedding-provider <provider>
+--vector-store <store>
+--llm-provider <provider>
+--chat-database <database>
+--langfuse <boolean>
+--generate-routes <boolean>
+--supabase-auth <boolean>
+--auth-mode <mode>
+--supabase-admin <boolean>
+--custom-jwt <boolean>
+--jwks <boolean>
+--forgot-password <boolean>
+--google-oauth <boolean>
+--email-service <boolean>`}
+          language="plaintext"
+        />
+
+        <CodeBlock
+          code={`route-specific options:
+--method <method>             get|post|put|delete|patch
+--path <path>                 route path
+--create-controller <boolean> true|false
+--create-service <boolean>    true|false
+--middleware <list>           authMiddleware,loggingMiddleware,roleMiddleware`}
+          language="plaintext"
         />
 
         <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
@@ -90,11 +128,36 @@ nod add chat`}
 
         <p>Add nod features to an existing project.</p>
 
-        <CodeBlock code="nod transform" language="bash" />
+        <CodeBlock
+          code={`# Interactive mode
+nod transform
+
+# Non-interactive mode (AI/CI friendly)
+nod transform --features environments,drizzle,github,migrateRoutes --yes
+
+# Enable all transform features without prompts
+nod transform --all --yes`}
+          language="bash"
+        />
+
+        <CodeBlock
+          code={`Transform options:
+--features <list>             Comma-separated features
+--all                         Enable all transform features
+-y, --yes                     Non-interactive mode
+--rag-embedding <provider>    openai|gemini|cohere
+--rag-vector-store <store>    supabase|pinecone|chroma|weaviate
+--rag-generate-routes <bool>  true|false
+--chat-llm-provider <model>   openai|anthropic|gemini
+--chat-database <db>          supabase|pg|mysql
+--chat-langfuse <bool>        true|false
+--chat-generate-routes <bool> true|false`}
+          language="plaintext"
+        />
 
         <p>
-          This command presents an interactive menu to select which features to add to your
-          existing project.
+          Every successful <code>transform</code> run also updates <code>AGENTS.md</code> based on
+          selected features.
         </p>
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">

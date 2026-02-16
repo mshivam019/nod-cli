@@ -9,7 +9,52 @@ import { generatePM2Config } from '../generators/pm2.js';
 import fs from 'fs-extra';
 import path from 'path';
 
+const CRON_LOCK_VALUES = ['pg', 'mysql', 'redis', 'supabase', 'file'] as const;
+const EMBEDDING_VALUES = ['openai', 'gemini', 'cohere'] as const;
+const VECTOR_STORE_VALUES = ['supabase', 'pinecone', 'chroma', 'weaviate'] as const;
+const LLM_VALUES = ['openai', 'anthropic', 'gemini'] as const;
+const CHAT_DB_VALUES = ['supabase', 'pg', 'mysql'] as const;
+const AUTH_MODE_VALUES = ['email-password', 'oauth-only', 'both'] as const;
+const ROUTE_METHOD_VALUES = ['get', 'post', 'put', 'delete', 'patch'] as const;
+const ROUTE_MIDDLEWARE_VALUES = ['authMiddleware', 'loggingMiddleware', 'roleMiddleware'] as const;
+
+function parseBooleanOption(value: unknown, optionName: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'boolean') return value;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+
+  console.log(chalk.red(`\n❌ Invalid value for ${optionName}: ${String(value)}. Use true or false.\n`));
+  process.exit(1);
+}
+
+function parseEnumOption<T extends readonly string[]>(
+  value: unknown,
+  validValues: T,
+  optionName: string
+): T[number] | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).trim();
+  if ((validValues as readonly string[]).includes(normalized)) {
+    return normalized as T[number];
+  }
+
+  console.log(chalk.red(`\n❌ Invalid value for ${optionName}: ${normalized}. Valid values: ${validValues.join(', ')}\n`));
+  process.exit(1);
+}
+
+function parseListOption(value: unknown): string[] | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export async function addComponent(component: string, options: any) {
+  const isNonInteractive = options?.yes || process.env.CI === 'true';
   const validComponents = ['route', 'middleware', 'service', 'controller', 'cron', 'pm2', 'rag', 'chat', 'vercel-cron', 'github-actions', 'supabase', 'drizzle', 'langfuse', 'auth'];
   
   if (!validComponents.includes(component)) {
@@ -34,23 +79,29 @@ export async function addComponent(component: string, options: any) {
 
   // Handle feature additions
   if (component === 'cron') {
-    const response = await prompts({
-      type: 'select',
-      name: 'lockBackend',
-      message: 'Choose cron lock backend:',
-      choices: [
-        { title: 'PostgreSQL', value: 'pg' },
-        { title: 'MySQL', value: 'mysql' },
-        { title: 'Redis', value: 'redis' },
-        { title: 'Supabase', value: 'supabase' },
-        { title: 'File-based', value: 'file' }
-      ],
-      initial: 0
-    });
+    const selectedLockBackend = parseEnumOption(options?.lockBackend, CRON_LOCK_VALUES, '--lock-backend');
+    let lockBackend = selectedLockBackend;
+
+    if (!lockBackend && !isNonInteractive) {
+      const response = await prompts({
+        type: 'select',
+        name: 'lockBackend',
+        message: 'Choose cron lock backend:',
+        choices: [
+          { title: 'PostgreSQL', value: 'pg' },
+          { title: 'MySQL', value: 'mysql' },
+          { title: 'Redis', value: 'redis' },
+          { title: 'Supabase', value: 'supabase' },
+          { title: 'File-based', value: 'file' }
+        ],
+        initial: 0
+      });
+      lockBackend = response.lockBackend;
+    }
 
     const spinner = ora('Adding cron support...').start();
     try {
-      await generateCronLocks(process.cwd(), response.lockBackend || 'file');
+      await generateCronLocks(process.cwd(), lockBackend || 'file');
       spinner.succeed(chalk.green('Cron support added successfully!'));
       console.log(chalk.gray('\nCheck PM2_CRON_GUIDE.md for usage instructions\n'));
     } catch (error) {
@@ -119,59 +170,62 @@ export async function addComponent(component: string, options: any) {
   }
 
   if (component === 'rag') {
-    // Ask for embedding provider
-    const embeddingResponse = await prompts({
-      type: 'select',
-      name: 'embeddingProvider',
-      message: 'Choose embedding provider:',
-      choices: [
-        { title: 'OpenAI (text-embedding-3-small)', value: 'openai' },
-        { title: 'Google Gemini (embedding-001)', value: 'gemini' },
-        { title: 'Cohere (embed-english-v3.0)', value: 'cohere' }
-      ],
-      initial: 0
-    });
+    let embeddingProvider = parseEnumOption(options?.embeddingProvider, EMBEDDING_VALUES, '--embedding-provider');
+    let vectorStore = parseEnumOption(options?.vectorStore, VECTOR_STORE_VALUES, '--vector-store');
+    let generateRoutes = parseBooleanOption(options?.generateRoutes, '--generate-routes');
 
-    if (!embeddingResponse.embeddingProvider) {
-      console.log(chalk.red('\n❌ Setup cancelled'));
-      process.exit(1);
+    if (!isNonInteractive) {
+      if (!embeddingProvider) {
+        const embeddingResponse = await prompts({
+          type: 'select',
+          name: 'embeddingProvider',
+          message: 'Choose embedding provider:',
+          choices: [
+            { title: 'OpenAI (text-embedding-3-small)', value: 'openai' },
+            { title: 'Google Gemini (embedding-001)', value: 'gemini' },
+            { title: 'Cohere (embed-english-v3.0)', value: 'cohere' }
+          ],
+          initial: 0
+        });
+        embeddingProvider = embeddingResponse.embeddingProvider;
+      }
+
+      if (!vectorStore) {
+        const vectorStoreResponse = await prompts({
+          type: 'select',
+          name: 'vectorStore',
+          message: 'Choose vector store:',
+          choices: [
+            { title: 'Supabase (pgvector)', value: 'supabase' },
+            { title: 'Pinecone', value: 'pinecone' },
+            { title: 'Chroma (local/self-hosted)', value: 'chroma' },
+            { title: 'Weaviate', value: 'weaviate' }
+          ],
+          initial: 0
+        });
+        vectorStore = vectorStoreResponse.vectorStore;
+      }
+
+      if (generateRoutes === undefined) {
+        const generateRoutesResponse = await prompts({
+          type: 'confirm',
+          name: 'generateRoutes',
+          message: 'Generate RAG routes and controller?',
+          initial: true
+        });
+        generateRoutes = generateRoutesResponse.generateRoutes;
+      }
     }
 
-    // Ask for vector store
-    const vectorStoreResponse = await prompts({
-      type: 'select',
-      name: 'vectorStore',
-      message: 'Choose vector store:',
-      choices: [
-        { title: 'Supabase (pgvector)', value: 'supabase' },
-        { title: 'Pinecone', value: 'pinecone' },
-        { title: 'Chroma (local/self-hosted)', value: 'chroma' },
-        { title: 'Weaviate', value: 'weaviate' }
-      ],
-      initial: 0
-    });
-
-    if (!vectorStoreResponse.vectorStore) {
-      console.log(chalk.red('\n❌ Setup cancelled'));
-      process.exit(1);
-    }
-
-    // Ask if they want routes and controllers
-    const generateRoutesResponse = await prompts({
-      type: 'confirm',
-      name: 'generateRoutes',
-      message: 'Generate RAG routes and controller?',
-      initial: true
-    });
+    const ragConfig = {
+      embeddingProvider: embeddingProvider || 'openai',
+      vectorStore: vectorStore || 'supabase',
+      generateRoutes: generateRoutes ?? true
+    };
 
     const spinner = ora('Adding RAG service...').start();
     try {
       const { generateRAGService, generateRAGSchema, generateRAGRoutes, generateRAGController } = await import('../generators/ai.js');
-      
-      const ragConfig = {
-        embeddingProvider: embeddingResponse.embeddingProvider,
-        vectorStore: vectorStoreResponse.vectorStore
-      };
       
       await generateRAGService(process.cwd(), { 
         name: projectName, 
@@ -186,7 +240,7 @@ export async function addComponent(component: string, options: any) {
       await generateRAGSchema(process.cwd(), ragConfig.vectorStore, ext);
       
       // Generate routes and controller if requested
-      if (generateRoutesResponse.generateRoutes) {
+      if (ragConfig.generateRoutes) {
         await generateRAGRoutes(process.cwd(), framework, ext);
         await generateRAGController(process.cwd(), ext);
       }
@@ -256,7 +310,7 @@ export async function addComponent(component: string, options: any) {
       // Documentation links
       console.log(chalk.blue('\n📚 LangChain RAG docs: https://js.langchain.com/docs/tutorials/rag'));
       
-      if (generateRoutesResponse.generateRoutes) {
+      if (ragConfig.generateRoutes) {
         console.log(chalk.yellow('\n📝 Import RAG routes in your app:'));
         if (framework === 'express') {
           console.log(chalk.gray(`  import ragRoutes from './routes/rag.routes.js';`));
@@ -277,67 +331,73 @@ export async function addComponent(component: string, options: any) {
   }
 
   if (component === 'chat') {
-    // Ask for LLM provider
-    const llmResponse = await prompts({
-      type: 'select',
-      name: 'llmProvider',
-      message: 'Choose LLM provider:',
-      choices: [
-        { title: 'OpenAI (GPT-4o, GPT-4o-mini)', value: 'openai' },
-        { title: 'Anthropic (Claude 3.5)', value: 'anthropic' },
-        { title: 'Google Gemini (Gemini Pro)', value: 'gemini' }
-      ],
-      initial: 0
-    });
+    let llmProvider = parseEnumOption(options?.llmProvider, LLM_VALUES, '--llm-provider');
+    let chatDatabase = parseEnumOption(options?.chatDatabase, CHAT_DB_VALUES, '--chat-database');
+    let langfuse = parseBooleanOption(options?.langfuse, '--langfuse');
+    let generateRoutes = parseBooleanOption(options?.generateRoutes, '--generate-routes');
 
-    if (!llmResponse.llmProvider) {
-      console.log(chalk.red('\n❌ Setup cancelled'));
-      process.exit(1);
+    if (!isNonInteractive) {
+      if (!llmProvider) {
+        const llmResponse = await prompts({
+          type: 'select',
+          name: 'llmProvider',
+          message: 'Choose LLM provider:',
+          choices: [
+            { title: 'OpenAI (GPT-4o, GPT-4o-mini)', value: 'openai' },
+            { title: 'Anthropic (Claude 3.5)', value: 'anthropic' },
+            { title: 'Google Gemini (Gemini Pro)', value: 'gemini' }
+          ],
+          initial: 0
+        });
+        llmProvider = llmResponse.llmProvider;
+      }
+
+      if (!chatDatabase) {
+        const dbResponse = await prompts({
+          type: 'select',
+          name: 'chatDatabase',
+          message: 'Choose database for chat history:',
+          choices: [
+            { title: 'Supabase (PostgreSQL)', value: 'supabase' },
+            { title: 'PostgreSQL (direct)', value: 'pg' },
+            { title: 'MySQL', value: 'mysql' }
+          ],
+          initial: 0
+        });
+        chatDatabase = dbResponse.chatDatabase;
+      }
+
+      if (langfuse === undefined) {
+        const langfuseResponse = await prompts({
+          type: 'confirm',
+          name: 'langfuse',
+          message: 'Include Langfuse for LLM observability?',
+          initial: true
+        });
+        langfuse = langfuseResponse.langfuse;
+      }
+
+      if (generateRoutes === undefined) {
+        const generateRoutesResponse = await prompts({
+          type: 'confirm',
+          name: 'generateRoutes',
+          message: 'Generate Chat routes and controller?',
+          initial: true
+        });
+        generateRoutes = generateRoutesResponse.generateRoutes;
+      }
     }
 
-    // Ask for database to store conversations
-    const dbResponse = await prompts({
-      type: 'select',
-      name: 'chatDatabase',
-      message: 'Choose database for chat history:',
-      choices: [
-        { title: 'Supabase (PostgreSQL)', value: 'supabase' },
-        { title: 'PostgreSQL (direct)', value: 'pg' },
-        { title: 'MySQL', value: 'mysql' }
-      ],
-      initial: 0
-    });
-
-    if (!dbResponse.chatDatabase) {
-      console.log(chalk.red('\n❌ Setup cancelled'));
-      process.exit(1);
-    }
-
-    // Ask about Langfuse
-    const langfuseResponse = await prompts({
-      type: 'confirm',
-      name: 'langfuse',
-      message: 'Include Langfuse for LLM observability?',
-      initial: true
-    });
-
-    // Ask if they want routes and controllers
-    const generateRoutesResponse = await prompts({
-      type: 'confirm',
-      name: 'generateRoutes',
-      message: 'Generate Chat routes and controller?',
-      initial: true
-    });
+    const chatConfig = {
+      llmProvider: llmProvider || 'openai',
+      chatDatabase: chatDatabase || 'supabase',
+      langfuse: langfuse ?? true,
+      generateRoutes: generateRoutes ?? true
+    };
 
     const spinner = ora('Adding Chat service...').start();
     try {
       const { generateChatService, generateChatSchema, generateChatRoutes, generateChatController } = await import('../generators/ai.js');
-      
-      const chatConfig = {
-        llmProvider: llmResponse.llmProvider,
-        chatDatabase: dbResponse.chatDatabase,
-        langfuse: langfuseResponse.langfuse
-      };
       
       await generateChatService(process.cwd(), { 
         name: projectName, 
@@ -353,7 +413,7 @@ export async function addComponent(component: string, options: any) {
       await generateChatSchema(process.cwd(), chatConfig.chatDatabase, ext);
       
       // Generate routes and controller if requested
-      if (generateRoutesResponse.generateRoutes) {
+      if (chatConfig.generateRoutes) {
         await generateChatRoutes(process.cwd(), framework, ext);
         await generateChatController(process.cwd(), chatConfig.llmProvider, ext);
       }
@@ -425,7 +485,7 @@ export async function addComponent(component: string, options: any) {
       // Documentation links
       console.log(chalk.blue('\n📚 LangChain Chat docs: https://js.langchain.com/docs/tutorials/chatbot'));
       
-      if (generateRoutesResponse.generateRoutes) {
+      if (chatConfig.generateRoutes) {
         console.log(chalk.yellow('\n📝 Import Chat routes in your app:'));
         if (framework === 'express') {
           console.log(chalk.gray(`  import chatRoutes from './routes/chat.routes.js';`));
@@ -446,19 +506,23 @@ export async function addComponent(component: string, options: any) {
   }
 
   if (component === 'supabase') {
-    const response = await prompts({
-      type: 'confirm',
-      name: 'auth',
-      message: 'Include Supabase JWT auth middleware?',
-      initial: true
-    });
+    let includeAuth = parseBooleanOption(options?.supabaseAuth, '--supabase-auth');
+    if (includeAuth === undefined && !isNonInteractive) {
+      const response = await prompts({
+        type: 'confirm',
+        name: 'auth',
+        message: 'Include Supabase JWT auth middleware?',
+        initial: true
+      });
+      includeAuth = response.auth;
+    }
 
     const spinner = ora('Adding Supabase helper...').start();
     try {
       const { generateSupabaseHelper, generateSupabaseJwtAuth } = await import('../generators/supabase.js');
       await generateSupabaseHelper(process.cwd(), { name: projectName, orm: 'raw' } as any, ext);
       
-      if (response.auth) {
+      if (includeAuth ?? true) {
         await generateSupabaseJwtAuth(process.cwd(), ext);
         packageJson.dependencies = {
           ...packageJson.dependencies,
@@ -543,69 +607,80 @@ if (component === 'langfuse') {
   }
 
   if (component === 'auth') {
-    // Ask for auth mode first
-    const modeResponse = await prompts({
-      type: 'select',
-      name: 'authMode',
-      message: 'Authentication mode:',
-      choices: [
-        { title: 'Email/Password + OAuth', value: 'both', description: 'Traditional login + social providers' },
-        { title: 'Email/Password only', value: 'email-password', description: 'Traditional email/password login' },
-        { title: 'OAuth only', value: 'oauth-only', description: 'Social login only (Google, etc.)' }
-      ],
-      initial: 0
-    });
-
-    if (!modeResponse.authMode) {
-      console.log(chalk.red('\n❌ Setup cancelled'));
-      process.exit(1);
+    let authMode = parseEnumOption(options?.authMode, AUTH_MODE_VALUES, '--auth-mode');
+    if (!authMode && !isNonInteractive) {
+      const modeResponse = await prompts({
+        type: 'select',
+        name: 'authMode',
+        message: 'Authentication mode:',
+        choices: [
+          { title: 'Email/Password + OAuth', value: 'both', description: 'Traditional login + social providers' },
+          { title: 'Email/Password only', value: 'email-password', description: 'Traditional email/password login' },
+          { title: 'OAuth only', value: 'oauth-only', description: 'Social login only (Google, etc.)' }
+        ],
+        initial: 0
+      });
+      authMode = modeResponse.authMode;
     }
 
-    const authMode = modeResponse.authMode as 'email-password' | 'oauth-only' | 'both';
+    if (!authMode) {
+      authMode = 'both';
+    }
+
     const needsPassword = authMode === 'email-password' || authMode === 'both';
     const needsOAuth = authMode === 'oauth-only' || authMode === 'both';
 
-    // Ask for auth features based on mode
-    const featuresResponse = await prompts([
-      {
-        type: 'confirm',
-        name: 'supabaseAdmin',
-        message: 'Include Supabase Admin auth (for when signups are disabled)?',
-        initial: true
-      },
-      {
-        type: 'confirm',
-        name: 'customJwt',
-        message: 'Include custom JWT signing (roll your own tokens)?',
-        initial: true
-      },
-      {
-        type: 'confirm',
-        name: 'jwks',
-        message: 'Include JWKS auto-generation (/.well-known/jwks.json endpoint)?',
-        initial: true
-      },
-      {
-        type: needsPassword ? 'confirm' : null,
-        name: 'forgotPassword',
-        message: 'Include forgot password flow?',
-        initial: true
-      },
-      {
-        type: needsOAuth ? 'confirm' : null,
-        name: 'googleOAuth',
-        message: 'Include Google OAuth (server-side verification)?',
-        initial: true
-      },
-      {
-        type: needsPassword ? 'confirm' : null,
-        name: 'emailService',
-        message: 'Include email service (nodemailer for password reset emails)?',
-        initial: true
-      }
-    ]);
+    const nonInteractiveFeatures = {
+      supabaseAdmin: parseBooleanOption(options?.supabaseAdmin, '--supabase-admin') ?? true,
+      customJwt: parseBooleanOption(options?.customJwt, '--custom-jwt') ?? true,
+      jwks: parseBooleanOption(options?.jwks, '--jwks') ?? true,
+      forgotPassword: needsPassword ? (parseBooleanOption(options?.forgotPassword, '--forgot-password') ?? true) : false,
+      googleOAuth: needsOAuth ? (parseBooleanOption(options?.googleOAuth, '--google-oauth') ?? true) : false,
+      emailService: needsPassword ? (parseBooleanOption(options?.emailService, '--email-service') ?? true) : false
+    };
 
-    if (featuresResponse.customJwt === undefined) {
+    const featuresResponse = isNonInteractive
+      ? nonInteractiveFeatures
+      : await prompts([
+          {
+            type: 'confirm',
+            name: 'supabaseAdmin',
+            message: 'Include Supabase Admin auth (for when signups are disabled)?',
+            initial: true
+          },
+          {
+            type: 'confirm',
+            name: 'customJwt',
+            message: 'Include custom JWT signing (roll your own tokens)?',
+            initial: true
+          },
+          {
+            type: 'confirm',
+            name: 'jwks',
+            message: 'Include JWKS auto-generation (/.well-known/jwks.json endpoint)?',
+            initial: true
+          },
+          {
+            type: needsPassword ? 'confirm' : null,
+            name: 'forgotPassword',
+            message: 'Include forgot password flow?',
+            initial: true
+          },
+          {
+            type: needsOAuth ? 'confirm' : null,
+            name: 'googleOAuth',
+            message: 'Include Google OAuth (server-side verification)?',
+            initial: true
+          },
+          {
+            type: needsPassword ? 'confirm' : null,
+            name: 'emailService',
+            message: 'Include email service (nodemailer for password reset emails)?',
+            initial: true
+          }
+        ]);
+
+    if (!featuresResponse || featuresResponse.customJwt === undefined) {
       console.log(chalk.red('\n❌ Setup cancelled'));
       process.exit(1);
     }
@@ -751,6 +826,11 @@ if (component === 'langfuse') {
   // Handle component additions (route, middleware, service, controller)
   let name = options.name;
 
+  if (!name && isNonInteractive) {
+    console.log(chalk.red('\n❌ Name is required in non-interactive mode. Use --name <name>\n'));
+    process.exit(1);
+  }
+
   if (!name) {
     const response = await prompts({
       type: 'text',
@@ -767,9 +847,29 @@ if (component === 'langfuse') {
 
   try {
     switch (component) {
-      case 'route':
-        await addRoute(name);
+      case 'route': {
+        const middlewareList = parseListOption(options?.middleware);
+        if (middlewareList) {
+          const invalidMiddleware = middlewareList.filter(
+            (item) => !(ROUTE_MIDDLEWARE_VALUES as readonly string[]).includes(item)
+          );
+          if (invalidMiddleware.length > 0) {
+            console.log(chalk.red(`\n❌ Invalid --middleware values: ${invalidMiddleware.join(', ')}`));
+            console.log(chalk.gray(`Valid values: ${ROUTE_MIDDLEWARE_VALUES.join(', ')}\n`));
+            process.exit(1);
+          }
+        }
+
+        await addRoute(name, {
+          nonInteractive: isNonInteractive,
+          method: parseEnumOption(options?.method, ROUTE_METHOD_VALUES, '--method'),
+          path: options?.path,
+          createController: parseBooleanOption(options?.createController, '--create-controller'),
+          createService: parseBooleanOption(options?.createService, '--create-service'),
+          middleware: middlewareList
+        });
         break;
+      }
       case 'middleware':
         await addMiddleware(name);
         break;

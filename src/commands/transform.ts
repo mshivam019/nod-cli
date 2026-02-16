@@ -3,6 +3,57 @@ import ora from 'ora';
 import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
+import { generateAgentsGuide } from '../generators/agents.js';
+
+const TRANSFORM_FEATURE_CHOICES = [
+  { title: 'Environment Config (staging/production)', value: 'environments' },
+  { title: 'Supabase Helper', value: 'supabase' },
+  { title: 'Drizzle ORM Setup', value: 'drizzle' },
+  { title: 'Supabase JWT Auth Middleware', value: 'supabaseAuth' },
+  { title: 'Vercel Cron Setup', value: 'vercelCron' },
+  { title: 'GitHub Workflow', value: 'github' },
+  { title: 'RAG Service', value: 'rag' },
+  { title: 'Chat Service', value: 'chat' },
+  { title: 'Langfuse Integration', value: 'langfuse' },
+  { title: 'Model Selection Middleware', value: 'modelSelection' },
+  { title: 'Source Selection Middleware', value: 'sourceSelection' },
+  { title: 'Error Handler Middleware', value: 'errorHandler' },
+  { title: 'Winston Logger', value: 'logger' },
+  { title: 'Response Formatter Helper', value: 'responseFormatter' },
+  { title: 'Migrate Routes to Declarative Pattern', value: 'migrateRoutes' }
+];
+
+const RAG_EMBEDDING_VALUES = ['openai', 'gemini', 'cohere'];
+const RAG_VECTOR_STORE_VALUES = ['supabase', 'pinecone', 'chroma', 'weaviate'];
+const CHAT_LLM_VALUES = ['openai', 'anthropic', 'gemini'];
+const CHAT_DB_VALUES = ['supabase', 'pg', 'mysql'];
+
+function parseFeatureList(input?: string): string[] {
+  if (!input) return [];
+  return input
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseBooleanOption(value: unknown, optionName: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'boolean') return value;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+
+  throw new Error(`Invalid boolean value for ${optionName}: ${String(value)}. Use true or false.`);
+}
+
+function validateEnumOption(value: string | undefined, valid: string[], optionName: string): string | undefined {
+  if (!value) return undefined;
+  if (!valid.includes(value)) {
+    throw new Error(`Invalid value for ${optionName}: ${value}. Valid values: ${valid.join(', ')}`);
+  }
+  return value;
+}
 
 export async function transformProject(options: any) {
   console.log(chalk.blue.bold('\n🔄 Transform existing project\n'));
@@ -17,132 +68,165 @@ export async function transformProject(options: any) {
   const packageJson = await fs.readJson(packageJsonPath);
   const isTypeScript = await fs.pathExists(path.join(process.cwd(), 'tsconfig.json'));
   const ext = isTypeScript ? 'ts' : 'js';
+  const framework = packageJson.dependencies?.hono ? 'hono' : 'express';
+  const isNonInteractive = options?.yes || process.env.CI === 'true';
 
-  const response = await prompts([
-    {
-      type: 'multiselect',
-      name: 'features',
-      message: 'Select features to add:',
-      choices: [
-        { title: 'Environment Config (staging/production)', value: 'environments' },
-        { title: 'Supabase Helper', value: 'supabase' },
-        { title: 'Drizzle ORM Setup', value: 'drizzle' },
-        { title: 'Supabase JWT Auth Middleware', value: 'supabaseAuth' },
-        { title: 'Vercel Cron Setup', value: 'vercelCron' },
-        { title: 'GitHub Workflow', value: 'github' },
-        { title: 'RAG Service', value: 'rag' },
-        { title: 'Chat Service', value: 'chat' },
-        { title: 'Langfuse Integration', value: 'langfuse' },
-        { title: 'Model Selection Middleware', value: 'modelSelection' },
-        { title: 'Source Selection Middleware', value: 'sourceSelection' },
-        { title: 'Error Handler Middleware', value: 'errorHandler' },
-        { title: 'Winston Logger', value: 'logger' },
-        { title: 'Response Formatter Helper', value: 'responseFormatter' },
-      ]
+  const allowedFeatureValues = new Set(TRANSFORM_FEATURE_CHOICES.map((choice) => choice.value));
+  const parsedFeatureList = parseFeatureList(options?.features);
+
+  if (options?.all && parsedFeatureList.length > 0) {
+    console.log(chalk.red('\n❌ Use either --all or --features, not both.\n'));
+    process.exit(1);
+  }
+
+  if (!options?.all) {
+    const invalidFeatures = parsedFeatureList.filter((feature) => !allowedFeatureValues.has(feature));
+    if (invalidFeatures.length > 0) {
+      console.log(chalk.red(`\n❌ Invalid features: ${invalidFeatures.join(', ')}`));
+      console.log(chalk.gray(`Valid features: ${Array.from(allowedFeatureValues).join(', ')}\n`));
+      process.exit(1);
     }
-  ]);
+  }
 
-  if (!response.features || response.features.length === 0) {
+  let features: string[] = [];
+  if (options?.all) {
+    features = TRANSFORM_FEATURE_CHOICES.map((choice) => choice.value);
+  } else if (parsedFeatureList.length > 0) {
+    features = parsedFeatureList;
+  }
+
+  if (features.length === 0 && !isNonInteractive) {
+    const response = await prompts([
+      {
+        type: 'multiselect',
+        name: 'features',
+        message: 'Select features to add:',
+        choices: TRANSFORM_FEATURE_CHOICES
+      }
+    ]);
+
+    if (response.features && response.features.length > 0) {
+      features = response.features as string[];
+    }
+  }
+
+  if (features.length === 0) {
     console.log(chalk.yellow('\n⚠️ No features selected'));
+    if (isNonInteractive) {
+      console.log(chalk.gray('Use --features <comma-separated-list> or --all in non-interactive mode.\n'));
+    }
     return;
   }
 
-  const features = response.features as string[];
-  
   // Additional prompts for RAG options
   let ragConfig: any = { embeddingProvider: 'openai', vectorStore: 'supabase', generateRoutes: true };
   if (features.includes('rag')) {
-    const ragResponse = await prompts([
-      {
-        type: 'select',
-        name: 'embeddingProvider',
-        message: 'Choose embedding provider for RAG:',
-        choices: [
-          { title: 'OpenAI (text-embedding-3-small)', value: 'openai' },
-          { title: 'Google Gemini (embedding-001)', value: 'gemini' },
-          { title: 'Cohere (embed-english-v3.0)', value: 'cohere' }
-        ],
-        initial: 0
-      },
-      {
-        type: 'select',
-        name: 'vectorStore',
-        message: 'Choose vector store for RAG:',
-        choices: [
-          { title: 'Supabase (pgvector)', value: 'supabase' },
-          { title: 'Pinecone', value: 'pinecone' },
-          { title: 'Chroma (local/self-hosted)', value: 'chroma' },
-          { title: 'Weaviate', value: 'weaviate' }
-        ],
-        initial: 0
-      },
-      {
-        type: 'confirm',
-        name: 'generateRoutes',
-        message: 'Generate RAG routes and controller?',
-        initial: true
-      }
-    ]);
-    ragConfig = { 
-      embeddingProvider: ragResponse.embeddingProvider || 'openai', 
-      vectorStore: ragResponse.vectorStore || 'supabase',
-      generateRoutes: ragResponse.generateRoutes ?? true
-    };
+    if (isNonInteractive) {
+      ragConfig = {
+        embeddingProvider: validateEnumOption(options?.ragEmbedding, RAG_EMBEDDING_VALUES, '--rag-embedding') || 'openai',
+        vectorStore: validateEnumOption(options?.ragVectorStore, RAG_VECTOR_STORE_VALUES, '--rag-vector-store') || 'supabase',
+        generateRoutes: parseBooleanOption(options?.ragGenerateRoutes, '--rag-generate-routes') ?? true
+      };
+    } else {
+      const ragResponse = await prompts([
+        {
+          type: 'select',
+          name: 'embeddingProvider',
+          message: 'Choose embedding provider for RAG:',
+          choices: [
+            { title: 'OpenAI (text-embedding-3-small)', value: 'openai' },
+            { title: 'Google Gemini (embedding-001)', value: 'gemini' },
+            { title: 'Cohere (embed-english-v3.0)', value: 'cohere' }
+          ],
+          initial: 0
+        },
+        {
+          type: 'select',
+          name: 'vectorStore',
+          message: 'Choose vector store for RAG:',
+          choices: [
+            { title: 'Supabase (pgvector)', value: 'supabase' },
+            { title: 'Pinecone', value: 'pinecone' },
+            { title: 'Chroma (local/self-hosted)', value: 'chroma' },
+            { title: 'Weaviate', value: 'weaviate' }
+          ],
+          initial: 0
+        },
+        {
+          type: 'confirm',
+          name: 'generateRoutes',
+          message: 'Generate RAG routes and controller?',
+          initial: true
+        }
+      ]);
+      ragConfig = {
+        embeddingProvider: ragResponse.embeddingProvider || 'openai',
+        vectorStore: ragResponse.vectorStore || 'supabase',
+        generateRoutes: ragResponse.generateRoutes ?? true
+      };
+    }
   }
 
   // Additional prompts for Chat options
   let chatConfig: any = { llmProvider: 'openai', chatDatabase: 'supabase', langfuse: false, generateRoutes: true };
   if (features.includes('chat')) {
-    const chatResponse = await prompts([
-      {
-        type: 'select',
-        name: 'llmProvider',
-        message: 'Choose LLM provider for Chat:',
-        choices: [
-          { title: 'OpenAI (GPT-4o, GPT-4o-mini)', value: 'openai' },
-          { title: 'Anthropic (Claude 3.5)', value: 'anthropic' },
-          { title: 'Google Gemini (Gemini Pro)', value: 'gemini' }
-        ],
-        initial: 0
-      },
-      {
-        type: 'select',
-        name: 'chatDatabase',
-        message: 'Choose database for chat history:',
-        choices: [
-          { title: 'Supabase (PostgreSQL)', value: 'supabase' },
-          { title: 'PostgreSQL (direct)', value: 'pg' },
-          { title: 'MySQL', value: 'mysql' }
-        ],
-        initial: 0
-      },
-      {
-        type: 'confirm',
-        name: 'langfuse',
-        message: 'Include Langfuse for LLM observability?',
-        initial: true
-      },
-      {
-        type: 'confirm',
-        name: 'generateRoutes',
-        message: 'Generate Chat routes and controller?',
-        initial: true
-      }
-    ]);
-    chatConfig = { 
-      llmProvider: chatResponse.llmProvider || 'openai', 
-      chatDatabase: chatResponse.chatDatabase || 'supabase',
-      langfuse: chatResponse.langfuse ?? false,
-      generateRoutes: chatResponse.generateRoutes ?? true
-    };
+    if (isNonInteractive) {
+      chatConfig = {
+        llmProvider: validateEnumOption(options?.chatLlmProvider, CHAT_LLM_VALUES, '--chat-llm-provider') || 'openai',
+        chatDatabase: validateEnumOption(options?.chatDatabase, CHAT_DB_VALUES, '--chat-database') || 'supabase',
+        langfuse: parseBooleanOption(options?.chatLangfuse, '--chat-langfuse') ?? false,
+        generateRoutes: parseBooleanOption(options?.chatGenerateRoutes, '--chat-generate-routes') ?? true
+      };
+    } else {
+      const chatResponse = await prompts([
+        {
+          type: 'select',
+          name: 'llmProvider',
+          message: 'Choose LLM provider for Chat:',
+          choices: [
+            { title: 'OpenAI (GPT-4o, GPT-4o-mini)', value: 'openai' },
+            { title: 'Anthropic (Claude 3.5)', value: 'anthropic' },
+            { title: 'Google Gemini (Gemini Pro)', value: 'gemini' }
+          ],
+          initial: 0
+        },
+        {
+          type: 'select',
+          name: 'chatDatabase',
+          message: 'Choose database for chat history:',
+          choices: [
+            { title: 'Supabase (PostgreSQL)', value: 'supabase' },
+            { title: 'PostgreSQL (direct)', value: 'pg' },
+            { title: 'MySQL', value: 'mysql' }
+          ],
+          initial: 0
+        },
+        {
+          type: 'confirm',
+          name: 'langfuse',
+          message: 'Include Langfuse for LLM observability?',
+          initial: true
+        },
+        {
+          type: 'confirm',
+          name: 'generateRoutes',
+          message: 'Generate Chat routes and controller?',
+          initial: true
+        }
+      ]);
+      chatConfig = {
+        llmProvider: chatResponse.llmProvider || 'openai',
+        chatDatabase: chatResponse.chatDatabase || 'supabase',
+        langfuse: chatResponse.langfuse ?? false,
+        generateRoutes: chatResponse.generateRoutes ?? true
+      };
+    }
   }
 
   const spinner = ora('Transforming project...').start();
 
   try {
     const projectPath = process.cwd();
-    const features = response.features as string[];
-
     // Ensure directories exist
     await fs.ensureDir(path.join(projectPath, 'src/middleware'));
     await fs.ensureDir(path.join(projectPath, 'src/helpers'));
@@ -185,8 +269,8 @@ export async function transformProject(options: any) {
       depsToAdd['jose'] = '^5.2.0';
     }
 
-    if (features.includes('vercelCron')) {
-      const { generateVercelConfig, generateVercelCronRoutes, generateCronMiddleware, generateCronService } = await import('../generators/vercel.js');
+      if (features.includes('vercelCron')) {
+        const { generateVercelConfig, generateVercelCronRoutes, generateCronMiddleware, generateCronService } = await import('../generators/vercel.js');
       const framework = packageJson.dependencies?.hono ? 'hono' : 'express';
       await generateVercelConfig(projectPath, []);
       await generateVercelCronRoutes(projectPath, ext, framework);
@@ -199,8 +283,8 @@ export async function transformProject(options: any) {
       await generateGithubWorkflow(projectPath, { deployTrigger: true });
     }
 
-    if (features.includes('rag')) {
-      const { generateRAGService, generateRAGSchema, generateRAGRoutes, generateRAGController } = await import('../generators/ai.js');
+      if (features.includes('rag')) {
+        const { generateRAGService, generateRAGSchema, generateRAGRoutes, generateRAGController } = await import('../generators/ai.js');
       const framework = packageJson.dependencies?.hono ? 'hono' : 'express';
       
       await generateRAGService(projectPath, {
@@ -247,8 +331,8 @@ export async function transformProject(options: any) {
       }
     }
 
-    if (features.includes('chat')) {
-      const { generateChatService, generateChatSchema, generateChatRoutes, generateChatController } = await import('../generators/ai.js');
+      if (features.includes('chat')) {
+        const { generateChatService, generateChatSchema, generateChatRoutes, generateChatController } = await import('../generators/ai.js');
       const framework = packageJson.dependencies?.hono ? 'hono' : 'express';
       
       await generateChatService(projectPath, {
@@ -334,6 +418,11 @@ export async function transformProject(options: any) {
       await generateResponseFormatter(projectPath, ext);
     }
 
+    // Migrate routes to declarative pattern
+    if (features.includes('migrateRoutes')) {
+      await migrateRoutesToDeclarative(projectPath, ext);
+    }
+
     // Update package.json with new dependencies
     if (Object.keys(depsToAdd).length > 0 || Object.keys(devDepsToAdd).length > 0) {
       packageJson.dependencies = { ...packageJson.dependencies, ...depsToAdd };
@@ -341,12 +430,22 @@ export async function transformProject(options: any) {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
     }
 
+    await generateAgentsGuide(projectPath, {
+      mode: 'transform',
+      transform: {
+        framework,
+        ext: ext as 'ts' | 'js',
+        selectedFeatures: features
+      }
+    });
+
     spinner.succeed(chalk.green('Project transformed successfully!'));
     
     console.log(chalk.blue('\n📦 Next steps:'));
     console.log(chalk.gray('  npm install'));
     console.log(chalk.gray('  # Update your .env file with required variables'));
     console.log(chalk.gray('  # Import and use the new features in your app\n'));
+    console.log(chalk.gray('  # Review AGENTS.md for project-specific AI contributor guidance\n'));
 
     if (features.includes('vercelCron')) {
       console.log(chalk.yellow('📝 Vercel Cron Setup:'));
@@ -510,4 +609,129 @@ export const apiResponse = {
 `;
 
   await fs.outputFile(path.join(projectPath, `src/helpers/responseFormatter.${ext}`), content);
+}
+
+// Migrate existing routes to declarative pattern
+async function migrateRoutesToDeclarative(projectPath: string, ext: string) {
+  console.log(chalk.blue('\n📦 Migrating routes to declarative pattern...\n'));
+
+  try {
+    // Check what features are already present
+    const hasAuth = await fs.pathExists(path.join(projectPath, `src/middleware/jwtAuth.middleware.${ext}`)) ||
+                    await fs.pathExists(path.join(projectPath, `src/middleware/auth.${ext}`));
+    const hasAuditLogger = await fs.pathExists(path.join(projectPath, `src/middleware/auditLog.middleware.${ext}`));
+    const hasSourceSelection = await fs.pathExists(path.join(projectPath, `src/middleware/sourceSelection.middleware.${ext}`));
+
+    // Build default middleware list
+    const defaultMiddleware: string[] = [];
+    if (hasAuth) defaultMiddleware.push('jwtAuth');
+    if (hasAuditLogger) defaultMiddleware.push('auditLogger');
+    if (hasSourceSelection) defaultMiddleware.push('sourceSelection');
+
+    // Ensure required directories exist
+    await fs.ensureDir(path.join(projectPath, 'src/helpers'));
+    await fs.ensureDir(path.join(projectPath, 'src/config'));
+
+    // Generate response wrapper for automatic response handling
+    const { generateResponseWrapper } = await import('../generators/response-wrapper.js');
+    await generateResponseWrapper(projectPath, ext);
+    console.log(chalk.green('✓ Generated response wrapper'));
+
+    // Generate improved route-builder with auto-response
+    const { generateImprovedRouteBuilder } = await import('../generators/improved-route-builder.js');
+    await generateImprovedRouteBuilder(projectPath, ext, {
+      hasAuth,
+      hasAuditLogger,
+      hasSourceSelection
+    });
+    console.log(chalk.green('✓ Generated route-builder helper'));
+
+    // Generate simple router configuration
+    const { generateRouterConfigSimple } = await import('../generators/router-config-simple.js');
+    await generateRouterConfigSimple(projectPath, ext);
+    console.log(chalk.green('✓ Generated router configuration'));
+
+    // Migrate existing routes to declarative pattern
+    const { migrateRoutesToDeclarative: migrateRoutes } = await import('../generators/declarative-route-migration.js');
+    await migrateRoutes(projectPath, ext, {
+      hasAuth,
+      hasAuditLogger,
+      hasSourceSelection,
+      defaultMiddleware,
+      defaultRoles: []
+    });
+    console.log(chalk.green('✓ Migrated routes to declarative pattern'));
+
+    // Migrate controllers to use next(error) pattern
+    const { migrateControllers: migrateController } = await import('../generators/controller-migration-v2.js');
+    await migrateController(projectPath, ext);
+    console.log(chalk.green('✓ Migrated controllers'));
+
+    // Update app.ts to use configured router
+    await updateAppForConfiguredRouter(projectPath, ext);
+    console.log(chalk.green('✓ Updated app.ts'));
+
+    console.log(chalk.blue('\n✅ Route migration completed successfully!'));
+    console.log(chalk.gray('\nYour routes now use the declarative pattern with:'));
+    console.log(chalk.gray('  - Controllers return { success, data, message } - framework handles JSON'));
+    console.log(chalk.gray('  - Services throw errors with statusCode - framework handles responses'));
+    console.log(chalk.gray('  - defaultMiddlewares applied to all routes'));
+    console.log(chalk.gray('  - Per-route middleware override via disabled/enabled'));
+    console.log(chalk.gray('  - Role-based access control via roles'));
+    console.log(chalk.gray('  - METHODS.GET, METHODS.POST pattern for route definitions\n'));
+
+  } catch (error) {
+    console.error(chalk.red('Failed to migrate routes:'), error);
+    throw error;
+  }
+}
+
+// Update app.ts to use the configured router pattern
+async function updateAppForConfiguredRouter(projectPath: string, ext: string) {
+  const appPath = path.join(projectPath, `src/app.${ext}`);
+  const isTS = ext === 'ts';
+
+  if (!await fs.pathExists(appPath)) {
+    console.log(chalk.yellow('⚠ No app.ts found, skipping app.ts update'));
+    return;
+  }
+
+  let content = await fs.readFile(appPath, 'utf-8');
+
+  // Check if already using configured router pattern
+  if (content.includes('createConfiguredRouter')) {
+    console.log(chalk.yellow('✓ app.ts already using configured router pattern'));
+    return;
+  }
+
+  // Update import statement for router
+  if (isTS) {
+    content = content.replace(
+      /import\s+\{\s*router\s*\}\s*from\s*['"]\.\/routes\/index['"];?/,
+      "import { router } from './routes/index.js';"
+    );
+  } else {
+    content = content.replace(
+      /import\s+\{\s*router\s*\}\s*from\s*['"]\.\/routes\/index['"];?/,
+      "import { router } from './routes/index.js';"
+    );
+  }
+
+  // Ensure error handler uses next
+  if (!content.includes('(err: Error') && !content.includes('(err, _req, res, _next')) {
+    if (isTS) {
+      content = content.replace(
+        /app\.use\(\(err:\s*Error,\s*_req:\s*Request,\s*res:\s*Response,\s*_next:\s*NextFunction\)\s*=>/,
+        'app.use((err: Error, _req: Request, res: Response, _next: NextFunction) =>'
+      );
+    } else {
+      content = content.replace(
+        /app\.use\(\(err,\s*_req,\s*res,\s*_next\)\s*=>/,
+        'app.use((err, _req, res, _next) =>'
+      );
+    }
+  }
+
+  await fs.outputFile(appPath, content);
+  console.log(chalk.green('✓ Updated app.ts for declarative router pattern'));
 }
