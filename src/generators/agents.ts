@@ -14,24 +14,6 @@ interface AgentsGuideContext {
   transform?: TransformGuideContext;
 }
 
-const FEATURE_LABELS: Record<string, string> = {
-  environments: 'Environment config (staging/production)',
-  supabase: 'Supabase helper',
-  drizzle: 'Drizzle ORM setup',
-  supabaseAuth: 'Supabase JWT auth middleware',
-  vercelCron: 'Vercel cron setup',
-  github: 'GitHub workflow',
-  rag: 'RAG service',
-  chat: 'Chat service',
-  langfuse: 'Langfuse integration',
-  modelSelection: 'Model selection middleware',
-  sourceSelection: 'Source selection middleware',
-  errorHandler: 'Error handler middleware',
-  logger: 'Winston logger',
-  responseFormatter: 'Response formatter helper',
-  migrateRoutes: 'Declarative route migration'
-};
-
 const KNOWN_DIRS: Array<{ path: string; purpose: string }> = [
   { path: 'src/routes', purpose: 'HTTP routes and endpoint wiring' },
   { path: 'src/controllers', purpose: 'Request orchestration and response shaping' },
@@ -48,10 +30,6 @@ const KNOWN_DIRS: Array<{ path: string; purpose: string }> = [
   { path: 'temp', purpose: 'Temporary outputs (ignored by git)' }
 ];
 
-function normalizeBool(value: boolean | undefined): string {
-  return value ? 'enabled' : 'disabled';
-}
-
 async function detectExistingDirs(projectPath: string): Promise<Array<{ path: string; purpose: string }>> {
   const detected: Array<{ path: string; purpose: string }> = [];
 
@@ -64,50 +42,19 @@ async function detectExistingDirs(projectPath: string): Promise<Array<{ path: st
   return detected;
 }
 
-function buildInitSummary(config: ProjectConfig): string[] {
-  return [
-    `- Framework: ${config.framework}`,
-    `- Language: ${config.typescript ? 'TypeScript' : 'JavaScript'}`,
-    `- Preset: ${config.preset}`,
-    `- Database: ${config.database}`,
-    `- Auth: ${config.auth}`,
-    `- Queue: ${config.queue}`,
-    `- Environments: ${normalizeBool(config.features.environments)}`,
-    `- Cron: ${normalizeBool(config.features.cron)}`,
-    `- PM2: ${normalizeBool(config.features.pm2 !== false)}`,
-    `- Docker: ${normalizeBool(config.features.docker !== false)}`,
-    `- RAG: ${normalizeBool(config.ai?.rag)}`,
-    `- Chat: ${normalizeBool(config.ai?.chat)}`,
-    `- Langfuse: ${normalizeBool(config.ai?.langfuse)}`
-  ];
-}
-
-function buildTransformSummary(transform: TransformGuideContext): string[] {
-  const lines = [
-    `- Framework detected: ${transform.framework}`,
-    `- Language detected: ${transform.ext === 'ts' ? 'TypeScript' : 'JavaScript'}`
-  ];
-
-  if (transform.selectedFeatures.length === 0) {
-    lines.push('- Selected features: none');
-    return lines;
-  }
-
-  lines.push('- Selected features:');
-  for (const feature of transform.selectedFeatures) {
-    lines.push(`  - ${FEATURE_LABELS[feature] || feature}`);
-  }
-
-  return lines;
-}
-
 function buildAgentRules(context: AgentsGuideContext): string {
   if (context.mode === 'init' && context.config) {
     const cfg = context.config;
     return `- Keep controllers lean; move domain logic to \`src/services\`.
 - Prefer adding new endpoints in \`src/routes\` and matching handler in \`src/controllers\`.
 - Add any shared helpers to \`src/helpers\` instead of duplicating code.
-- Respect generated stack defaults (framework: \`${cfg.framework}\`, language: \`${cfg.typescript ? 'ts' : 'js'}\`).`;
+- Respect generated stack defaults (framework: \`${cfg.framework}\`, language: \`${cfg.typescript ? 'ts' : 'js'}\`).
+- Use Prettier with 4-space indentation (\`.prettierrc.json\` with \`tabWidth: 4\`, \`useTabs: false\`).
+- Run \`npm run lint\` and \`npm run build\` after code changes.
+- Run \`npm run db:generate\` when schema or Drizzle config changes.
+- Keep Drizzle migrations in \`drizzle/\` tracked in git; do not add \`drizzle/\` to \`.gitignore\`.
+- Drizzle should only manage project tables prefixed with \`${cfg.name.replace(/-/g, '_')}_\`.
+- \`npm test\` may not be configured; check scripts before assuming tests exist.`;
   }
 
   const transform = context.transform!;
@@ -119,9 +66,6 @@ function buildAgentRules(context: AgentsGuideContext): string {
 
 export async function generateAgentsGuide(projectPath: string, context: AgentsGuideContext) {
   const dirs = await detectExistingDirs(projectPath);
-  const summary = context.mode === 'init'
-    ? buildInitSummary(context.config!)
-    : buildTransformSummary(context.transform!);
 
   const dirLines = dirs.length > 0
     ? dirs.map((entry) => `- \`${entry.path}\`: ${entry.purpose}`)
@@ -131,10 +75,6 @@ export async function generateAgentsGuide(projectPath: string, context: AgentsGu
 
 This file helps human and AI contributors make consistent changes in this project.
 
-## Project Snapshot
-
-${summary.join('\n')}
-
 ## Source Map
 
 ${dirLines.join('\n')}
@@ -142,8 +82,6 @@ ${dirLines.join('\n')}
 ## Working Rules For Agents
 
 ${buildAgentRules(context)}
-- Run \`npm run build\` after code changes.
-- Run \`npm test\` for smoke validation when available.
 
 ## Non-Interactive CLI Usage
 

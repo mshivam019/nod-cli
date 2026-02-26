@@ -240,6 +240,17 @@ export function DocsLayout() {
                   Middleware
                 </Link>
                 <Link
+                  to="/docs/components/cors"
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive('/docs/components/cors')
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  )}
+                >
+                  CORS
+                </Link>
+                <Link
                   to="/docs/components/service"
                   className={cn(
                     'block rounded-md px-2 py-1.5 text-sm transition-colors',

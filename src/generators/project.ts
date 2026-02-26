@@ -64,6 +64,8 @@ export async function generateProject(config: ProjectConfig) {
   await generatePackageJson(projectPath, config);
   await generateEnvFile(projectPath, config);
   await generateTsConfig(projectPath, config);
+  await generatePrettierConfig(projectPath);
+  await generateEslintConfig(projectPath, config);
   await generateGitIgnore(projectPath);
   await generateLogger(projectPath, ext);
   await generateDocsFolder(projectPath, config);
@@ -105,7 +107,7 @@ export async function generateProject(config: ProjectConfig) {
     await generateSupabaseHelper(projectPath, config, ext);
     
     if (config.auth === 'supabase') {
-      await generateSupabaseJwtAuth(projectPath, ext);
+      await generateSupabaseJwtAuth(projectPath, ext, config.framework);
     }
   }
 
@@ -153,7 +155,7 @@ export async function generateProject(config: ProjectConfig) {
     const { generateApiAudit, generateAuditSchema } = await import('./audit.js');
     const auditTableName = `${config.name.replace(/-/g, '_')}_api_audit`;
     await generateApiAudit(projectPath, ext, auditTableName);
-    await generateAuditSchema(projectPath, auditTableName);
+    await generateAuditSchema(projectPath, auditTableName, config.orm === 'drizzle');
   }
 
   await generateAgentsGuide(projectPath, {
@@ -192,6 +194,13 @@ export default logger;
 async function generateConfigFiles(projectPath: string, config: ProjectConfig, ctx: any) {
   const ext = ctx.fileExt;
   const isTS = ext === 'ts';
+
+  if (config.features.environments) {
+    const langfuseExport = config.ai?.langfuse ? ', langfuseHandler' : '';
+    const configIndexContent = `export { config, env${langfuseExport} } from './config.js';\nexport { default } from './config.js';\n`;
+    await fs.outputFile(path.join(projectPath, `src/config/index.${ext}`), configIndexContent);
+    return;
+  }
   
   // Main config with zod validation (only for TS) or simple config for JS
   const configContent = isTS
@@ -290,30 +299,32 @@ export const config = {
 
 async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   const dependencies: Record<string, string> = {
-    'dotenv': '^16.3.1',
+    'dotenv': '^17.3.1',
   };
   
   const devDependencies: Record<string, string> = {
     'nodemon': '^3.0.2',
-    'eslint': '^8.55.0',
+    'eslint': '^10.0.2',
+    '@eslint/js': '^10.0.1',
     'prettier': '^3.1.1',
   };
 
   if (config.typescript) {
-    dependencies['zod'] = '^3.22.4';
-    devDependencies['@types/node'] = '^20.10.0';
+    dependencies['zod'] = '^4.3.6';
+    devDependencies['@types/node'] = '^25.3.1';
     devDependencies['typescript'] = '^5.3.3';
     devDependencies['tsx'] = '^4.7.0';
+    devDependencies['@typescript-eslint/parser'] = '^8.43.0';
+    devDependencies['@typescript-eslint/eslint-plugin'] = '^8.43.0';
   }
 
   if (config.framework === 'express') {
-    dependencies['express'] = '^4.18.2';
-    dependencies['express-async-errors'] = '^3.1.1';
+    dependencies['express'] = '^5.2.1';
     dependencies['cors'] = '^2.8.5';
-    dependencies['helmet'] = '^7.1.0';
+    dependencies['helmet'] = '^8.1.0';
     dependencies['morgan'] = '^1.10.0';
     if (config.typescript) {
-      devDependencies['@types/express'] = '^4.17.21';
+      devDependencies['@types/express'] = '^5.0.6';
       devDependencies['@types/cors'] = '^2.8.17';
       devDependencies['@types/morgan'] = '^1.9.9';
     }
@@ -339,11 +350,7 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   }
 
   if (config.auth === 'supabase') {
-    dependencies['jose'] = '^5.2.0';
-    dependencies['jsonwebtoken'] = '^9.0.2';
-    if (config.typescript) {
-      devDependencies['@types/jsonwebtoken'] = '^9.0.5';
-    }
+    dependencies['jose'] = '^6.1.3';
   }
 
   // Database dependencies
@@ -360,9 +367,9 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
 
   // ORM dependencies
   if (config.orm === 'drizzle') {
-    dependencies['drizzle-orm'] = '^0.29.0';
+    dependencies['drizzle-orm'] = '^0.45.1';
     dependencies['postgres'] = '^3.4.0';
-    devDependencies['drizzle-kit'] = '^0.20.0';
+    devDependencies['drizzle-kit'] = '^0.31.9';
   }
 
   // Cron dependencies
@@ -401,32 +408,37 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     }
   }
 
-  // PM2 for production
-  devDependencies['pm2'] = '^5.3.0';
+  if (config.features.pm2) {
+    devDependencies['pm2'] = '^6.0.14';
+  }
 
   if (config.features.testing) {
     devDependencies['vitest'] = '^1.0.4';
   }
 
   const ext = config.typescript ? 'ts' : 'js';
+  const drizzleConfigFile = config.typescript ? 'drizzle.config.ts' : 'drizzle.config.js';
   const scripts: Record<string, string> = {
     dev: config.typescript 
       ? `tsx watch src/server.${ext}`
       : `nodemon src/server.${ext}`,
     build: config.typescript ? 'tsc' : 'echo "No build needed for JS"',
     start: config.typescript ? 'node dist/server.js' : `node src/server.${ext}`,
-    'start:pm2': 'pm2 start ecosystem.config.js --env production',
-    'stop:pm2': 'pm2 stop ecosystem.config.js',
-    'restart:pm2': 'pm2 restart ecosystem.config.js',
-    'logs:pm2': 'pm2 logs',
-    'monit:pm2': 'pm2 monit',
     lint: 'eslint . --ext .ts,.js',
     format: 'prettier --write "src/**/*.{ts,js}"',
   };
 
+  if (config.features.pm2) {
+    scripts['start:pm2'] = 'pm2 start ecosystem.config.js --env production';
+    scripts['stop:pm2'] = 'pm2 stop ecosystem.config.js';
+    scripts['restart:pm2'] = 'pm2 restart ecosystem.config.js';
+    scripts['logs:pm2'] = 'pm2 logs';
+    scripts['monit:pm2'] = 'pm2 monit';
+  }
+
   if (config.orm === 'drizzle') {
-    scripts['db:generate'] = 'drizzle-kit generate';
-    scripts['db:push'] = 'drizzle-kit push';
+    scripts['db:generate'] = `drizzle-kit generate --config=${drizzleConfigFile}`;
+    scripts['db:push'] = `drizzle-kit push --config=${drizzleConfigFile}`;
     scripts['db:studio'] = 'drizzle-kit studio';
   }
 
@@ -585,6 +597,7 @@ async function generateTsConfig(projectPath: string, config: ProjectConfig) {
       module: 'ESNext',
       lib: ['ES2022'],
       moduleResolution: 'node',
+      types: ['node'],
       outDir: './dist',
       rootDir: './src',
       strict: true,
@@ -625,6 +638,86 @@ temp/
 `;
 
   await fs.outputFile(path.join(projectPath, '.gitignore'), gitignore);
+}
+
+async function generatePrettierConfig(projectPath: string) {
+  const prettierConfig = {
+    tabWidth: 4,
+    useTabs: false
+  };
+
+  await fs.outputFile(
+    path.join(projectPath, '.prettierrc.json'),
+    JSON.stringify(prettierConfig, null, 4)
+  );
+}
+
+async function generateEslintConfig(projectPath: string, config: ProjectConfig) {
+  const content = config.typescript
+    ? `import js from '@eslint/js';
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+
+export default [
+    {
+        ignores: ['dist/**', 'node_modules/**', 'drizzle/**'],
+    },
+    {
+        ...js.configs.recommended,
+        files: ['**/*.js'],
+    },
+    {
+        files: ['**/*.ts'],
+        languageOptions: {
+            parser: tsParser,
+            parserOptions: {
+                sourceType: 'module',
+            },
+            globals: {
+                process: 'readonly',
+                console: 'readonly',
+                URL: 'readonly',
+                Buffer: 'readonly',
+                Blob: 'readonly',
+            },
+        },
+        plugins: {
+            '@typescript-eslint': tsPlugin,
+        },
+        rules: {
+            'no-unused-vars': 'off',
+            'no-undef': 'off',
+            'no-useless-catch': 'off',
+            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+        },
+    },
+];
+`
+    : `import js from '@eslint/js';
+
+export default [
+    {
+        ignores: ['node_modules/**'],
+    },
+    {
+        ...js.configs.recommended,
+        languageOptions: {
+            globals: {
+                process: 'readonly',
+                console: 'readonly',
+                URL: 'readonly',
+                Buffer: 'readonly',
+                Blob: 'readonly',
+            },
+        },
+        rules: {
+            'no-useless-catch': 'off',
+        },
+    },
+];
+`;
+
+  await fs.outputFile(path.join(projectPath, 'eslint.config.js'), content);
 }
 
 async function generateDocsFolder(projectPath: string, config: ProjectConfig) {

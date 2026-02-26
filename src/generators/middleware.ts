@@ -3,8 +3,8 @@ import fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-export async function addMiddleware(name: string) {
-  const response = await prompts([
+export async function addMiddleware(name: string, preset?: { type?: string; isDefault?: boolean }) {
+  const response = preset ?? await prompts([
     {
       type: 'select',
       name: 'type',
@@ -29,7 +29,9 @@ export async function addMiddleware(name: string) {
 }
 
 async function createMiddleware(projectRoot: string, name: string, config: any) {
-  const middlewarePath = path.join(projectRoot, 'src/middleware', `${name}.ts`);
+  const isTypeScript = await fs.pathExists(path.join(projectRoot, 'tsconfig.json'));
+  const ext = isTypeScript ? 'ts' : 'js';
+  const middlewarePath = path.join(projectRoot, 'src/middleware', `${name}.${ext}`);
   
   // Detect framework
   const packageJson = JSON.parse(
@@ -49,7 +51,7 @@ async function createMiddleware(projectRoot: string, name: string, config: any) 
   console.log(chalk.green(`✓ Created middleware: ${middlewarePath}`));
 
   if (config.isDefault) {
-    await addToDefaultMiddleware(projectRoot, name, isHono);
+    await addToDefaultMiddleware(projectRoot, name, isHono, ext);
   }
 }
 
@@ -99,7 +101,8 @@ export function ${name}Middleware(req: Request, res: Response, next: NextFunctio
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    res.sendStatus(200);
+    return;
   }
   
   next();
@@ -158,7 +161,8 @@ export async function ${name}Middleware(c: Context, next: Next) {
   c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   if (c.req.method === 'OPTIONS') {
-    return c.text('', 200);
+    c.text('', 200);
+    return;
   }
   
   await next();
@@ -175,14 +179,14 @@ export async function ${name}Middleware(c: Context, next: Next) {
   return templates[type] || templates.custom;
 }
 
-async function addToDefaultMiddleware(projectRoot: string, name: string, isHono: boolean) {
-  const appPath = path.join(projectRoot, 'src/app.ts');
+async function addToDefaultMiddleware(projectRoot: string, name: string, isHono: boolean, ext: 'ts' | 'js') {
+  const appPath = path.join(projectRoot, `src/app.${ext}`);
   
   try {
     let content = await fs.readFile(appPath, 'utf-8');
     
     // Add import
-    const importLine = `import { ${name}Middleware } from './middleware/${name}';`;
+    const importLine = `import { ${name}Middleware } from './middleware/${name}.js';`;
     if (!content.includes(importLine)) {
       const lastImport = content.lastIndexOf('import');
       const endOfLastImport = content.indexOf('\n', lastImport);

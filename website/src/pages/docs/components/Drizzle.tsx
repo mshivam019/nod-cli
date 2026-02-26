@@ -24,7 +24,8 @@ export function DrizzleComponent() {
         
         <h3 className="font-semibold mt-4">Drizzle Config (drizzle.config.ts)</h3>
         <CodeBlock
-          code={`import { defineConfig } from 'drizzle-kit';
+          code={`/// <reference types="node" />
+import { defineConfig } from 'drizzle-kit';
 import 'dotenv/config';
 
 const env = process.env.NODE_ENV || 'staging';
@@ -36,6 +37,9 @@ export default defineConfig({
   schema: './src/db/schema.ts',
   out: './drizzle',
   dialect: 'postgresql',
+  schemaFilter: ['public'],
+  tablesFilter: ['your_project_*'],
+  strict: true,
   dbCredentials: {
     url: connectionString!,
   },
@@ -52,11 +56,14 @@ import * as schema from './schema.js';
 
 const connectionString = config.supabasePoolerUrl;
 
-const client = postgres(connectionString!, { 
+if (!connectionString) {
+  throw new Error('Supabase pooler URL is not configured.');
+}
+
+const client = postgres(connectionString, {
   prepare: false,
-  max: 10,
   idle_timeout: 20,
-  connect_timeout: 10,
+  max_lifetime: 60 * 30,
 });
 
 export const db = drizzle(client, { schema });
@@ -66,7 +73,7 @@ export default db;`}
 
         <h3 className="font-semibold mt-6">Schema (src/db/schema.ts)</h3>
         <CodeBlock
-          code={`import { pgTable, uuid, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
+          code={`import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // API Audit table - logs all API requests
 export const apiAudit = pgTable('my_api_audit', {
@@ -75,8 +82,12 @@ export const apiAudit = pgTable('my_api_audit', {
   eventType: text('event_type').notNull(),
   eventData: text('event_data'),
   llmResponse: jsonb('llm_response'),
-  createdAt: timestamp('created_at').defaultNow(),
-});
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, table => [
+  index('idx_my_api_audit_user_id').on(table.userId),
+  index('idx_my_api_audit_event_type').on(table.eventType),
+  index('idx_my_api_audit_created_at').on(table.createdAt),
+]);
 
 // Add your own tables here
 export const users = pgTable('users', {
@@ -109,15 +120,18 @@ SUPABASE_STAGING_POOLER_URL=postgresql://user:pass@db.xxx.supabase.co:6543/postg
         </h2>
         <CodeBlock
           code={`# Generate migrations from schema changes
-npx drizzle-kit generate
+npx drizzle-kit generate --config=drizzle.config.ts
 
 # Push schema to database
-npx drizzle-kit push
+npx drizzle-kit push --config=drizzle.config.ts
 
 # Open Drizzle Studio (GUI)
 npx drizzle-kit studio`}
           language="bash"
         />
+        <p className="text-sm text-muted-foreground">
+          Keep the generated <code>drizzle/</code> folder in git. These migration files are the deployment history and should be versioned.
+        </p>
       </section>
 
       <section className="space-y-4">

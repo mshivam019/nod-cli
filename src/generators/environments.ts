@@ -36,15 +36,47 @@ export async function generateEnvConfig(projectPath: string, config: ProjectConf
 import { production } from '../environments/production.js';
 import { staging } from '../environments/staging.js';
 ${hasLangfuse ? `import { CallbackHandler } from 'langfuse-langchain';` : ''}
+import { z } from 'zod';
 
-export const env = process.env.NODE_ENV || 'staging';
+const nodeEnvSchema = z.enum(['development', 'staging', 'production', 'test']);
+
+export const env = nodeEnvSchema.catch('development').parse(process.env.NODE_ENV);
 
 // Disable tracing in non-production
 if (env !== 'production') {
   process.env.LANGSMITH_TRACING = 'false';
 }
 
-export const config = {
+const configSchema = z.object({
+  port: z.coerce.number().int().positive(),
+  nodeEnv: nodeEnvSchema,
+  
+  // Supabase
+  supabaseApiKey: z.string().min(1, 'Missing Supabase secret key for current environment'),
+  supabaseAnonKey: z.string().min(1, 'Missing Supabase anon key for current environment'),
+  supabaseUrl: z.string().url('Supabase URL must be a valid URL'),
+  supabaseProject: z.string().min(1, 'Missing Supabase project ID for current environment'),
+  ${config.supabase?.usePooler ? `supabasePoolerUrl: z.string().min(1, 'Missing Supabase pooler URL for current environment'),` : ''}
+  
+  ${hasRAG ? `// OpenAI
+  openaiApiKey: z.string().min(1).optional(),` : ''}
+  
+  ${hasLangfuse ? `// Langfuse
+  langfusePublicKey: z.string().min(1).optional(),
+  langfuseSecretKey: z.string().min(1).optional(),` : ''}
+  
+  // Cron
+  cronSecret: z.string().min(1).optional(),
+})${hasLangfuse ? `.superRefine((value, ctx) => {
+  if ((value.langfusePublicKey && !value.langfuseSecretKey) || (!value.langfusePublicKey && value.langfuseSecretKey)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Langfuse public and secret keys must both be set together',
+    });
+  }
+})` : ''};
+
+export const config = configSchema.parse({
   port: process.env.PORT || 3000,
   nodeEnv: env,
   
@@ -64,7 +96,7 @@ export const config = {
   
   // Cron
   cronSecret: process.env.CRON_SECRET,
-};
+});
 
 ${hasLangfuse ? `
 export const langfuseHandler = new CallbackHandler({

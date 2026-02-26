@@ -163,11 +163,13 @@ export default supabase;
 async function generateDrizzleSetup(projectPath: string, config: ProjectConfig, ext: string) {
   const usePooler = config.supabase?.usePooler;
   const auditTableName = `${config.name.replace(/-/g, '_')}_api_audit`;
+  const tablePrefix = `${config.name.replace(/-/g, '_')}_*`;
   const isTS = ext === 'ts';
 
   // Drizzle config
   const drizzleConfigContent = isTS
-    ? `import { defineConfig } from 'drizzle-kit';
+    ? `/// <reference types="node" />
+import { defineConfig } from 'drizzle-kit';
 import 'dotenv/config';
 
 const env = process.env.NODE_ENV || 'staging';
@@ -179,6 +181,9 @@ export default defineConfig({
   schema: './src/db/schema.ts',
   out: './drizzle',
   dialect: 'postgresql',
+  schemaFilter: ['public'],
+  tablesFilter: ['${tablePrefix}'],
+  strict: true,
   dbCredentials: {
     url: connectionString!,
   },
@@ -196,6 +201,9 @@ export default defineConfig({
   schema: './src/db/schema.js',
   out: './drizzle',
   dialect: 'postgresql',
+  schemaFilter: ['public'],
+  tablesFilter: ['${tablePrefix}'],
+  strict: true,
   dbCredentials: {
     url: connectionString,
   },
@@ -211,11 +219,14 @@ import * as schema from './schema.js';
 
 const connectionString = config.${usePooler ? 'supabasePoolerUrl' : 'supabaseUrl'};
 
-const client = postgres(connectionString!, { 
+if (!connectionString) {
+  throw new Error('Supabase pooler URL is not configured.');
+}
+
+const client = postgres(connectionString, {
   prepare: false,
-  ${usePooler ? `max: 10,
   idle_timeout: 20,
-  connect_timeout: 10,` : ''}
+  max_lifetime: 60 * 30,
 });
 
 export const db = drizzle(client, { schema });
@@ -229,11 +240,14 @@ import * as schema from './schema.js';
 
 const connectionString = config.${usePooler ? 'supabasePoolerUrl' : 'supabaseUrl'};
 
-const client = postgres(connectionString, { 
+if (!connectionString) {
+  throw new Error('Supabase pooler URL is not configured.');
+}
+
+const client = postgres(connectionString, {
   prepare: false,
-  ${usePooler ? `max: 10,
   idle_timeout: 20,
-  connect_timeout: 10,` : ''}
+  max_lifetime: 60 * 30,
 });
 
 export const db = drizzle(client, { schema });
@@ -242,7 +256,7 @@ export default db;
 `;
 
   // Schema - only api_audit table by default
-  const schemaContent = `import { pgTable, uuid, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
+  const schemaContent = `import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // API Audit table - logs all API requests
 export const apiAudit = pgTable('${auditTableName}', {
@@ -251,8 +265,12 @@ export const apiAudit = pgTable('${auditTableName}', {
   eventType: text('event_type').notNull(),
   eventData: text('event_data'),
   llmResponse: jsonb('llm_response'),
-  createdAt: timestamp('created_at').defaultNow(),
-});
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, table => [
+  index('idx_${auditTableName}_user_id').on(table.userId),
+  index('idx_${auditTableName}_event_type').on(table.eventType),
+  index('idx_${auditTableName}_created_at').on(table.createdAt),
+]);
 `;
 
   await fs.outputFile(path.join(projectPath, `drizzle.config.${ext}`), drizzleConfigContent);
@@ -260,8 +278,181 @@ export const apiAudit = pgTable('${auditTableName}', {
   await fs.outputFile(path.join(projectPath, `src/db/schema.${ext}`), schemaContent);
 }
 
-export async function generateSupabaseJwtAuth(projectPath: string, ext: string) {
+export async function generateSupabaseJwtAuth(projectPath: string, ext: string, framework: 'express' | 'hono' = 'express') {
   const isTS = ext === 'ts';
+
+  if (framework === 'hono') {
+    const honoJwtAuthContent = isTS
+      ? `import { jwtVerify, createRemoteJWKSet } from 'jose';
+import type { Context, Next } from 'hono';
+import config from '../config/config.js';
+
+const SUPABASE_JWT_ISSUER = \`https://\${config.supabaseProject}.supabase.co/auth/v1\`;
+const JWKS = createRemoteJWKSet(new URL(\`\${SUPABASE_JWT_ISSUER}/.well-known/jwks.json\`));
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+  name?: string;
+  phone?: string;
+  role?: string;
+  session_id?: string;
+  is_anonymous?: boolean;
+  app_metadata?: any;
+  user_metadata?: any;
+}
+
+const jwtAuth = async (c: Context, next: Next): Promise<Response | void> => {
+  try {
+    const authHeader = c.req.header('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return c.json({ success: false, message: 'Access denied. No token provided or invalid format.' }, 401);
+    }
+
+    const token = authHeader.split(' ')[1];
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: SUPABASE_JWT_ISSUER,
+      algorithms: ['RS256', 'ES256'],
+    });
+
+    c.set('user', {
+      id: payload.sub,
+      email: (payload.app_metadata as any)?.original_email || payload.email,
+      name: (payload.user_metadata as any)?.name || (payload.user_metadata as any)?.display_name || '',
+      phone: (payload.app_metadata as any)?.phone || payload.phone,
+      role: payload.role,
+      session_id: payload.session_id,
+      is_anonymous: payload.is_anonymous,
+      app_metadata: payload.app_metadata,
+      user_metadata: payload.user_metadata,
+    } as AuthUser);
+
+    await next();
+  } catch (error: any) {
+    console.error('JWT Verification Error:', error);
+    if (error.code === 'ERR_JWT_EXPIRED') {
+      return c.json({ success: false, message: 'Token expired.' }, 401);
+    }
+    return c.json({ success: false, message: 'Invalid or expired token.' }, 401);
+  }
+};
+
+export default jwtAuth;
+`
+      : `import { jwtVerify, createRemoteJWKSet } from 'jose';
+import config from '../config/config.js';
+
+const SUPABASE_JWT_ISSUER = \`https://\${config.supabaseProject}.supabase.co/auth/v1\`;
+const JWKS = createRemoteJWKSet(new URL(\`\${SUPABASE_JWT_ISSUER}/.well-known/jwks.json\`));
+
+const jwtAuth = async (c, next) => {
+  try {
+    const authHeader = c.req.header('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return c.json({ success: false, message: 'Access denied. No token provided or invalid format.' }, 401);
+    }
+
+    const token = authHeader.split(' ')[1];
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: SUPABASE_JWT_ISSUER,
+      algorithms: ['RS256', 'ES256'],
+    });
+
+    c.set('user', {
+      id: payload.sub,
+      email: payload.app_metadata?.original_email || payload.email,
+      name: payload.user_metadata?.name || payload.user_metadata?.display_name || '',
+      phone: payload.app_metadata?.phone || payload.phone,
+      role: payload.role,
+      session_id: payload.session_id,
+      is_anonymous: payload.is_anonymous,
+      app_metadata: payload.app_metadata,
+      user_metadata: payload.user_metadata,
+    });
+
+    await next();
+  } catch (error) {
+    console.error('JWT Verification Error:', error);
+    if (error.code === 'ERR_JWT_EXPIRED') {
+      return c.json({ success: false, message: 'Token expired.' }, 401);
+    }
+    return c.json({ success: false, message: 'Invalid or expired token.' }, 401);
+  }
+};
+
+export default jwtAuth;
+`;
+
+    const honoPermissionContent = isTS
+      ? `export const checkPermission = (allowedRoles: string[] = ['org_admin', 'super_admin']) => {
+  return async (c: any, next: any): Promise<Response | void> => {
+    try {
+      const user = c.get('user');
+      if (!user) {
+        return c.json({ success: false, message: 'Authentication required' }, 401);
+      }
+
+      const permission = user.app_metadata?.permission || {};
+      const source = c.get('requestSource') || 'default';
+      const userRoleForSource = permission[source] || permission.default;
+
+      if (!userRoleForSource) {
+        return c.json({ success: false, message: 'No permission for this source' }, 403);
+      }
+
+      if (!allowedRoles.includes(userRoleForSource)) {
+        return c.json({ success: false, message: 'Insufficient permissions' }, 403);
+      }
+
+      c.set('userRole', userRoleForSource);
+      c.set('userSource', source);
+      await next();
+    } catch (error) {
+      console.error('Permission check error:', error);
+      return c.json({ success: false, message: 'Permission check failed' }, 500);
+    }
+  };
+};
+
+export default checkPermission;
+`
+      : `export const checkPermission = (allowedRoles = ['org_admin', 'super_admin']) => {
+  return async (c, next) => {
+    try {
+      const user = c.get('user');
+      if (!user) {
+        return c.json({ success: false, message: 'Authentication required' }, 401);
+      }
+
+      const permission = user.app_metadata?.permission || {};
+      const source = c.get('requestSource') || 'default';
+      const userRoleForSource = permission[source] || permission.default;
+
+      if (!userRoleForSource) {
+        return c.json({ success: false, message: 'No permission for this source' }, 403);
+      }
+
+      if (!allowedRoles.includes(userRoleForSource)) {
+        return c.json({ success: false, message: 'Insufficient permissions' }, 403);
+      }
+
+      c.set('userRole', userRoleForSource);
+      c.set('userSource', source);
+      await next();
+    } catch (error) {
+      console.error('Permission check error:', error);
+      return c.json({ success: false, message: 'Permission check failed' }, 500);
+    }
+  };
+};
+
+export default checkPermission;
+`;
+
+    await fs.outputFile(path.join(projectPath, `src/middleware/jwtAuth.middleware.${ext}`), honoJwtAuthContent);
+    await fs.outputFile(path.join(projectPath, `src/middleware/permission.middleware.${ext}`), honoPermissionContent);
+    return;
+  }
   
   // JWT Auth - different content for TS vs JS
   const jwtAuthContent = isTS 

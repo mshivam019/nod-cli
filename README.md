@@ -135,6 +135,9 @@ nod add auth
 # Add middleware
 nod add middleware rateLimit
 
+# Add CORS middleware and apply globally
+nod add cors
+
 # Add service
 nod add service email
 

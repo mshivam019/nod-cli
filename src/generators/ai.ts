@@ -2613,7 +2613,7 @@ class ModelConfig {
         return req.headers.host.split(':')[0];
       }
       return null;
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }
@@ -2697,7 +2697,7 @@ class ModelConfig {
         return req.headers.host.split(':')[0];
       }
       return null;
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }
@@ -2760,7 +2760,7 @@ class SourceConfig {
         return req.headers.host.split(':')[0];
       }
       return null;
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }

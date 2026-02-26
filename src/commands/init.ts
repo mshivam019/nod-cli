@@ -45,7 +45,7 @@ export async function initProject(name?: string, options?: any) {
         logging: true,
         testing: presetDefaults.features?.testing ?? true,
         docker: presetDefaults.features?.docker ?? true,
-        pm2: presetDefaults.features?.pm2 ?? true,
+        pm2: presetDefaults.features?.pm2 ?? false,
         environments: presetDefaults.features?.environments ?? true,
         sourceConfig: presetDefaults.features?.sourceConfig ?? false,
         modelConfig: presetDefaults.features?.modelConfig ?? false,
@@ -295,7 +295,7 @@ export async function initProject(name?: string, options?: any) {
       type: (_prev, values) => values.preset === 'custom' ? 'confirm' : null,
       name: 'pm2',
       message: 'Include PM2 configuration?',
-      initial: true
+      initial: false
     }
   ]);
 
@@ -326,7 +326,7 @@ export async function initProject(name?: string, options?: any) {
       logging: true,
       testing: presetDefaults.features?.testing ?? true,
       docker: response.docker ?? presetDefaults.features?.docker ?? true,
-      pm2: response.pm2 ?? presetDefaults.features?.pm2 ?? true,
+      pm2: response.pm2 ?? presetDefaults.features?.pm2 ?? false,
       environments: response.environments ?? presetDefaults.features?.environments ?? true,
       sourceConfig: presetDefaults.features?.sourceConfig ?? false,
       modelConfig: presetDefaults.features?.modelConfig ?? false,
@@ -416,7 +416,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       logging: true,
       testing: true,
       docker: true,
-      pm2: true,
+      pm2: false,
       environments: true,
       sourceConfig: false,
       modelConfig: false,
@@ -435,7 +435,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       logging: true,
       testing: true,
       docker: true,
-      pm2: true,
+      pm2: false,
       environments: true,
       sourceConfig: true,
       modelConfig: true,
@@ -454,7 +454,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       logging: true,
       testing: true,
       docker: true,
-      pm2: true,
+      pm2: false,
       environments: true,
       sourceConfig: true,
       modelConfig: true,
@@ -493,7 +493,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       logging: true,
       testing: true,
       docker: true,
-      pm2: true,
+      pm2: false,
       environments: true,
       sourceConfig: false,
       modelConfig: false,

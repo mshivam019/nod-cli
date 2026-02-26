@@ -27,7 +27,8 @@ async function generateAppFile(projectPath: string, config: ProjectConfig, ctx: 
   const isTS = ext === 'ts';
 
   const appContent = isTS
-    ? `import express, { Express, Request, Response } from 'express';
+    ? `import cors from 'cors';
+import express, { Express, Request, Response } from 'express';
 import { router } from './routes/index.js';
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
 import errorHandler from './middleware/errorHandler.js';
@@ -37,6 +38,7 @@ export function createApp(): Express {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(cors());
 
   // Health check
   app.get('/health', (_req: Request, res: Response) => {
@@ -54,7 +56,8 @@ export function createApp(): Express {
   return app;
 }
 `
-    : `import express from 'express';
+    : `import cors from 'cors';
+import express from 'express';
 import { router } from './routes/index.js';
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
 import errorHandler from './middleware/errorHandler.js';
@@ -64,6 +67,7 @@ export function createApp() {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(cors());
 
   // Health check
   app.get('/health', (_req, res) => {
@@ -736,6 +740,7 @@ async function generateRouteBuilder(projectPath: string, ext: string, options: {
  */
 
 import { wrapHandler, createError, success, fail } from '../helpers/response-wrapper.js';
+import type { NextFunction, Request, Response } from 'express';
 
 export const METHODS = {
   GET: 'get',
@@ -851,9 +856,9 @@ export function createConfiguredRouter(config: {
     routes: config.routes
   });
 
-  ${hasAuth ? "router.registerMiddleware('jwtAuth', (req, res, next) => { /* your auth middleware */ next(); });" : ''}
-  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (req, res, next) => { /* your audit middleware */ next(); });" : ''}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (req, res, next) => { /* your source middleware */ next(); });" : ''}
+  ${hasAuth ? "router.registerMiddleware('jwtAuth', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ''}
+  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ''}
+  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ''}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;

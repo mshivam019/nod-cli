@@ -14,6 +14,12 @@ const components = [
     category: 'Core'
   },
   {
+    name: 'CORS',
+    href: '/docs/components/cors',
+    description: 'Generate and apply default CORS middleware in one step',
+    category: 'Core'
+  },
+  {
     name: 'Service',
     href: '/docs/components/service',
     description: 'Generate business logic services with CRUD operations',

@@ -55,7 +55,7 @@ function parseListOption(value: unknown): string[] | undefined {
 
 export async function addComponent(component: string, options: any) {
   const isNonInteractive = options?.yes || process.env.CI === 'true';
-  const validComponents = ['route', 'middleware', 'service', 'controller', 'cron', 'pm2', 'rag', 'chat', 'vercel-cron', 'github-actions', 'supabase', 'drizzle', 'langfuse', 'auth'];
+  const validComponents = ['route', 'middleware', 'service', 'controller', 'cron', 'pm2', 'rag', 'chat', 'vercel-cron', 'github-actions', 'supabase', 'drizzle', 'langfuse', 'auth', 'cors'];
   
   if (!validComponents.includes(component)) {
     console.log(chalk.red(`\n❌ Invalid component: ${component}`));
@@ -120,6 +120,19 @@ export async function addComponent(component: string, options: any) {
       console.log(chalk.gray('\nRun: pm2 start ecosystem.config.js\n'));
     } catch (error) {
       spinner.fail(chalk.red('Failed to add PM2 configuration'));
+      console.error(error);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (component === 'cors') {
+    const spinner = ora('Adding CORS middleware component...').start();
+    try {
+      await addMiddleware('cors', { type: 'cors', isDefault: true });
+      spinner.succeed(chalk.green('CORS middleware added and applied as default!'));
+    } catch (error) {
+      spinner.fail(chalk.red('Failed to add CORS middleware'));
       console.error(error);
       process.exit(1);
     }
@@ -526,7 +539,7 @@ export async function addComponent(component: string, options: any) {
         await generateSupabaseJwtAuth(process.cwd(), ext);
         packageJson.dependencies = {
           ...packageJson.dependencies,
-          'jose': '^5.2.0'
+          'jose': '^6.1.3'
         };
       }
       
@@ -560,21 +573,22 @@ export async function addComponent(component: string, options: any) {
       
       packageJson.dependencies = {
         ...packageJson.dependencies,
-        'drizzle-orm': '^0.29.0',
+        'drizzle-orm': '^0.45.1',
         'postgres': '^3.4.0',
         '@supabase/supabase-js': '^2.39.0'
       };
       packageJson.devDependencies = {
         ...packageJson.devDependencies,
-        'drizzle-kit': '^0.20.0'
+        'drizzle-kit': '^0.31.9'
       };
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
       spinner.succeed(chalk.green('Drizzle ORM added!'));
       console.log(chalk.gray('\nnpm install'));
       console.log(chalk.gray('Set DATABASE_URL or SUPABASE_POOLER_URL in .env'));
-      console.log(chalk.gray('npx drizzle-kit generate'));
-      console.log(chalk.gray('npx drizzle-kit push'));
+      const drizzleConfigFile = isTypeScript ? 'drizzle.config.ts' : 'drizzle.config.js';
+      console.log(chalk.gray(`npx drizzle-kit generate --config=${drizzleConfigFile}`));
+      console.log(chalk.gray(`npx drizzle-kit push --config=${drizzleConfigFile}`));
       console.log(chalk.blue('\n📚 Drizzle docs: https://orm.drizzle.team/docs/overview\n'));
     } catch (error) {
       spinner.fail(chalk.red('Failed to add Drizzle ORM'));

@@ -203,7 +203,11 @@ export default auditLogger;
   await fs.outputFile(path.join(projectPath, `src/middleware/auditLog.middleware.${ext}`), auditMiddlewareContent);
 }
 
-export async function generateAuditSchema(projectPath: string, tableName: string = 'api_audit') {
+export async function generateAuditSchema(projectPath: string, tableName: string = 'api_audit', useDrizzle: boolean = false) {
+  if (useDrizzle) {
+    return;
+  }
+
   const schemaContent = `-- Audit table for API request logging
 -- Run this in your Supabase SQL editor
 

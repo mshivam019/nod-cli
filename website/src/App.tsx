@@ -12,6 +12,7 @@ import { Components } from './pages/docs/Components'
 // Component pages
 import { RouteComponent } from './pages/docs/components/Route'
 import { MiddlewareComponent } from './pages/docs/components/Middleware'
+import { CORSComponent } from './pages/docs/components/CORS'
 import { ServiceComponent } from './pages/docs/components/Service'
 import { SupabaseComponent } from './pages/docs/components/Supabase'
 import { AuthComponent } from './pages/docs/components/Auth'
@@ -43,6 +44,7 @@ export default function App() {
         {/* Component pages */}
         <Route path="components/route" element={<RouteComponent />} />
         <Route path="components/middleware" element={<MiddlewareComponent />} />
+        <Route path="components/cors" element={<CORSComponent />} />
         <Route path="components/service" element={<ServiceComponent />} />
         <Route path="components/supabase" element={<SupabaseComponent />} />
         <Route path="components/auth" element={<AuthComponent />} />

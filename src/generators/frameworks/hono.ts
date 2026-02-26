@@ -99,8 +99,9 @@ startServer().catch(console.error);
 async function generateMiddleware(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const isTS = ext === 'ts';
+  const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth;
   
-  if (ctx.hasAuth) {
+  if (hasCustomAuth) {
     const authMiddleware = isTS
       ? `import { Context, Next } from 'hono';
 import jwt from 'jsonwebtoken';
@@ -117,7 +118,7 @@ export async function authMiddleware(c: Context, next: Next): Promise<Response |
     const decoded = jwt.verify(token, config.jwt.secret);
     c.set('user', decoded);
     await next();
-  } catch (error) {
+  } catch (_error) {
     return c.json({ error: 'Invalid token' }, 401);
   }
 }
@@ -146,7 +147,7 @@ export async function authMiddleware(c, next) {
     const decoded = jwt.verify(token, config.jwt.secret);
     c.set('user', decoded);
     await next();
-  } catch (error) {
+  } catch (_error) {
     return c.json({ error: 'Invalid token' }, 401);
   }
 }
@@ -417,6 +418,24 @@ async function generateCronSetup(projectPath: string, ctx: TemplateContext, conf
 async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const isTS = ext === 'ts';
+  const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth;
+  const hasSupabaseAuth = ctx.hasSupabaseAuth;
+  const hasAnyAuth = ctx.hasAuth;
+  const authImportTs = hasCustomAuth
+    ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';"
+    : (hasSupabaseAuth
+      ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';\nimport checkPermission from '../middleware/permission.middleware.js';"
+      : '');
+  const authImportJs = hasCustomAuth
+    ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';"
+    : (hasSupabaseAuth
+      ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';\nimport checkPermission from '../middleware/permission.middleware.js';"
+      : '');
+  const authRegistration = hasCustomAuth
+    ? "dr.registerMiddleware('auth', authMiddleware);\n  dr.registerMiddleware('roleCheck', roleMiddleware);"
+    : (hasSupabaseAuth
+      ? "dr.registerMiddleware('auth', jwtAuth);\n  dr.registerMiddleware('roleCheck', checkPermission);"
+      : '');
   
   // Generate declarative routes helper (JS/TS versions)
   const declarativeRoutesContent = isTS
@@ -767,13 +786,13 @@ export class RouteBuilder {
   const routerConfigContent = isTS
     ? `import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import { apiAuditLog } from '../middleware/audit.js';
-${ctx.hasAuth ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';" : ''}
+${authImportTs}
 
 // Export METHODS for use in route files
 export { METHODS };
 
 export const globalDefaults = {
-  middlewares: [${ctx.hasAuth ? "'auth', " : ''}'apiAuditLog'] as string[],
+  middlewares: [${hasAnyAuth ? "'auth', " : ''}'apiAuditLog'] as string[],
   roles: [] as string[]
 };
 
@@ -789,8 +808,7 @@ export function createConfiguredRouter(config: {
   });
 
   dr.registerMiddleware('apiAuditLog', apiAuditLog);
-  ${ctx.hasAuth ? `dr.registerMiddleware('auth', authMiddleware);
-  dr.registerMiddleware('roleCheck', roleMiddleware);` : ''}
+  ${authRegistration}
 
   const validation = dr.validate();
   if (!validation.valid) {
@@ -802,13 +820,13 @@ export function createConfiguredRouter(config: {
 `
     : `import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 import { apiAuditLog } from '../middleware/audit.js';
-${ctx.hasAuth ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';" : ''}
+${authImportJs}
 
 // Export METHODS for use in route files
 export { METHODS };
 
 export const globalDefaults = {
-  middlewares: [${ctx.hasAuth ? "'auth', " : ''}'apiAuditLog'],
+  middlewares: [${hasAnyAuth ? "'auth', " : ''}'apiAuditLog'],
   roles: []
 };
 
@@ -820,8 +838,7 @@ export function createConfiguredRouter(config) {
   });
 
   dr.registerMiddleware('apiAuditLog', apiAuditLog);
-  ${ctx.hasAuth ? `dr.registerMiddleware('auth', authMiddleware);
-  dr.registerMiddleware('roleCheck', roleMiddleware);` : ''}
+  ${authRegistration}
 
   const validation = dr.validate();
   if (!validation.valid) {
@@ -846,7 +863,7 @@ const routesList = [
     method: METHODS.GET,
     path: '/example',
     handler: exampleController.getExample
-  }${ctx.hasAuth ? `,
+  }${hasAnyAuth ? `,
   
   {
     method: METHODS.GET,
@@ -878,7 +895,7 @@ export const exampleController = {
     try {
       const data = await exampleService.getData();
       return c.json(data);
-    } catch (error) {
+    } catch (_error) {
       return c.json({ error: 'Failed to get data' }, 500);
     }
   },
@@ -899,7 +916,7 @@ export const exampleController = {
     try {
       const data = await exampleService.getData();
       return c.json(data);
-    } catch (error) {
+    } catch (_error) {
       return c.json({ error: 'Failed to get data' }, 500);
     }
   },
