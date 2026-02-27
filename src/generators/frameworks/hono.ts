@@ -1,20 +1,20 @@
-import fs from 'fs-extra';
-import * as path from 'path';
-import { ProjectConfig, TemplateContext } from '../../types/index.js';
+import fs from "fs-extra";
+import * as path from "path";
+import { ProjectConfig, TemplateContext } from "../../types/index.js";
 
 export async function generateHonoProject(
   projectPath: string,
   config: ProjectConfig,
-  ctx: TemplateContext
+  ctx: TemplateContext,
 ) {
   await generateAppFile(projectPath, config, ctx);
   await generateServerFile(projectPath, config, ctx);
   await generateMiddleware(projectPath, config, ctx);
-  
-  if (config.database !== 'none') {
+
+  if (config.database !== "none") {
     await generateDatabaseConnection(projectPath, config, ctx);
   }
-  
+
   if (config.features.cron) {
     await generateCronSetup(projectPath, ctx, config);
   }
@@ -22,11 +22,15 @@ export async function generateHonoProject(
   await generateExampleRoute(projectPath, ctx);
 }
 
-async function generateAppFile(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
+async function generateAppFile(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
   const ext = ctx.fileExt;
   const appContent = `import { Hono } from 'hono';
 import { routes } from './routes/index.js';
-${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
+${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
 
 export function createApp() {
   const app = new Hono();
@@ -37,7 +41,7 @@ export function createApp() {
 
   app.route('/api', routes);
 
-  ${ctx.hasCron ? 'initCronJobs();' : ''}
+  ${ctx.hasCron ? "initCronJobs();" : ""}
 
   return app;
 }
@@ -46,19 +50,23 @@ export function createApp() {
   await fs.outputFile(path.join(projectPath, `src/app.${ext}`), appContent);
 }
 
-async function generateServerFile(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
+async function generateServerFile(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
   const ext = ctx.fileExt;
-  const isTS = ext === 'ts';
+  const isTS = ext === "ts";
   const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
-  
+
   const serverContent = isTS
     ? `import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { config } from './config/index.js';
-${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ''}
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
 
 async function startServer() {
-  ${needsDbConnect ? 'await connectDatabase();' : ''}
+  ${needsDbConnect ? "await connectDatabase();" : ""}
   
   const app = createApp();
   
@@ -75,10 +83,10 @@ startServer().catch(console.error);
     : `import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { config } from './config/index.js';
-${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ''}
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
 
 async function startServer() {
-  ${needsDbConnect ? 'await connectDatabase();' : ''}
+  ${needsDbConnect ? "await connectDatabase();" : ""}
   
   const app = createApp();
   
@@ -93,14 +101,21 @@ async function startServer() {
 startServer().catch(console.error);
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/server.${ext}`), serverContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/server.${ext}`),
+    serverContent,
+  );
 }
 
-async function generateMiddleware(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
+async function generateMiddleware(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
   const ext = ctx.fileExt;
-  const isTS = ext === 'ts';
+  const isTS = ext === "ts";
   const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth;
-  
+
   if (hasCustomAuth) {
     const authMiddleware = isTS
       ? `import { Context, Next } from 'hono';
@@ -163,7 +178,10 @@ export function roleMiddleware(roles) {
 }
 `;
 
-    await fs.outputFile(path.join(projectPath, `src/middleware/auth.${ext}`), authMiddleware);
+    await fs.outputFile(
+      path.join(projectPath, `src/middleware/auth.${ext}`),
+      authMiddleware,
+    );
   }
 
   // Generate API audit log middleware for Hono
@@ -340,16 +358,23 @@ function logAuditEntry(entry) {
 }
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/middleware/audit.${ext}`), auditLogMiddleware);
+  await fs.outputFile(
+    path.join(projectPath, `src/middleware/audit.${ext}`),
+    auditLogMiddleware,
+  );
 }
 
-async function generateDatabaseConnection(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
-  if (config.database === 'none') return;
+async function generateDatabaseConnection(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
+  if (config.database === "none") return;
 
   const ext = ctx.fileExt;
-  let dbContent = '';
+  let dbContent = "";
 
-  if (config.database === 'pg') {
+  if (config.database === "pg") {
     dbContent = `import { Pool } from 'pg';
 import { config } from '../config/index.js';
 
@@ -373,7 +398,7 @@ export async function connectDatabase() {
   }
 }
 `;
-  } else if (config.database === 'mysql') {
+  } else if (config.database === "mysql") {
     dbContent = `import mysql from 'mysql2/promise';
 import { config } from '../config/index.js';
 
@@ -401,42 +426,46 @@ export async function connectDatabase() {
   await fs.outputFile(path.join(projectPath, `src/db/index.${ext}`), dbContent);
 }
 
-async function generateCronSetup(projectPath: string, ctx: TemplateContext, config: ProjectConfig) {
-  const { generateThreadSafeCron } = await import('../pm2.js');
-  
+async function generateCronSetup(
+  projectPath: string,
+  ctx: TemplateContext,
+  config: ProjectConfig,
+) {
+  const { generateThreadSafeCron } = await import("../pm2.js");
+
   // Determine lock backend based on database
-  let lockBackend: 'redis' | 'postgres' | 'mysql' | 'file' = 'file';
-  if (config.database === 'pg') {
-    lockBackend = 'postgres';
-  } else if (config.database === 'mysql') {
-    lockBackend = 'mysql';
+  let lockBackend: "redis" | "postgres" | "mysql" | "file" = "file";
+  if (config.database === "pg") {
+    lockBackend = "postgres";
+  } else if (config.database === "mysql") {
+    lockBackend = "mysql";
   }
-  
+
   await generateThreadSafeCron(projectPath, ctx.fileExt, lockBackend);
 }
 
 async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const ext = ctx.fileExt;
-  const isTS = ext === 'ts';
+  const isTS = ext === "ts";
   const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth;
   const hasSupabaseAuth = ctx.hasSupabaseAuth;
   const hasAnyAuth = ctx.hasAuth;
   const authImportTs = hasCustomAuth
     ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';"
-    : (hasSupabaseAuth
+    : hasSupabaseAuth
       ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';\nimport checkPermission from '../middleware/permission.middleware.js';"
-      : '');
+      : "";
   const authImportJs = hasCustomAuth
     ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';"
-    : (hasSupabaseAuth
+    : hasSupabaseAuth
       ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';\nimport checkPermission from '../middleware/permission.middleware.js';"
-      : '');
+      : "";
   const authRegistration = hasCustomAuth
     ? "dr.registerMiddleware('auth', authMiddleware);\n  dr.registerMiddleware('roleCheck', roleMiddleware);"
-    : (hasSupabaseAuth
+    : hasSupabaseAuth
       ? "dr.registerMiddleware('auth', jwtAuth);\n  dr.registerMiddleware('roleCheck', checkPermission);"
-      : '');
-  
+      : "";
+
   // Generate declarative routes helper (JS/TS versions)
   const declarativeRoutesContent = isTS
     ? `// Declarative Route System
@@ -454,7 +483,7 @@ export type HttpMethod = typeof METHODS[keyof typeof METHODS];
 export interface RouteDefinition {
   method: HttpMethod;
   path: string;
-  handler: string;
+  handler: (c: any) => Promise<any> | any;
   enabled?: string[];
   disabled?: string[];
   roles?: string[];
@@ -780,7 +809,10 @@ export class RouteBuilder {
 }
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/helpers/route-builder.${ext}`), declarativeRoutesContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/helpers/route-builder.${ext}`),
+    declarativeRoutesContent,
+  );
 
   // Generate router config file
   const routerConfigContent = isTS
@@ -792,7 +824,7 @@ ${authImportTs}
 export { METHODS };
 
 export const globalDefaults = {
-  middlewares: [${hasAnyAuth ? "'auth', " : ''}'apiAuditLog'] as string[],
+  middlewares: [${hasAnyAuth ? "'auth', " : ""}'apiAuditLog'] as string[],
   roles: [] as string[]
 };
 
@@ -826,7 +858,7 @@ ${authImportJs}
 export { METHODS };
 
 export const globalDefaults = {
-  middlewares: [${hasAnyAuth ? "'auth', " : ''}'apiAuditLog'],
+  middlewares: [${hasAnyAuth ? "'auth', " : ""}'apiAuditLog'],
   roles: []
 };
 
@@ -849,49 +881,70 @@ export function createConfiguredRouter(config) {
 }
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/config/router.${ext}`), routerConfigContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/config/router.${ext}`),
+    routerConfigContent,
+  );
 
   // Generate example route with centralized config
   const routeContent = `import { Hono } from 'hono';
-import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { exampleController } from '../controllers/example.js';
+import { createConfiguredRouter } from '../config/router.js';
+import { exampleRoutes } from './example.routes.js';
 
 export const routes = new Hono();
 
-const routesList = [
+const routesList = [...exampleRoutes];
+
+const dr = createConfiguredRouter({ routes: routesList });
+dr.applyToHono(routes);
+`;
+
+  await fs.outputFile(
+    path.join(projectPath, `src/routes/index.${ext}`),
+    routeContent,
+  );
+
+  const exampleRoutesContent = `import { exampleController } from '../controllers/example.controller.js';
+import { METHODS } from '../config/router.js';
+
+export const exampleRoutes = [
   {
     method: METHODS.GET,
     path: '/example',
-    handler: exampleController.getExample
-  }${hasAnyAuth ? `,
-  
+    handler: exampleController.getData
+  }${
+    hasAnyAuth
+      ? `,
+
   {
     method: METHODS.GET,
     path: '/public',
     handler: exampleController.getPublic,
     disabled: ['auth']
   },
-  
+
   {
     method: METHODS.POST,
     path: '/admin',
     handler: exampleController.adminAction,
     roles: ['admin', 'superAdmin']
-  }` : ''}
+  }`
+      : ""
+  }
 ];
-
-const dr = createConfiguredRouter({ routes: routesList });
-dr.applyToHono(routes);
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/routes/index.${ext}`), routeContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/routes/example.routes.${ext}`),
+    exampleRoutesContent,
+  );
 
   const controllerContent = isTS
     ? `import { Context } from 'hono';
-import { exampleService } from '../services/example.js';
+import { exampleService } from '../services/example.service.js';
 
 export const exampleController = {
-  async getExample(c: Context) {
+  async getData(c: Context) {
     try {
       const data = await exampleService.getData();
       return c.json(data);
@@ -901,7 +954,7 @@ export const exampleController = {
   },
 
   async getPublic(c: Context) {
-    return c.json({ message: 'Public endpoint' });
+    return c.json({ message: 'Public endpoint - no auth required' });
   },
 
   async adminAction(c: Context) {
@@ -909,10 +962,10 @@ export const exampleController = {
   }
 };
 `
-    : `import { exampleService } from '../services/example.js';
+    : `import { exampleService } from '../services/example.service.js';
 
 export const exampleController = {
-  async getExample(c) {
+  async getData(c) {
     try {
       const data = await exampleService.getData();
       return c.json(data);
@@ -922,7 +975,7 @@ export const exampleController = {
   },
 
   async getPublic(c) {
-    return c.json({ message: 'Public endpoint' });
+    return c.json({ message: 'Public endpoint - no auth required' });
   },
 
   async adminAction(c) {
@@ -931,14 +984,20 @@ export const exampleController = {
 };
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/controllers/example.${ext}`), controllerContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/controllers/example.controller.${ext}`),
+    controllerContent,
+  );
 
   const serviceContent = `export const exampleService = {
   async getData() {
-    return { message: 'Hello from shiv-am!' };
+    return { message: 'Hello from nod-cli!' };
   }
 };
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/services/example.${ext}`), serviceContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/services/example.service.${ext}`),
+    serviceContent,
+  );
 }

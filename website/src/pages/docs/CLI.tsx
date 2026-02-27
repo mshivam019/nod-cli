@@ -1,10 +1,12 @@
-import { CodeBlock } from '@/components/CodeBlock'
+import { CodeBlock } from "@/components/CodeBlock";
 
 export function CLI() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">CLI Reference</h1>
+        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">
+          CLI Reference
+        </h1>
         <p className="text-lg text-muted-foreground mt-2">
           Complete reference for all nod-cli commands and options.
         </p>
@@ -25,7 +27,9 @@ nod <project-name> [options]`}
           language="bash"
         />
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">Options</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          Options
+        </h3>
 
         <CodeBlock
           code={`--framework <framework>  Web framework: express or hono (default: express)
@@ -40,9 +44,9 @@ nod <project-name> [options]`}
         />
 
         <p>
-          Every successful <code>nod init</code> run writes a project-specific <code>AGENTS.md</code>{' '}
-          file in the project root so AI contributors know the expected file layout and coding
-          conventions.
+          Every successful <code>nod init</code> run writes a project-specific{" "}
+          <code>AGENTS.md</code> file in the project root so AI contributors
+          know the expected file layout and coding conventions.
         </p>
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
@@ -101,23 +105,28 @@ nod add chat`}
 
         <div className="grid gap-2 md:grid-cols-2">
           {[
-            { name: 'route', desc: 'Route with controller and service' },
-            { name: 'middleware', desc: 'Custom middleware' },
-            { name: 'service', desc: 'Business logic service' },
-            { name: 'controller', desc: 'Request handler' },
-            { name: 'cron', desc: 'Cron job support' },
-            { name: 'pm2', desc: 'PM2 configuration' },
-            { name: 'rag', desc: 'RAG service' },
-            { name: 'chat', desc: 'Chat service' },
-            { name: 'vercel-cron', desc: 'Vercel cron setup' },
-            { name: 'github-actions', desc: 'GitHub workflow' },
-            { name: 'supabase', desc: 'Supabase helper' },
-            { name: 'drizzle', desc: 'Drizzle ORM setup' },
-            { name: 'langfuse', desc: 'LLM observability' },
+            { name: "route", desc: "Route with controller and service" },
+            { name: "middleware", desc: "Custom middleware" },
+            { name: "service", desc: "Business logic service" },
+            { name: "controller", desc: "Request handler" },
+            { name: "cron", desc: "Cron job support" },
+            { name: "pm2", desc: "PM2 configuration" },
+            { name: "rag", desc: "RAG service" },
+            { name: "chat", desc: "Chat service" },
+            { name: "vercel-cron", desc: "Vercel cron setup" },
+            { name: "github-actions", desc: "GitHub workflow" },
+            { name: "supabase", desc: "Supabase helper" },
+            { name: "drizzle", desc: "Drizzle ORM setup" },
+            { name: "langfuse", desc: "LLM observability" },
           ].map((item) => (
-            <div key={item.name} className="flex items-center gap-2 rounded-md border p-2">
+            <div
+              key={item.name}
+              className="flex items-center gap-2 rounded-md border p-2"
+            >
               <code className="text-sm font-mono">{item.name}</code>
-              <span className="text-sm text-muted-foreground">- {item.desc}</span>
+              <span className="text-sm text-muted-foreground">
+                - {item.desc}
+              </span>
             </div>
           ))}
         </div>
@@ -156,8 +165,8 @@ nod transform --all --yes`}
         />
 
         <p>
-          Every successful <code>transform</code> run also updates <code>AGENTS.md</code> based on
-          selected features.
+          Every successful <code>transform</code> run also updates{" "}
+          <code>AGENTS.md</code> based on selected features.
         </p>
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
@@ -176,6 +185,25 @@ nod preset show <name>       # Show preset details`}
         />
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
+          mcp
+        </h2>
+
+        <p>Run the built-in local MCP server over stdio.</p>
+
+        <CodeBlock
+          code={`nod mcp
+
+# Optional: set custom server name
+nod mcp --name nod-cli`}
+          language="bash"
+        />
+
+        <p>
+          See the dedicated MCP docs at <code>/docs/mcp</code> for host
+          configuration and tool usage.
+        </p>
+
+        <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           validate
         </h2>
 
@@ -184,5 +212,5 @@ nod preset show <name>       # Show preset details`}
         <CodeBlock code="nod validate" language="bash" />
       </div>
     </div>
-  )
+  );
 }

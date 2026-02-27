@@ -1,30 +1,31 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { DocsLayout } from './components/DocsLayout'
-import { Introduction } from './pages/docs/Introduction'
-import { Installation } from './pages/docs/Installation'
-import { CLI } from './pages/docs/CLI'
-import { Presets } from './pages/docs/Presets'
-import { AddCommand } from './pages/docs/AddCommand'
-import { TransformCommand } from './pages/docs/TransformCommand'
-import { Generators } from './pages/docs/Generators'
-import { Configuration } from './pages/docs/Configuration'
-import { Components } from './pages/docs/Components'
+import { Routes, Route, Navigate } from "react-router-dom";
+import { DocsLayout } from "./components/DocsLayout";
+import { Introduction } from "./pages/docs/Introduction";
+import { Installation } from "./pages/docs/Installation";
+import { CLI } from "./pages/docs/CLI";
+import { Presets } from "./pages/docs/Presets";
+import { AddCommand } from "./pages/docs/AddCommand";
+import { TransformCommand } from "./pages/docs/TransformCommand";
+import { Generators } from "./pages/docs/Generators";
+import { Configuration } from "./pages/docs/Configuration";
+import { Components } from "./pages/docs/Components";
+import { MCP } from "./pages/docs/MCP";
 // Component pages
-import { RouteComponent } from './pages/docs/components/Route'
-import { MiddlewareComponent } from './pages/docs/components/Middleware'
-import { CORSComponent } from './pages/docs/components/CORS'
-import { ServiceComponent } from './pages/docs/components/Service'
-import { SupabaseComponent } from './pages/docs/components/Supabase'
-import { AuthComponent } from './pages/docs/components/Auth'
-import { DrizzleComponent } from './pages/docs/components/Drizzle'
-import { RAGComponent } from './pages/docs/components/RAG'
-import { ChatComponent } from './pages/docs/components/Chat'
-import { LangfuseComponent } from './pages/docs/components/Langfuse'
-import { PM2Component } from './pages/docs/components/PM2'
-import { VercelCronComponent } from './pages/docs/components/VercelCron'
-import { GitHubActionsComponent } from './pages/docs/components/GitHubActions'
-import { CronComponent } from './pages/docs/components/Cron'
-import { FAQ } from './pages/docs/FAQ'
+import { RouteComponent } from "./pages/docs/components/Route";
+import { MiddlewareComponent } from "./pages/docs/components/Middleware";
+import { CORSComponent } from "./pages/docs/components/CORS";
+import { ServiceComponent } from "./pages/docs/components/Service";
+import { SupabaseComponent } from "./pages/docs/components/Supabase";
+import { AuthComponent } from "./pages/docs/components/Auth";
+import { DrizzleComponent } from "./pages/docs/components/Drizzle";
+import { RAGComponent } from "./pages/docs/components/RAG";
+import { ChatComponent } from "./pages/docs/components/Chat";
+import { LangfuseComponent } from "./pages/docs/components/Langfuse";
+import { PM2Component } from "./pages/docs/components/PM2";
+import { VercelCronComponent } from "./pages/docs/components/VercelCron";
+import { GitHubActionsComponent } from "./pages/docs/components/GitHubActions";
+import { CronComponent } from "./pages/docs/components/Cron";
+import { FAQ } from "./pages/docs/FAQ";
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
         <Route index element={<Introduction />} />
         <Route path="installation" element={<Installation />} />
         <Route path="cli" element={<CLI />} />
+        <Route path="mcp" element={<MCP />} />
         <Route path="presets" element={<Presets />} />
         <Route path="add" element={<AddCommand />} />
         <Route path="transform" element={<TransformCommand />} />
@@ -53,10 +55,16 @@ export default function App() {
         <Route path="components/chat" element={<ChatComponent />} />
         <Route path="components/langfuse" element={<LangfuseComponent />} />
         <Route path="components/pm2" element={<PM2Component />} />
-        <Route path="components/vercel-cron" element={<VercelCronComponent />} />
-        <Route path="components/github-actions" element={<GitHubActionsComponent />} />
+        <Route
+          path="components/vercel-cron"
+          element={<VercelCronComponent />}
+        />
+        <Route
+          path="components/github-actions"
+          element={<GitHubActionsComponent />}
+        />
         <Route path="components/cron" element={<CronComponent />} />
       </Route>
     </Routes>
-  )
+  );
 }

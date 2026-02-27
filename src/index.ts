@@ -1,7 +1,8 @@
 // Main entry point for programmatic usage
-export { initProject } from './commands/init.js';
-export { addComponent } from './commands/add.js';
-export { validateCommand } from './commands/validate.js';
+export { initProject } from "./commands/init.js";
+export { addComponent } from "./commands/add.js";
+export { validateCommand } from "./commands/validate.js";
+export { mcpCommand } from "./commands/mcp.js";
 
 export type {
   Framework,
@@ -12,8 +13,8 @@ export type {
   ProjectConfig,
   RouteConfig,
   MiddlewareConfig,
-  TemplateContext
-} from './types/index.js';
+  TemplateContext,
+} from "./types/index.js";
 
 // Version
-export const version = '0.1.0';
+export const version = "0.1.0";

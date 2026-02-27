@@ -1,73 +1,75 @@
-import { useState, useEffect } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
-import { Menu, X, Moon, Sun, Github, Terminal, Monitor } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { CodeBlock } from './CodeBlock'
+import { useState, useEffect } from "react";
+import { Link, Outlet, useLocation } from "react-router-dom";
+import { Menu, X, Moon, Sun, Github, Terminal, Monitor } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CodeBlock } from "./CodeBlock";
 
-type Theme = 'light' | 'dark' | 'system'
+type Theme = "light" | "dark" | "system";
 
 export function DocsLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('theme') as Theme | null
-      return stored || 'system'
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("theme") as Theme | null;
+      return stored || "system";
     }
-    return 'system'
-  })
-  const location = useLocation()
+    return "system";
+  });
+  const location = useLocation();
 
   // Apply theme on mount and when theme changes
   useEffect(() => {
-    const root = document.documentElement
+    const root = document.documentElement;
 
     const applyTheme = (newTheme: Theme) => {
-      if (newTheme === 'system') {
-        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-        root.classList.toggle('dark', systemDark)
+      if (newTheme === "system") {
+        const systemDark = window.matchMedia(
+          "(prefers-color-scheme: dark)",
+        ).matches;
+        root.classList.toggle("dark", systemDark);
       } else {
-        root.classList.toggle('dark', newTheme === 'dark')
+        root.classList.toggle("dark", newTheme === "dark");
       }
-    }
+    };
 
-    applyTheme(theme)
-    localStorage.setItem('theme', theme)
+    applyTheme(theme);
+    localStorage.setItem("theme", theme);
 
     // Listen for system theme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
-      if (theme === 'system') {
-        applyTheme('system')
+      if (theme === "system") {
+        applyTheme("system");
       }
-    }
-    mediaQuery.addEventListener('change', handleChange)
-    return () => mediaQuery.removeEventListener('change', handleChange)
-  }, [theme])
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
 
   // Close sidebar when route changes
   useEffect(() => {
-    setSidebarOpen(false)
-  }, [location.pathname])
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   const cycleTheme = () => {
-    const themes: Theme[] = ['light', 'dark', 'system']
-    const currentIndex = themes.indexOf(theme)
-    const nextIndex = (currentIndex + 1) % themes.length
-    setTheme(themes[nextIndex])
-  }
+    const themes: Theme[] = ["light", "dark", "system"];
+    const currentIndex = themes.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    setTheme(themes[nextIndex]);
+  };
 
   const getThemeIcon = () => {
-    if (theme === 'system') return <Monitor className="h-5 w-5" />
-    if (theme === 'dark') return <Moon className="h-5 w-5" />
-    return <Sun className="h-5 w-5" />
-  }
+    if (theme === "system") return <Monitor className="h-5 w-5" />;
+    if (theme === "dark") return <Moon className="h-5 w-5" />;
+    return <Sun className="h-5 w-5" />;
+  };
 
   const isActive = (href: string) => {
-    if (href === '/docs') {
-      return location.pathname === '/docs'
+    if (href === "/docs") {
+      return location.pathname === "/docs";
     }
-    return location.pathname === href
-  }
+    return location.pathname === href;
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -80,7 +82,11 @@ export function DocsLayout() {
             className="inline-flex md:hidden items-center justify-center rounded-md text-sm font-medium h-9 w-9 hover:bg-accent hover:text-accent-foreground mr-2"
             aria-label="Toggle menu"
           >
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {sidebarOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
           </button>
 
           {/* Logo */}
@@ -95,7 +101,9 @@ export function DocsLayout() {
               to="/docs"
               className={cn(
                 "transition-colors hover:text-foreground",
-                location.pathname.startsWith('/docs') ? 'text-foreground' : 'text-muted-foreground'
+                location.pathname.startsWith("/docs")
+                  ? "text-foreground"
+                  : "text-muted-foreground",
               )}
             >
               Docs
@@ -104,7 +112,9 @@ export function DocsLayout() {
               to="/docs/components"
               className={cn(
                 "transition-colors hover:text-foreground",
-                location.pathname.startsWith('/docs/components') ? 'text-foreground' : 'text-muted-foreground'
+                location.pathname.startsWith("/docs/components")
+                  ? "text-foreground"
+                  : "text-muted-foreground",
               )}
             >
               Components
@@ -146,22 +156,24 @@ export function DocsLayout() {
         {/* Sidebar */}
         <aside
           className={cn(
-            'fixed top-14 z-40 h-[calc(100vh-3.5rem)] w-64 shrink-0 overflow-y-auto border-r border-border bg-background transition-transform duration-200 ease-in-out md:sticky md:translate-x-0',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            "fixed top-14 z-40 h-[calc(100vh-3.5rem)] w-64 shrink-0 overflow-y-auto border-r border-border bg-background transition-transform duration-200 ease-in-out md:sticky md:translate-x-0",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
           <div className="p-4 lg:p-6 space-y-6">
             {/* Getting Started */}
             <div className="space-y-1">
-              <h4 className="px-2 text-sm font-semibold text-foreground">Getting Started</h4>
+              <h4 className="px-2 text-sm font-semibold text-foreground">
+                Getting Started
+              </h4>
               <nav className="flex flex-col space-y-0.5">
                 <Link
                   to="/docs"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Introduction
@@ -169,10 +181,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/installation"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/installation')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/installation")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Installation
@@ -180,21 +192,32 @@ export function DocsLayout() {
                 <Link
                   to="/docs/cli"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/cli')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/cli")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   CLI
                 </Link>
                 <Link
+                  to="/docs/mcp"
+                  className={cn(
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/mcp")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                  )}
+                >
+                  MCP
+                </Link>
+                <Link
                   to="/docs/presets"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/presets')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/presets")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Presets
@@ -202,10 +225,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/faq"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/faq')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/faq")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   FAQ
@@ -215,15 +238,17 @@ export function DocsLayout() {
 
             {/* Components */}
             <div className="space-y-1">
-              <h4 className="px-2 text-sm font-semibold text-foreground">Components</h4>
+              <h4 className="px-2 text-sm font-semibold text-foreground">
+                Components
+              </h4>
               <nav className="flex flex-col space-y-0.5">
                 <Link
                   to="/docs/components/route"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/route')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/route")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Route
@@ -231,10 +256,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/middleware"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/middleware')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/middleware")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Middleware
@@ -242,10 +267,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/cors"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/cors')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/cors")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   CORS
@@ -253,10 +278,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/service"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/service')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/service")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Service
@@ -264,10 +289,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/supabase"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/supabase')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/supabase")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Supabase
@@ -275,10 +300,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/auth"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/auth')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/auth")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Auth
@@ -286,10 +311,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/drizzle"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/drizzle')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/drizzle")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Drizzle
@@ -297,10 +322,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/rag"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/rag')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/rag")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   RAG
@@ -308,10 +333,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/chat"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/chat')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/chat")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Chat
@@ -319,10 +344,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/langfuse"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/langfuse')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/langfuse")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Langfuse
@@ -330,10 +355,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/pm2"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/pm2')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/pm2")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   PM2
@@ -341,10 +366,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/vercel-cron"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/vercel-cron')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/vercel-cron")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Vercel Cron
@@ -352,10 +377,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/github-actions"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/github-actions')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/github-actions")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   GitHub Actions
@@ -363,10 +388,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/components/cron"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/components/cron')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/components/cron")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Cron
@@ -376,15 +401,17 @@ export function DocsLayout() {
 
             {/* Commands */}
             <div className="space-y-1">
-              <h4 className="px-2 text-sm font-semibold text-foreground">Commands</h4>
+              <h4 className="px-2 text-sm font-semibold text-foreground">
+                Commands
+              </h4>
               <nav className="flex flex-col space-y-0.5">
                 <Link
                   to="/docs/add"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/add')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/add")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Add Command
@@ -392,10 +419,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/transform"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/transform')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/transform")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Transform
@@ -403,10 +430,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/generators"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/generators')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/generators")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Generators
@@ -414,10 +441,10 @@ export function DocsLayout() {
                 <Link
                   to="/docs/configuration"
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isActive('/docs/configuration')
-                      ? 'bg-accent font-medium text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                    isActive("/docs/configuration")
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                   )}
                 >
                   Configuration
@@ -435,7 +462,7 @@ export function DocsLayout() {
         </main>
       </div>
     </div>
-  )
+  );
 }
 
-export { CodeBlock }
+export { CodeBlock };

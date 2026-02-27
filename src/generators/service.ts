@@ -1,28 +1,28 @@
-import fs from 'fs-extra';
-import * as path from 'path';
-import chalk from 'chalk';
-import prompts from 'prompts';
+import fs from "fs-extra";
+import * as path from "path";
+import chalk from "chalk";
+import prompts from "prompts";
 
 export async function addService(name: string) {
   const response = await prompts([
     {
-      type: 'confirm',
-      name: 'withDatabase',
-      message: 'Include database operations?',
-      initial: true
+      type: "confirm",
+      name: "withDatabase",
+      message: "Include database operations?",
+      initial: true,
     },
     {
-      type: 'multiselect',
-      name: 'methods',
-      message: 'Select methods to generate:',
+      type: "multiselect",
+      name: "methods",
+      message: "Select methods to generate:",
       choices: [
-        { title: 'Get All', value: 'getAll', selected: true },
-        { title: 'Get By ID', value: 'getById', selected: true },
-        { title: 'Create', value: 'create', selected: true },
-        { title: 'Update', value: 'update', selected: true },
-        { title: 'Delete', value: 'delete', selected: true }
-      ]
-    }
+        { title: "Get All", value: "getAll", selected: true },
+        { title: "Get By ID", value: "getById", selected: true },
+        { title: "Create", value: "create", selected: true },
+        { title: "Update", value: "update", selected: true },
+        { title: "Delete", value: "delete", selected: true },
+      ],
+    },
   ]);
 
   const projectRoot = process.cwd();
@@ -30,18 +30,28 @@ export async function addService(name: string) {
 }
 
 async function createService(projectRoot: string, name: string, config: any) {
-  const servicePath = path.join(projectRoot, 'src/services', `${name}.ts`);
-  
-  const methods = config.methods || ['getAll', 'getById', 'create', 'update', 'delete'];
+  const servicePath = path.join(
+    projectRoot,
+    "src/services",
+    `${name}.service.ts`,
+  );
+
+  const methods = config.methods || [
+    "getAll",
+    "getById",
+    "create",
+    "update",
+    "delete",
+  ];
   const withDb = config.withDatabase;
 
-  let serviceContent = withDb 
+  let serviceContent = withDb
     ? `import { pool } from '../config/database';\n\n`
-    : '';
+    : "";
 
   serviceContent += `export const ${name}Service = {\n`;
 
-  if (methods.includes('getAll')) {
+  if (methods.includes("getAll")) {
     serviceContent += withDb
       ? `  async getAll() {
     const result = await pool.query('SELECT * FROM ${name}s');
@@ -53,7 +63,7 @@ async function createService(projectRoot: string, name: string, config: any) {
   },\n\n`;
   }
 
-  if (methods.includes('getById')) {
+  if (methods.includes("getById")) {
     serviceContent += withDb
       ? `  async getById(id: string) {
     const result = await pool.query('SELECT * FROM ${name}s WHERE id = $1', [id]);
@@ -65,7 +75,7 @@ async function createService(projectRoot: string, name: string, config: any) {
   },\n\n`;
   }
 
-  if (methods.includes('create')) {
+  if (methods.includes("create")) {
     serviceContent += withDb
       ? `  async create(data: any) {
     const result = await pool.query(
@@ -80,7 +90,7 @@ async function createService(projectRoot: string, name: string, config: any) {
   },\n\n`;
   }
 
-  if (methods.includes('update')) {
+  if (methods.includes("update")) {
     serviceContent += withDb
       ? `  async update(id: string, data: any) {
     const result = await pool.query(
@@ -95,7 +105,7 @@ async function createService(projectRoot: string, name: string, config: any) {
   },\n\n`;
   }
 
-  if (methods.includes('delete')) {
+  if (methods.includes("delete")) {
     serviceContent += withDb
       ? `  async delete(id: string) {
     await pool.query('DELETE FROM ${name}s WHERE id = $1', [id]);
@@ -107,7 +117,7 @@ async function createService(projectRoot: string, name: string, config: any) {
   }\n`;
   }
 
-  serviceContent += '};\n';
+  serviceContent += "};\n";
 
   await fs.outputFile(servicePath, serviceContent);
   console.log(chalk.green(`✓ Created service: ${servicePath}`));

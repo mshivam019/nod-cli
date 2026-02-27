@@ -1,10 +1,12 @@
-import { CodeBlock } from '@/components/CodeBlock'
+import { CodeBlock } from "@/components/CodeBlock";
 
 export function AddCommand() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">Add Command</h1>
+        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">
+          Add Command
+        </h1>
         <p className="text-lg text-muted-foreground mt-2">
           Add components, services, and features to existing projects.
         </p>
@@ -34,9 +36,9 @@ nod add route --name users --method get --path /users --create-controller true -
         />
 
         <p>
-          Projects generated with <code>nod init</code> include an <code>AGENTS.md</code> file in
-          the root. Keep that file in sync as you evolve the codebase with <code>nod add</code>{' '}
-          commands.
+          Projects generated with <code>nod init</code> include an{" "}
+          <code>AGENTS.md</code> file in the root. Keep that file in sync as you
+          evolve the codebase with <code>nod add</code> commands.
         </p>
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
@@ -49,9 +51,9 @@ nod add route --name users --method get --path /users --create-controller true -
           code={`nod add route users
 
 # Creates:
-# - src/routes/users.ts
-# - src/controllers/usersController.ts
-# - src/services/usersService.ts`}
+# - src/routes/users.routes.ts
+# - src/controllers/users.controller.ts
+# - src/services/users.service.ts`}
           language="bash"
         />
 
@@ -79,7 +81,7 @@ nod add route --name users --method get --path /users --create-controller true -
           code={`nod add service email
 
 # Creates:
-# - src/services/emailService.ts`}
+# - src/services/email.service.ts`}
           language="bash"
         />
 
@@ -87,7 +89,9 @@ nod add route --name users --method get --path /users --create-controller true -
           AI Features
         </h2>
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">RAG Service</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          RAG Service
+        </h3>
 
         <CodeBlock
           code={`nod add rag
@@ -98,7 +102,9 @@ nod add route --name users --method get --path /users --create-controller true -
           language="bash"
         />
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">Chat Service</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          Chat Service
+        </h3>
 
         <CodeBlock
           code={`nod add chat
@@ -109,7 +115,9 @@ nod add route --name users --method get --path /users --create-controller true -
           language="bash"
         />
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">Langfuse</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          Langfuse
+        </h3>
 
         <CodeBlock
           code={`nod add langfuse
@@ -149,7 +157,21 @@ nod add pm2
 nod add cron`}
           language="bash"
         />
+
+        <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
+          MCP Server
+        </h2>
+
+        <p>Run the built-in local MCP server (stdio transport):</p>
+
+        <CodeBlock
+          code={`nod mcp
+
+# Optional: custom server name shown to MCP clients
+nod mcp --name nod-cli`}
+          language="bash"
+        />
       </div>
     </div>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import { CodeBlock } from '@/components/CodeBlock'
+import { CodeBlock } from "@/components/CodeBlock";
 
 export function RouteComponent() {
   return (
@@ -6,7 +6,8 @@ export function RouteComponent() {
       <div>
         <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">Route</h1>
         <p className="text-lg text-muted-foreground mt-2">
-          Generate routes with controllers and services using a declarative pattern.
+          Generate routes with controllers and services using a declarative
+          pattern.
         </p>
       </div>
 
@@ -14,10 +15,7 @@ export function RouteComponent() {
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
           Installation
         </h2>
-        <CodeBlock
-          code={`nod add route <name>`}
-          language="bash"
-        />
+        <CodeBlock code={`nod add route <name>`} language="bash" />
       </section>
 
       <section className="space-y-4">
@@ -25,16 +23,17 @@ export function RouteComponent() {
           Declarative Route Pattern
         </h2>
         <p>
-          Routes use a declarative configuration with default middlewares and role-based access control.
-          Each route can override defaults using <code>disabled</code>, <code>enabled</code>, and <code>roles</code>.
+          Routes use a declarative configuration with default middlewares and
+          role-based access control. Each route can override defaults using{" "}
+          <code>disabled</code>, <code>enabled</code>, and <code>roles</code>.
         </p>
-        
+
         <h3 className="font-semibold mt-4">Route Configuration</h3>
         <CodeBlock
           filename="src/routes/index.ts"
           tsCode={`import { Router } from 'express';
 import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { usersController } from '../controllers/users.js';
+import { usersController } from '../controllers/users.controller.js';
 
 export const router = Router();
 
@@ -96,7 +95,7 @@ const configuredRouter = createConfiguredRouter({
 configuredRouter.applyToExpress(router);`}
           jsCode={`import { Router } from 'express';
 import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { usersController } from '../controllers/users.js';
+import { usersController } from '../controllers/users.controller.js';
 
 export const router = Router();
 
@@ -155,13 +154,31 @@ configuredRouter.applyToExpress(router);`}
           Route Options
         </h2>
         <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-          <li><strong>method</strong> - METHODS.GET, METHODS.POST, METHODS.PUT, METHODS.DELETE, METHODS.PATCH</li>
-          <li><strong>path</strong> - The URL path for the route</li>
-          <li><strong>handler</strong> - Controller method to handle the request</li>
-          <li><strong>disabled</strong> - Array of middleware names to exclude from defaults</li>
-          <li><strong>enabled</strong> - Array of additional middleware names to include</li>
-          <li><strong>roles</strong> - Override default roles (e.g., ['admin', 'superAdmin'])</li>
-          <li><strong>excludeRoles</strong> - Roles to exclude from defaults</li>
+          <li>
+            <strong>method</strong> - METHODS.GET, METHODS.POST, METHODS.PUT,
+            METHODS.DELETE, METHODS.PATCH
+          </li>
+          <li>
+            <strong>path</strong> - The URL path for the route
+          </li>
+          <li>
+            <strong>handler</strong> - Controller method to handle the request
+          </li>
+          <li>
+            <strong>disabled</strong> - Array of middleware names to exclude
+            from defaults
+          </li>
+          <li>
+            <strong>enabled</strong> - Array of additional middleware names to
+            include
+          </li>
+          <li>
+            <strong>roles</strong> - Override default roles (e.g., ['admin',
+            'superAdmin'])
+          </li>
+          <li>
+            <strong>excludeRoles</strong> - Roles to exclude from defaults
+          </li>
         </ul>
       </section>
 
@@ -169,10 +186,16 @@ configuredRouter.applyToExpress(router);`}
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
           Generated Files
         </h2>
-        
+
         <h3 className="font-semibold mt-4">Service</h3>
+        <p className="text-sm text-muted-foreground">
+          Keep domain service files focused. If logic becomes large and reusable
+          across services, extract it into{" "}
+          <code>src/helpers/&lt;domain&gt;.helper.ts</code> (for example,
+          <code>user.helper.ts</code>).
+        </p>
         <CodeBlock
-          filename="src/services/users.ts"
+          filename="src/services/users.service.ts"
           tsCode={`export const usersService = {
   async getUsers() {
     // TODO: Implement service logic
@@ -219,9 +242,9 @@ configuredRouter.applyToExpress(router);`}
 
         <h3 className="font-semibold mt-6">Controller - Express</h3>
         <CodeBlock
-          filename="src/controllers/users.ts"
+          filename="src/controllers/users.controller.ts"
           tsCode={`import { Request, Response, NextFunction } from 'express';
-import { usersService } from '../services/users.js';
+import { usersService } from '../services/users.service.js';
 
 export const usersController = {
   async getUsers(_req: Request, res: Response, next: NextFunction) {
@@ -249,7 +272,7 @@ export const usersController = {
     }
   },
 };`}
-          jsCode={`import { usersService } from '../services/users.js';
+          jsCode={`import { usersService } from '../services/users.service.js';
 
 export const usersController = {
   async getUsers(_req, res, next) {
@@ -281,9 +304,9 @@ export const usersController = {
 
         <h3 className="font-semibold mt-6">Controller - Hono</h3>
         <CodeBlock
-          filename="src/controllers/users.ts"
+          filename="src/controllers/users.controller.ts"
           tsCode={`import { Context } from 'hono';
-import { usersService } from '../services/users.js';
+import { usersService } from '../services/users.service.js';
 
 export const usersController = {
   async getUsers(c: Context) {
@@ -303,7 +326,7 @@ export const usersController = {
     return c.json({ message: 'Admin action performed' });
   },
 };`}
-          jsCode={`import { usersService } from '../services/users.js';
+          jsCode={`import { usersService } from '../services/users.service.js';
 
 export const usersController = {
   async getUsers(c) {
@@ -335,7 +358,7 @@ export const usersController = {
           filename="src/routes/index.ts"
           tsCode={`import { Hono } from 'hono';
 import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { usersController } from '../controllers/users.js';
+import { usersController } from '../controllers/users.controller.js';
 
 export const routes = new Hono();
 
@@ -365,7 +388,7 @@ const dr = createConfiguredRouter({ routes: routesList });
 dr.applyToHono(routes);`}
           jsCode={`import { Hono } from 'hono';
 import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { usersController } from '../controllers/users.js';
+import { usersController } from '../controllers/users.controller.js';
 
 export const routes = new Hono();
 
@@ -396,5 +419,5 @@ dr.applyToHono(routes);`}
         />
       </section>
     </div>
-  )
+  );
 }

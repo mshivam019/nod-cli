@@ -1,10 +1,12 @@
-import { CodeBlock } from '@/components/CodeBlock'
+import { CodeBlock } from "@/components/CodeBlock";
 
 export function Generators() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">Generators</h1>
+        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">
+          Generators
+        </h1>
         <p className="text-lg text-muted-foreground mt-2">
           Available code generators and what they produce.
         </p>
@@ -23,10 +25,10 @@ export function Generators() {
 ├── src/
 │   ├── routes/          # Route definitions
 │   ├── controllers/     # Request handlers
-│   ├── services/        # Business logic
+│   ├── services/        # Domain services (*.service.ts)
 │   ├── middleware/      # Custom middleware
 │   ├── config/          # App configuration (Zod validation)
-│   ├── helpers/         # Utilities (supabase, response formatter)
+│   ├── helpers/         # Reusable helpers (*.helper.ts)
 │   ├── utils/           # Logger, retriever
 │   ├── db/              # Drizzle schema + connection
 │   ├── environments/    # Staging/production configs
@@ -47,38 +49,23 @@ export function Generators() {
           Route Generator
         </h2>
 
-        <p>Creates routes with controllers and services using a declarative pattern:</p>
+        <p>
+          Creates routes with controllers and services using a declarative
+          pattern:
+        </p>
 
         <CodeBlock
           code={`// src/routes/index.ts
 import { Router } from 'express';
-import { createConfiguredRouter, METHODS } from '../config/router.js';
-import { usersController } from '../controllers/users.js';
+import { createConfiguredRouter } from '../config/router.js';
+import { usersRoutes } from './users.routes.js';
 
 export const router = Router();
 
 const defaultMiddlewares: string[] = ['jwtAuth', 'auditLogger'];
 const defaultRoles: string[] = [];
 
-const routes = [
-  {
-    method: METHODS.GET,
-    path: '/users',
-    handler: usersController.getUsers
-  },
-  {
-    method: METHODS.GET,
-    path: '/users/public',
-    handler: usersController.getPublic,
-    disabled: ['jwtAuth', 'auditLogger']
-  },
-  {
-    method: METHODS.POST,
-    path: '/users/admin',
-    handler: usersController.adminAction,
-    roles: ['admin', 'superAdmin']
-  },
-];
+const routes = [...usersRoutes];
 
 const configuredRouter = createConfiguredRouter({ 
   defaultMiddlewares, 
@@ -93,12 +80,16 @@ configuredRouter.applyToExpress(router);`}
           AI Generators
         </h2>
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">RAG Service</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          RAG Service
+        </h3>
 
-        <p>Generates a complete RAG (Retrieval-Augmented Generation) service:</p>
+        <p>
+          Generates a complete RAG (Retrieval-Augmented Generation) service:
+        </p>
 
         <CodeBlock
-          code={`// src/services/ragService.ts
+          code={`// src/services/rag.service.ts
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
 
@@ -117,12 +108,14 @@ export class RAGService {
           language="typescript"
         />
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">Chat Service</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          Chat Service
+        </h3>
 
         <p>Generates a conversation management service:</p>
 
         <CodeBlock
-          code={`// src/services/chatService.ts
+          code={`// src/services/chat.service.ts
 import { ChatOpenAI } from '@langchain/openai';
 import { BufferMemory } from 'langchain/memory';
 
@@ -148,19 +141,27 @@ export class ChatService {
         <div className="grid gap-4 md:grid-cols-2 mt-4">
           <div className="rounded-lg border p-4">
             <h4 className="font-semibold">Logger</h4>
-            <p className="text-sm text-muted-foreground">Request logging with Winston</p>
+            <p className="text-sm text-muted-foreground">
+              Request logging with Winston
+            </p>
           </div>
           <div className="rounded-lg border p-4">
             <h4 className="font-semibold">Rate Limiter</h4>
-            <p className="text-sm text-muted-foreground">Request rate limiting</p>
+            <p className="text-sm text-muted-foreground">
+              Request rate limiting
+            </p>
           </div>
           <div className="rounded-lg border p-4">
             <h4 className="font-semibold">CORS</h4>
-            <p className="text-sm text-muted-foreground">Cross-origin resource sharing</p>
+            <p className="text-sm text-muted-foreground">
+              Cross-origin resource sharing
+            </p>
           </div>
           <div className="rounded-lg border p-4">
             <h4 className="font-semibold">Custom</h4>
-            <p className="text-sm text-muted-foreground">Custom middleware template</p>
+            <p className="text-sm text-muted-foreground">
+              Custom middleware template
+            </p>
           </div>
         </div>
 
@@ -168,7 +169,9 @@ export class ChatService {
           Database Generators
         </h2>
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">Supabase</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          Supabase
+        </h3>
 
         <p>Generates Supabase client with helpers:</p>
 
@@ -187,7 +190,9 @@ export const getStorageUrl = (bucket: string, path: string) => {
           language="typescript"
         />
 
-        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">Drizzle ORM</h3>
+        <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">
+          Drizzle ORM
+        </h3>
 
         <p>Generates Drizzle configuration and schema:</p>
 
@@ -207,5 +212,5 @@ export default defineConfig({
         />
       </div>
     </div>
-  )
+  );
 }

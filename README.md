@@ -37,14 +37,14 @@ nod init my-api --preset api --no-ts --yes
 
 ## Presets
 
-| Preset | Description |
-|--------|-------------|
-| `minimal` | Basic setup, no database or auth |
-| `api` | Standard REST API with JWT auth |
-| `full` | All features including Supabase, Drizzle, Vercel cron |
-| `ai` | Full preset + RAG, Chat, Langfuse |
-| `1` | Your stack - Supabase + Drizzle + Langfuse + API Audit + GitHub Actions |
-| `custom` | Choose your own features |
+| Preset    | Description                                                             |
+| --------- | ----------------------------------------------------------------------- |
+| `minimal` | Basic setup, no database or auth                                        |
+| `api`     | Standard REST API with JWT auth                                         |
+| `full`    | All features including Supabase, Drizzle, Vercel cron                   |
+| `ai`      | Full preset + RAG, Chat, Langfuse                                       |
+| `1`       | Your stack - Supabase + Drizzle + Langfuse + API Audit + GitHub Actions |
+| `custom`  | Choose your own features                                                |
 
 ### Custom Presets
 
@@ -85,16 +85,16 @@ nod <project-name>
 
 #### Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--framework <framework>` | Web framework: `express` or `hono` | `express` |
-| `--ts` | Use TypeScript | `true` |
-| `--no-ts` | Use JavaScript instead of TypeScript | - |
-| `--db <database>` | Database: `pg`, `mysql`, `supabase`, or `none` | `pg` |
-| `--auth <auth>` | Auth: `jwt`, `jwks`, `supabase`, or `none` | `jwt` |
-| `--queue <queue>` | Queue: `bull` or `none` | `none` |
-| `--preset <preset>` | Use a preset configuration | - |
-| `-y, --yes` | Skip prompts, use defaults | - |
+| Option                    | Description                                    | Default   |
+| ------------------------- | ---------------------------------------------- | --------- |
+| `--framework <framework>` | Web framework: `express` or `hono`             | `express` |
+| `--ts`                    | Use TypeScript                                 | `true`    |
+| `--no-ts`                 | Use JavaScript instead of TypeScript           | -         |
+| `--db <database>`         | Database: `pg`, `mysql`, `supabase`, or `none` | `pg`      |
+| `--auth <auth>`           | Auth: `jwt`, `jwks`, `supabase`, or `none`     | `jwt`     |
+| `--queue <queue>`         | Queue: `bull` or `none`                        | `none`    |
+| `--preset <preset>`       | Use a preset configuration                     | -         |
+| `-y, --yes`               | Skip prompts, use defaults                     | -         |
 
 #### Examples
 
@@ -178,6 +178,7 @@ nod transform
 ```
 
 Select features to add:
+
 - Environment Config (staging/production)
 - Supabase Helper
 - Drizzle ORM Setup
@@ -208,6 +209,32 @@ nod preset show <name>       # Show preset details
 nod validate
 ```
 
+### Run MCP Server
+
+Run a built-in local MCP server over stdio:
+
+```bash
+nod mcp
+```
+
+This exposes MCP tools:
+
+- `nod_help` - quick command usage examples
+- `nod_run` - execute `nod` commands locally (init/add/transform/validate/preset)
+
+Example Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "nod-cli": {
+      "command": "nod",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
 ## Project Structure
 
 Generated projects follow this structure:
@@ -217,11 +244,11 @@ my-api/
 ├── src/
 │   ├── routes/          # Route definitions
 │   ├── controllers/     # Request handlers
-│   ├── services/        # Business logic
+│   ├── services/        # Domain services (e.g. user.service.ts)
 │   ├── middleware/      # Custom middleware
 │   ├── auth/            # Auth services (nod add auth)
 │   ├── config/          # App configuration
-│   ├── helpers/         # Utilities (route-builder, etc.)
+│   ├── helpers/         # Reusable helpers (e.g. user.helper.ts)
 │   ├── utils/           # Utility modules (logger, etc.)
 │   ├── db/              # Database connection & schema
 │   ├── environments/    # Staging/production configs
@@ -246,33 +273,34 @@ my-api/
 
 ### Special Folders
 
-| Folder | Purpose |
-|--------|---------|
+| Folder  | Purpose                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------- |
 | `docs/` | Project documentation, architecture decisions, API docs, and development plans. Committed to git. |
-| `temp/` | Temporary output files (PDFs, exports, generated files). Git-ignored. |
+| `temp/` | Temporary output files (PDFs, exports, generated files). Git-ignored.                             |
 
 ## Configuration Options
 
-| Option | Choices | Description |
-|--------|---------|-------------|
-| Framework | Express, Hono | Web framework |
-| TypeScript | Yes, No | Type safety (use `--no-ts` for JavaScript) |
-| Database | PostgreSQL, MySQL, Supabase, None | Database driver |
-| ORM | Drizzle, Raw SQL, None | ORM choice |
-| Auth | JWT, JWKS, Supabase, None | Authentication method |
-| Cron | Yes, No | Scheduled jobs support |
-| Environments | Yes, No | Staging/production config |
-| RAG | Yes, No | Vector search & retrieval |
-| Chat | Yes, No | Conversation management |
-| Langfuse | Yes, No | LLM observability |
-| Vercel Cron | Yes, No | Vercel cron configuration |
-| GitHub Workflow | Yes, No | CI/CD workflow |
-| Docker | Yes, No | Container configuration |
-| PM2 | Yes, No | Process manager config |
+| Option          | Choices                           | Description                                |
+| --------------- | --------------------------------- | ------------------------------------------ |
+| Framework       | Express, Hono                     | Web framework                              |
+| TypeScript      | Yes, No                           | Type safety (use `--no-ts` for JavaScript) |
+| Database        | PostgreSQL, MySQL, Supabase, None | Database driver                            |
+| ORM             | Drizzle, Raw SQL, None            | ORM choice                                 |
+| Auth            | JWT, JWKS, Supabase, None         | Authentication method                      |
+| Cron            | Yes, No                           | Scheduled jobs support                     |
+| Environments    | Yes, No                           | Staging/production config                  |
+| RAG             | Yes, No                           | Vector search & retrieval                  |
+| Chat            | Yes, No                           | Conversation management                    |
+| Langfuse        | Yes, No                           | LLM observability                          |
+| Vercel Cron     | Yes, No                           | Vercel cron configuration                  |
+| GitHub Workflow | Yes, No                           | CI/CD workflow                             |
+| Docker          | Yes, No                           | Container configuration                    |
+| PM2             | Yes, No                           | Process manager config                     |
 
 ## Features
 
 ### Core
+
 - **Declarative Routes** - Clean, configuration-based route definitions
 - **Type Safety** - Full TypeScript support (or plain JavaScript with `--no-ts`)
 - **PM2 Cluster Mode** - Thread-safe cron jobs with distributed locking
@@ -282,11 +310,13 @@ my-api/
 - **Temp Output Folder** - Git-ignored `temp/` folder for generated files
 
 ### Database
+
 - **Supabase Integration** - Full Supabase client with storage helpers
 - **Drizzle ORM** - Type-safe ORM with connection pooler support
 - **Environment Config** - Separate staging/production configurations
 
 ### Authentication
+
 - **Complete Auth Module** - `nod add auth` generates JWKS, JWT, password hashing, Google OAuth, forgot password, email service
 - **Supabase JWT Auth** - JWKS-based JWT verification using jose library
 - **Custom JWT** - Roll your own tokens with auto-generated RSA keys
@@ -295,11 +325,13 @@ my-api/
 - **Permission Middleware** - Role-based access control from JWT payload
 
 ### AI Features
+
 - **RAG Service** - Vector similarity search with OpenAI embeddings
 - **Chat Service** - Conversation management with LangChain
 - **Langfuse** - LLM observability and tracing
 
 ### Deployment
+
 - **Vercel Cron** - Cron job configuration with auth middleware
 - **GitHub Workflow** - Deploy trigger workflow
 - **Source Selection** - Domain-based routing
@@ -316,14 +348,14 @@ npm run dev
 
 ### Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Build for production (TypeScript only) |
-| `npm start` | Start production server |
-| `npm run lint` | Lint code with ESLint |
-| `npm run format` | Format code with Prettier |
-| `npm test` | Run tests (if testing enabled) |
+| Script           | Description                              |
+| ---------------- | ---------------------------------------- |
+| `npm run dev`    | Start development server with hot reload |
+| `npm run build`  | Build for production (TypeScript only)   |
+| `npm start`      | Start production server                  |
+| `npm run lint`   | Lint code with ESLint                    |
+| `npm run format` | Format code with Prettier                |
+| `npm test`       | Run tests (if testing enabled)           |
 
 ### Production
 

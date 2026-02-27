@@ -1,11 +1,13 @@
-import { Link } from 'react-router-dom'
-import { CodeBlock } from '@/components/CodeBlock'
+import { Link } from "react-router-dom";
+import { CodeBlock } from "@/components/CodeBlock";
 
 export function Introduction() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">nod-cli</h1>
+        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">
+          nod-cli
+        </h1>
         <p className="text-lg text-muted-foreground mt-2">
           Backend scaffolding CLI for Node.js with best practices built-in.
         </p>
@@ -13,8 +15,8 @@ export function Introduction() {
 
       <div className="space-y-4">
         <p>
-          Generate production-ready Express or Hono projects with TypeScript, authentication,
-          database connections, AI features, and more.
+          Generate production-ready Express or Hono projects with TypeScript,
+          authentication, database connections, AI features, and more.
         </p>
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
@@ -22,40 +24,67 @@ export function Introduction() {
         </h2>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Link to="/docs/components/route" className="feature-card rounded-lg border p-4 block">
+          <Link
+            to="/docs/components/route"
+            className="feature-card rounded-lg border p-4 block"
+          >
             <h3 className="font-semibold">Multiple Frameworks</h3>
             <p className="text-sm text-muted-foreground">
               Support for Express and Hono with TypeScript or JavaScript
             </p>
           </Link>
-          <Link to="/docs/components/supabase" className="feature-card rounded-lg border p-4 block">
+          <Link
+            to="/docs/components/supabase"
+            className="feature-card rounded-lg border p-4 block"
+          >
             <h3 className="font-semibold">Database Integration</h3>
             <p className="text-sm text-muted-foreground">
               PostgreSQL, MySQL, Supabase with Drizzle ORM
             </p>
           </Link>
-          <Link to="/docs/components/supabase" className="feature-card rounded-lg border p-4 block">
+          <Link
+            to="/docs/components/supabase"
+            className="feature-card rounded-lg border p-4 block"
+          >
             <h3 className="font-semibold">Authentication</h3>
             <p className="text-sm text-muted-foreground">
               JWT, JWKS, and Supabase Auth out of the box
             </p>
           </Link>
-          <Link to="/docs/components/rag" className="feature-card rounded-lg border p-4 block">
+          <Link
+            to="/docs/components/rag"
+            className="feature-card rounded-lg border p-4 block"
+          >
             <h3 className="font-semibold">AI Features</h3>
             <p className="text-sm text-muted-foreground">
               RAG, Chat services, and Langfuse observability
             </p>
           </Link>
-          <Link to="/docs/components/pm2" className="feature-card rounded-lg border p-4 block">
+          <Link
+            to="/docs/components/pm2"
+            className="feature-card rounded-lg border p-4 block"
+          >
             <h3 className="font-semibold">Deployment Ready</h3>
             <p className="text-sm text-muted-foreground">
               Docker, PM2, Vercel cron, and GitHub Actions
             </p>
           </Link>
-          <Link to="/docs/presets" className="feature-card rounded-lg border p-4 block">
+          <Link
+            to="/docs/presets"
+            className="feature-card rounded-lg border p-4 block"
+          >
             <h3 className="font-semibold">Presets</h3>
             <p className="text-sm text-muted-foreground">
               Built-in and custom presets for quick project setup
+            </p>
+          </Link>
+          <Link
+            to="/docs/mcp"
+            className="feature-card rounded-lg border p-4 block"
+          >
+            <h3 className="font-semibold">MCP Server</h3>
+            <p className="text-sm text-muted-foreground">
+              Run nod-cli as a local MCP server with built-in tools
             </p>
           </Link>
         </div>
@@ -103,5 +132,5 @@ nod my-api`}
         />
       </div>
     </div>
-  )
+  );
 }

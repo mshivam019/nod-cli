@@ -1,17 +1,17 @@
-import fs from 'fs-extra';
-import * as path from 'path';
-import { ProjectConfig, TemplateContext } from '../../types/index.js';
+import fs from "fs-extra";
+import * as path from "path";
+import { ProjectConfig, TemplateContext } from "../../types/index.js";
 
 export async function generateExpressProject(
   projectPath: string,
   config: ProjectConfig,
-  ctx: TemplateContext
+  ctx: TemplateContext,
 ) {
   await generateAppFile(projectPath, config, ctx);
   await generateServerFile(projectPath, config, ctx);
   await generateMiddleware(projectPath, config, ctx);
 
-  if (config.database !== 'none') {
+  if (config.database !== "none") {
     await generateDatabaseConnection(projectPath, config, ctx);
   }
 
@@ -22,15 +22,19 @@ export async function generateExpressProject(
   await generateExampleRoute(projectPath, ctx);
 }
 
-async function generateAppFile(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
+async function generateAppFile(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
   const ext = ctx.fileExt;
-  const isTS = ext === 'ts';
+  const isTS = ext === "ts";
 
   const appContent = isTS
     ? `import cors from 'cors';
 import express, { Express, Request, Response } from 'express';
 import { router } from './routes/index.js';
-${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
+${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -51,7 +55,7 @@ export function createApp(): Express {
   // Error handler (must be last)
   app.use(errorHandler);
 
-  ${ctx.hasCron ? 'initCronJobs();' : ''}
+  ${ctx.hasCron ? "initCronJobs();" : ""}
 
   return app;
 }
@@ -59,7 +63,7 @@ export function createApp(): Express {
     : `import cors from 'cors';
 import express from 'express';
 import { router } from './routes/index.js';
-${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ''}
+${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
 
 export function createApp() {
@@ -80,7 +84,7 @@ export function createApp() {
   // Error handler (must be last)
   app.use(errorHandler);
 
-  ${ctx.hasCron ? 'initCronJobs();' : ''}
+  ${ctx.hasCron ? "initCronJobs();" : ""}
 
   return app;
 }
@@ -89,16 +93,20 @@ export function createApp() {
   await fs.outputFile(path.join(projectPath, `src/app.${ext}`), appContent);
 }
 
-async function generateServerFile(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
+async function generateServerFile(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
   const ext = ctx.fileExt;
   const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
 
   const serverContent = `import { createApp } from './app.js';
 import { config } from './config/index.js';
-${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ''}
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
 
 async function startServer() {
-  ${needsDbConnect ? 'await connectDatabase();' : ''}
+  ${needsDbConnect ? "await connectDatabase();" : ""}
 
   const app = createApp();
 
@@ -110,12 +118,19 @@ async function startServer() {
 startServer().catch(console.error);
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/server.${ext}`), serverContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/server.${ext}`),
+    serverContent,
+  );
 }
 
-async function generateMiddleware(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
+async function generateMiddleware(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
   const ext = ctx.fileExt;
-  const isTS = ext === 'ts';
+  const isTS = ext === "ts";
 
   // Response wrapper for automatic response handling
   const responseWrapperContent = isTS
@@ -288,7 +303,10 @@ export function fail(message, statusCode = 400) {
 }
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/helpers/response-wrapper.${ext}`), responseWrapperContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/helpers/response-wrapper.${ext}`),
+    responseWrapperContent,
+  );
 
   // Error handler middleware
   const errorHandlerContent = isTS
@@ -331,7 +349,10 @@ const errorHandler = (err, _req, res, _next) => {
 export default errorHandler;
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/middleware/errorHandler.${ext}`), errorHandlerContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/middleware/errorHandler.${ext}`),
+    errorHandlerContent,
+  );
 
   // Auth middleware (if enabled)
   if (ctx.hasAuth && !ctx.hasSupabaseAuth) {
@@ -400,17 +421,24 @@ export function roleMiddleware(roles) {
 }
 `;
 
-    await fs.outputFile(path.join(projectPath, `src/middleware/auth.${ext}`), authContent);
+    await fs.outputFile(
+      path.join(projectPath, `src/middleware/auth.${ext}`),
+      authContent,
+    );
   }
 }
 
-async function generateDatabaseConnection(projectPath: string, config: ProjectConfig, ctx: TemplateContext) {
-  if (config.database === 'none') return;
+async function generateDatabaseConnection(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
+  if (config.database === "none") return;
 
   const ext = ctx.fileExt;
-  let dbContent = '';
+  let dbContent = "";
 
-  if (config.database === 'pg') {
+  if (config.database === "pg") {
     dbContent = `import { Pool } from 'pg';
 import { config } from '../config/index.js';
 
@@ -434,7 +462,7 @@ export async function connectDatabase() {
   }
 }
 `;
-  } else if (config.database === 'mysql') {
+  } else if (config.database === "mysql") {
     dbContent = `import mysql from 'mysql2/promise';
 import { config } from '../config/index.js';
 
@@ -462,15 +490,19 @@ export async function connectDatabase() {
   await fs.outputFile(path.join(projectPath, `src/db/index.${ext}`), dbContent);
 }
 
-async function generateCronSetup(projectPath: string, ctx: TemplateContext, config: ProjectConfig) {
-  const { generateThreadSafeCron } = await import('../pm2.js');
+async function generateCronSetup(
+  projectPath: string,
+  ctx: TemplateContext,
+  config: ProjectConfig,
+) {
+  const { generateThreadSafeCron } = await import("../pm2.js");
 
   // Determine lock backend based on database
-  let lockBackend: 'redis' | 'postgres' | 'mysql' | 'file' = 'file';
-  if (config.database === 'pg') {
-    lockBackend = 'postgres';
-  } else if (config.database === 'mysql') {
-    lockBackend = 'mysql';
+  let lockBackend: "redis" | "postgres" | "mysql" | "file" = "file";
+  if (config.database === "pg") {
+    lockBackend = "postgres";
+  } else if (config.database === "mysql") {
+    lockBackend = "mysql";
   }
 
   await generateThreadSafeCron(projectPath, ctx.fileExt, lockBackend);
@@ -478,27 +510,27 @@ async function generateCronSetup(projectPath: string, ctx: TemplateContext, conf
 
 async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const ext = ctx.fileExt;
-  const isTS = ext === 'ts';
+  const isTS = ext === "ts";
 
   // Build default middlewares list for route file
   const defaultMiddlewares: string[] = [];
   if (ctx.hasSupabaseAuth) {
-    defaultMiddlewares.push('jwtAuth');
+    defaultMiddlewares.push("jwtAuth");
   }
   if (ctx.hasSupabaseAuth && ctx.hasApiAudit) {
-    defaultMiddlewares.push('auditLogger');
+    defaultMiddlewares.push("auditLogger");
   }
   if (ctx.hasSourceConfig) {
-    defaultMiddlewares.push('sourceSelection');
+    defaultMiddlewares.push("sourceSelection");
   }
 
-  const middlewareListStr = defaultMiddlewares.map(m => `'${m}'`).join(', ');
+  const middlewareListStr = defaultMiddlewares.map((m) => `'${m}'`).join(", ");
 
   // Generate route-builder helper
   await generateRouteBuilder(projectPath, ext, {
     hasAuth: ctx.hasSupabaseAuth,
     hasAuditLogger: ctx.hasApiAudit,
-    hasSourceSelection: ctx.hasSourceConfig
+    hasSourceSelection: ctx.hasSourceConfig,
   });
 
   // Generate router config (simple re-export)
@@ -507,8 +539,8 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   // Generate declarative routes
   const routeContent = isTS
     ? `import { Router } from 'express';
-import { createConfiguredRouter, METHODS, wrapHandler, success } from '../config/router.js';
-import { exampleService } from '../services/example.js';
+import { createConfiguredRouter } from '../config/router.js';
+import { exampleRoutes } from './example.routes.js';
 
 export const router = Router();
 
@@ -524,50 +556,7 @@ const defaultMiddlewares: string[] = [${middlewareListStr}];
  */
 const defaultRoles: string[] = [];
 
-/**
- * Declarative route definitions
- *
- * Each route can have:
- * - method: METHODS.GET, METHODS.POST, etc.
- * - path: Route path
- * - handler: Controller method (wrapped automatically for response handling)
- * - disabled: Array of middleware names to exclude from defaults
- * - enabled: Array of additional middleware names to include
- * - roles: Override default roles (e.g., ['admin', 'superAdmin'])
- * - excludeRoles: Roles to exclude from defaults
- *
- * Controller examples:
- *   - return success(data, 'message') → 200 OK with data
- *   - return { success: true, data, message } → 200 OK
- *   - throw createError('msg', 404) → 404 Not Found
- *   - throw new Error('msg') (with .statusCode = 400) → 400 Bad Request
- */
-const routes = [
-  {
-    method: METHODS.GET,
-    path: '/example',
-    handler: wrapHandler(async (_req: any, _res: any) => {
-      const data = await exampleService.getData();
-      return success(data, 'Data fetched successfully');
-    })
-  },
-
-  {
-    method: METHODS.GET,
-    path: '/public',
-    handler: wrapHandler(async (_req: any, _res: any) => success({ message: 'Public endpoint - no auth required' })),
-    disabled: ${defaultMiddlewares.length > 0 ? `[${middlewareListStr}]` : '[]'}
-  },
-
-  {
-    method: METHODS.POST,
-    path: '/admin',
-    handler: wrapHandler(async (_req: any, _res: any) => {
-      return success({ message: 'Admin action performed' });
-    }),
-    roles: ['admin', 'superAdmin']
-  },
-];
+const routes = [...exampleRoutes];
 
 // Apply routes with automatic response handling
 const configuredRouter = createConfiguredRouter({
@@ -578,8 +567,8 @@ const configuredRouter = createConfiguredRouter({
 configuredRouter.applyToExpress(router);
 `
     : `import { Router } from 'express';
-import { createConfiguredRouter, METHODS, wrapHandler, success } from '../config/router.js';
-import { exampleService } from '../services/example.js';
+import { createConfiguredRouter } from '../config/router.js';
+import { exampleRoutes } from './example.routes.js';
 
 export const router = Router();
 
@@ -595,39 +584,7 @@ const defaultMiddlewares = [${middlewareListStr}];
  */
 const defaultRoles = [];
 
-/**
- * Declarative route definitions
- *
- * Controller examples:
- *   - return success(data, 'message') → 200 OK with data
- *   - throw createError('msg', 404) → 404 Not Found
- */
-const routes = [
-  {
-    method: METHODS.GET,
-    path: '/example',
-    handler: wrapHandler(async (_req, _res) => {
-      const data = await exampleService.getData();
-      return success(data, 'Data fetched successfully');
-    })
-  },
-
-  {
-    method: METHODS.GET,
-    path: '/public',
-    handler: wrapHandler(async (_req, _res) => success({ message: 'Public endpoint' })),
-    disabled: ${defaultMiddlewares.length > 0 ? `[${middlewareListStr}]` : '[]'}
-  },
-
-  {
-    method: METHODS.POST,
-    path: '/admin',
-    handler: wrapHandler(async (_req, _res) => {
-      return success({ message: 'Admin action' });
-    }),
-    roles: ['admin', 'superAdmin']
-  },
-];
+const routes = [...exampleRoutes];
 
 // Apply routes with automatic response handling
 const configuredRouter = createConfiguredRouter({
@@ -638,21 +595,74 @@ const configuredRouter = createConfiguredRouter({
 configuredRouter.applyToExpress(router);
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/routes/index.${ext}`), routeContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/routes/index.${ext}`),
+    routeContent,
+  );
+
+  const exampleRoutesContent = isTS
+    ? `import { exampleController } from '../controllers/example.controller.js';
+import { METHODS } from '../config/router.js';
+import type { RouteDefinition } from '../helpers/route-builder.js';
+
+export const exampleRoutes: RouteDefinition[] = [
+  {
+    method: METHODS.GET,
+    path: '/example',
+    handler: exampleController.getData
+  },
+  {
+    method: METHODS.GET,
+    path: '/public',
+    handler: exampleController.getPublic,
+    disabled: ${defaultMiddlewares.length > 0 ? `[${middlewareListStr}]` : "[]"}
+  },
+  {
+    method: METHODS.POST,
+    path: '/admin',
+    handler: exampleController.adminAction,
+    roles: ['admin', 'superAdmin']
+  }
+];
+`
+    : `import { exampleController } from '../controllers/example.controller.js';
+import { METHODS } from '../config/router.js';
+
+export const exampleRoutes = [
+  {
+    method: METHODS.GET,
+    path: '/example',
+    handler: exampleController.getData
+  },
+  {
+    method: METHODS.GET,
+    path: '/public',
+    handler: exampleController.getPublic,
+    disabled: ${defaultMiddlewares.length > 0 ? `[${middlewareListStr}]` : "[]"}
+  },
+  {
+    method: METHODS.POST,
+    path: '/admin',
+    handler: exampleController.adminAction,
+    roles: ['admin', 'superAdmin']
+  }
+];
+`;
+
+  await fs.outputFile(
+    path.join(projectPath, `src/routes/example.routes.${ext}`),
+    exampleRoutesContent,
+  );
 
   // Controller
   const controllerContent = isTS
-    ? `import { exampleService } from '../services/example.js';
+    ? `import { exampleService } from '../services/example.service.js';
 import { success } from '../helpers/response-wrapper.js';
 
 const exampleController = {
   async getData(_req: any, _res: any) {
-    try {
-      const data = await exampleService.getData();
-      return success(data, 'Data fetched successfully');
-    } catch (error) {
-      throw error; // Re-throw for wrapHandler to handle
-    }
+    const data = await exampleService.getData();
+    return success(data, 'Data fetched successfully');
   },
 
   async getPublic(_req: any, _res: any) {
@@ -660,29 +670,21 @@ const exampleController = {
   },
 
   async adminAction(_req: any, _res: any) {
-    try {
-      // Admin logic here
-      return success({ message: 'Admin action performed' });
-    } catch (error) {
-      throw error;
-    }
+    // Admin logic here
+    return success({ message: 'Admin action performed' });
   },
 };
 
 export default exampleController;
 export { exampleController };
 `
-    : `import { exampleService } from '../services/example.js';
+    : `import { exampleService } from '../services/example.service.js';
 import { success } from '../helpers/response-wrapper.js';
 
 const exampleController = {
   async getData(_req, _res) {
-    try {
-      const data = await exampleService.getData();
-      return success(data, 'Data fetched successfully');
-    } catch (error) {
-      throw error;
-    }
+    const data = await exampleService.getData();
+    return success(data, 'Data fetched successfully');
   },
 
   async getPublic(_req, _res) {
@@ -690,18 +692,17 @@ const exampleController = {
   },
 
   async adminAction(_req, _res) {
-    try {
-      return success({ message: 'Admin action performed' });
-    } catch (error) {
-      throw error;
-    }
+    return success({ message: 'Admin action performed' });
   },
 };
 
 export default exampleController;
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/controllers/example.${ext}`), controllerContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/controllers/example.controller.${ext}`),
+    controllerContent,
+  );
 
   // Service
   const serviceContent = `export const exampleService = {
@@ -714,16 +715,23 @@ export default exampleController;
 };
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/services/example.${ext}`), serviceContent);
+  await fs.outputFile(
+    path.join(projectPath, `src/services/example.service.${ext}`),
+    serviceContent,
+  );
 }
 
 // Helper functions for route generation
-async function generateRouteBuilder(projectPath: string, ext: string, options: {
-  hasAuth: boolean;
-  hasAuditLogger: boolean;
-  hasSourceSelection: boolean;
-}) {
-  const isTS = ext === 'ts';
+async function generateRouteBuilder(
+  projectPath: string,
+  ext: string,
+  options: {
+    hasAuth: boolean;
+    hasAuditLogger: boolean;
+    hasSourceSelection: boolean;
+  },
+) {
+  const isTS = ext === "ts";
   const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
 
   const content = isTS
@@ -757,7 +765,7 @@ export type HttpMethod = typeof METHODS[keyof typeof METHODS];
 export interface RouteDefinition {
   method: HttpMethod;
   path: string;
-  handler: Function;
+  handler: (req: any, res: any) => Promise<any>;
   disabled?: string[];
   enabled?: string[];
   roles?: string[];
@@ -824,7 +832,7 @@ export class DeclarativeRouter {
   applyToExpress(router: any): void {
     for (const route of this.config.routes) {
       const middlewares = this.buildMiddlewareChain(route);
-      router[route.method](route.path, ...middlewares, route.handler);
+      router[route.method](route.path, ...middlewares, wrapHandler(route.handler));
     }
   }
 }
@@ -856,16 +864,16 @@ export function createConfiguredRouter(config: {
     routes: config.routes
   });
 
-  ${hasAuth ? "router.registerMiddleware('jwtAuth', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ''}
-  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ''}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ''}
+  ${hasAuth ? "router.registerMiddleware('jwtAuth', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ""}
+  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ""}
+  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ""}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;
 }
 
 // Export helpers
-export { wrapHandler, success, fail, createError };
+export { success, fail, createError };
 `
     : `/**
  * Express Declarative Route Builder
@@ -937,7 +945,7 @@ export class DeclarativeRouter {
   applyToExpress(router) {
     for (const route of this.config.routes) {
       const middlewares = this.buildMiddlewareChain(route);
-      router[route.method](route.path, ...middlewares, route.handler);
+      router[route.method](route.path, ...middlewares, wrapHandler(route.handler));
     }
   }
 }
@@ -965,27 +973,34 @@ export function createConfiguredRouter(config) {
     routes: config.routes
   });
 
-  ${hasAuth ? "router.registerMiddleware('jwtAuth', (req, res, next) => { next(); });" : ''}
-  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (req, res, next) => { next(); });" : ''}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (req, res, next) => { next(); });" : ''}
+  ${hasAuth ? "router.registerMiddleware('jwtAuth', (req, res, next) => { next(); });" : ""}
+  ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (req, res, next) => { next(); });" : ""}
+  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (req, res, next) => { next(); });" : ""}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;
 }
 
 // Export helpers
-export { wrapHandler, success, fail, createError };
+export { success, fail, createError };
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/helpers/route-builder.${ext}`), content);
+  await fs.outputFile(
+    path.join(projectPath, `src/helpers/route-builder.${ext}`),
+    content,
+  );
 }
 
-async function generateRouterConfig(projectPath: string, ext: string, options: {
-  hasAuth: boolean;
-  hasAuditLogger: boolean;
-  hasSourceSelection: boolean;
-}) {
-  const isTS = ext === 'ts';
+async function generateRouterConfig(
+  projectPath: string,
+  ext: string,
+  options: {
+    hasAuth: boolean;
+    hasAuditLogger: boolean;
+    hasSourceSelection: boolean;
+  },
+) {
+  const isTS = ext === "ts";
   const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
 
   const content = isTS
@@ -993,20 +1008,23 @@ async function generateRouterConfig(projectPath: string, ext: string, options: {
  * Router Configuration
  */
 
-import { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError } from '../helpers/route-builder.js';
+import { METHODS, createConfiguredRouter, success, fail, createError } from '../helpers/route-builder.js';
 
-export { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError };
+export { METHODS, createConfiguredRouter, success, fail, createError };
 `
     : `/**
  * Router Configuration
  */
 
-import { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError } from '../helpers/route-builder.js';
+import { METHODS, createConfiguredRouter, success, fail, createError } from '../helpers/route-builder.js';
 
-export { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError };
+export { METHODS, createConfiguredRouter, success, fail, createError };
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/config/router.${ext}`), content);
+  await fs.outputFile(
+    path.join(projectPath, `src/config/router.${ext}`),
+    content,
+  );
 }
 
 async function generateRouterConfigSimple(projectPath: string, ext: string) {
@@ -1014,10 +1032,13 @@ async function generateRouterConfigSimple(projectPath: string, ext: string) {
  * Router Configuration (simple re-export for convenience)
  */
 
-import { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError } from '../helpers/route-builder.js';
+import { METHODS, createConfiguredRouter, success, fail, createError } from '../helpers/route-builder.js';
 
-export { METHODS, createConfiguredRouter, wrapHandler, success, fail, createError };
+export { METHODS, createConfiguredRouter, success, fail, createError };
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/config/router.${ext}`), content);
+  await fs.outputFile(
+    path.join(projectPath, `src/config/router.${ext}`),
+    content,
+  );
 }

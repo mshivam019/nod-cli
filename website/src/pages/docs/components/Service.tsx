@@ -1,12 +1,15 @@
-import { CodeBlock } from '@/components/CodeBlock'
+import { CodeBlock } from "@/components/CodeBlock";
 
 export function ServiceComponent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">Service</h1>
+        <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">
+          Service
+        </h1>
         <p className="text-lg text-muted-foreground mt-2">
-          Generate business logic services with CRUD operations and optional database integration.
+          Generate business logic services with CRUD operations and optional
+          database integration.
         </p>
       </div>
 
@@ -14,10 +17,7 @@ export function ServiceComponent() {
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
           Installation
         </h2>
-        <CodeBlock
-          code={`nod add service <name>`}
-          language="bash"
-        />
+        <CodeBlock code={`nod add service <name>`} language="bash" />
       </section>
 
       <section className="space-y-4">
@@ -26,8 +26,11 @@ export function ServiceComponent() {
         </h2>
         <p>The command will prompt you for:</p>
         <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-          <li><strong>Include Database Operations</strong> - Generate SQL queries</li>
-          <li><strong>Methods</strong> - Select which CRUD methods to generate:
+          <li>
+            <strong>Include Database Operations</strong> - Generate SQL queries
+          </li>
+          <li>
+            <strong>Methods</strong> - Select which CRUD methods to generate:
             <ul className="list-disc list-inside ml-6 mt-1">
               <li>Get All</li>
               <li>Get By ID</li>
@@ -43,7 +46,7 @@ export function ServiceComponent() {
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
           Generated Files
         </h2>
-        
+
         <h3 className="font-semibold mt-4">Service without Database</h3>
         <CodeBlock
           tsCode={`export const emailService = {
@@ -178,7 +181,7 @@ export const productsService = {
           Usage
         </h2>
         <CodeBlock
-          code={`import { productsService } from './services/products.js';
+          code={`import { productsService } from './services/products.service.js';
 
 // In your controller
 async function getAllProducts(req, res) {
@@ -194,5 +197,5 @@ async function createProduct(req, res) {
         />
       </section>
     </div>
-  )
+  );
 }

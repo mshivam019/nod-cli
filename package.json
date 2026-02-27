@@ -1,6 +1,6 @@
 {
   "name": "nod-cli",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Backend scaffolding CLI for Express, Hono, and more - with best practices built-in",
   "main": "./dist/index.js",
   "type": "module",
@@ -70,12 +70,14 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
     "commander": "^11.1.0",
     "prompts": "^2.4.2",
     "chalk": "^4.1.2",
     "ora": "^5.4.1",
     "fs-extra": "^11.2.0",
-    "handlebars": "^4.7.8"
+    "handlebars": "^4.7.8",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
