@@ -378,7 +378,7 @@ npm run monit:pm2    # Monitor PM2 processes
 
 ```bash
 npm run db:generate  # Generate migrations
-npm run db:push      # Push to database
+npx drizzle-kit migrate --config=<drizzle.config.ts|drizzle.config.js>  # Apply migrations
 npm run db:studio    # Open Drizzle Studio
 ```
 

@@ -7,6 +7,11 @@ import { generateAgentsGuide } from './agents.js';
 import { getTemplateContext } from '../utils/template.js';
 import { createNodConfig, saveNodConfig } from '../utils/config.js';
 
+function getProjectTablePrefix(projectName: string): string {
+  const [firstSegment] = projectName.split('-');
+  return firstSegment || projectName;
+}
+
 export async function generateProject(config: ProjectConfig) {
   const projectPath = path.join(process.cwd(), config.name);
   
@@ -153,7 +158,7 @@ export async function generateProject(config: ProjectConfig) {
   // Generate API audit middleware
   if (config.features.apiAudit) {
     const { generateApiAudit, generateAuditSchema } = await import('./audit.js');
-    const auditTableName = `${config.name.replace(/-/g, '_')}_api_audit`;
+    const auditTableName = `${getProjectTablePrefix(config.name)}_api_audit`;
     await generateApiAudit(projectPath, ext, auditTableName);
     await generateAuditSchema(projectPath, auditTableName, config.orm === 'drizzle');
   }
@@ -418,12 +423,13 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
 
   const ext = config.typescript ? 'ts' : 'js';
   const drizzleConfigFile = config.typescript ? 'drizzle.config.ts' : 'drizzle.config.js';
+  const entryBaseName = config.framework === 'express' ? 'app' : 'server';
   const scripts: Record<string, string> = {
     dev: config.typescript 
-      ? `tsx watch src/server.${ext}`
-      : `nodemon src/server.${ext}`,
+      ? `tsx watch src/${entryBaseName}.${ext}`
+      : `nodemon src/${entryBaseName}.${ext}`,
     build: config.typescript ? 'tsc' : 'echo "No build needed for JS"',
-    start: config.typescript ? 'node dist/server.js' : `node src/server.${ext}`,
+    start: config.typescript ? `node dist/${entryBaseName}.js` : `node src/${entryBaseName}.${ext}`,
     lint: 'eslint . --ext .ts,.js',
     format: 'prettier --write "src/**/*.{ts,js}"',
   };
@@ -438,7 +444,6 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
 
   if (config.orm === 'drizzle') {
     scripts['db:generate'] = `drizzle-kit generate --config=${drizzleConfigFile}`;
-    scripts['db:push'] = `drizzle-kit push --config=${drizzleConfigFile}`;
     scripts['db:studio'] = 'drizzle-kit studio';
   }
 
@@ -451,7 +456,7 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     name: config.name,
     version: '1.0.0',
     description: `Backend project generated with nod-cli`,
-    main: config.typescript ? 'dist/server.js' : 'src/server.js',
+    main: config.typescript ? `dist/${entryBaseName}.js` : `src/${entryBaseName}.js`,
     type: 'module',
     scripts,
     dependencies,
@@ -815,6 +820,11 @@ CMD ["npm", "start"]
 }
 
 async function generateScripts(projectPath: string, config: ProjectConfig) {
+  const drizzleConfigFile = config.typescript ? 'drizzle.config.ts' : 'drizzle.config.js';
+  const entryStructure = config.framework === 'express'
+    ? `├── app.${config.typescript ? 'ts' : 'js'}         # App entry point`
+    : `├── server.${config.typescript ? 'ts' : 'js'}      # Server entry point\n├── app.${config.typescript ? 'ts' : 'js'}         # App composition`;
+
   // Add README
   const readme = `# ${config.name}
 
@@ -855,8 +865,8 @@ ${config.orm === 'drizzle' ? `## Database Setup (Drizzle)
 # Generate migrations
 npm run db:generate
 
-# Push to database
-npm run db:push
+# Apply migrations
+npx drizzle-kit migrate --config=${drizzleConfigFile}
 
 # Open Drizzle Studio
 npm run db:studio
@@ -872,15 +882,14 @@ npm run db:studio
 - \`npm run format\` - Format code
 ${config.features.testing ? '- `npm test` - Run tests' : ''}
 ${config.orm === 'drizzle' ? `- \`npm run db:generate\` - Generate Drizzle migrations
-- \`npm run db:push\` - Push schema to database
+- \`npx drizzle-kit migrate --config=${drizzleConfigFile}\` - Apply Drizzle migrations
 - \`npm run db:studio\` - Open Drizzle Studio` : ''}
 
 ## Project Structure
 
 \`\`\`
 src/
-├── server.${config.typescript ? 'ts' : 'js'}      # Server entry point
-├── app.${config.typescript ? 'ts' : 'js'}         # App composition
+${entryStructure}
 ├── routes/          # Route definitions
 ├── controllers/     # Request handlers
 ├── services/        # Business logic

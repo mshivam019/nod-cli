@@ -3,6 +3,7 @@ import * as path from 'path';
 import { NodConfig, ProjectConfig, Framework, Database, ORM, Auth } from '../types/index.js';
 
 const CONFIG_FILE_NAME = 'nod.config.json';
+const NOD_CONFIG_SCHEMA_URL = 'https://raw.githubusercontent.com/mshivam019/nod-cli/main/schema.json';
 
 /**
  * Default paths for a typical nod project
@@ -24,7 +25,7 @@ function getDefaultPaths(): NodConfig['paths'] {
  */
 export function createNodConfig(config: ProjectConfig): NodConfig {
   return {
-    $schema: 'https://nod-cli.dev/schema.json',
+    $schema: NOD_CONFIG_SCHEMA_URL,
     name: config.name,
     framework: config.framework,
     typescript: config.typescript,

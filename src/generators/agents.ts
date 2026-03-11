@@ -14,6 +14,11 @@ interface AgentsGuideContext {
   transform?: TransformGuideContext;
 }
 
+function getProjectTablePrefix(projectName: string): string {
+  const [firstSegment] = projectName.split('-');
+  return firstSegment || projectName;
+}
+
 const KNOWN_DIRS: Array<{ path: string; purpose: string }> = [
   { path: 'src/routes', purpose: 'HTTP routes and endpoint wiring' },
   { path: 'src/controllers', purpose: 'Request orchestration and response shaping' },
@@ -53,7 +58,7 @@ function buildAgentRules(context: AgentsGuideContext): string {
 - Run \`npm run lint\` and \`npm run build\` after code changes.
 - Run \`npm run db:generate\` when schema or Drizzle config changes.
 - Keep Drizzle migrations in \`drizzle/\` tracked in git; do not add \`drizzle/\` to \`.gitignore\`.
-- Drizzle should only manage project tables prefixed with \`${cfg.name.replace(/-/g, '_')}_\`.
+- Drizzle should only manage project tables prefixed with \`${getProjectTablePrefix(cfg.name)}_\`.
 - \`npm test\` may not be configured; check scripts before assuming tests exist.`;
   }
 

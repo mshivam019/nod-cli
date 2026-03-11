@@ -131,7 +131,7 @@ CRON_SECRET=your-cron-secret`}
           code={`module.exports = {
   apps: [{
     name: 'my-api',
-    script: './dist/server.js',
+    script: './dist/app.js',
     instances: 'max',
     exec_mode: 'cluster',
     autorestart: true,

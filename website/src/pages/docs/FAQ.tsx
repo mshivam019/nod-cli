@@ -43,7 +43,7 @@ export function FAQ() {
             <ol className="list-decimal list-inside space-y-1 ml-2">
               <li>Modify <code>src/db/schema.ts</code></li>
               <li>Run <code>npm run db:generate</code> to create a migration</li>
-              <li>Run <code>npm run db:push</code> to apply changes</li>
+              <li>Run <code>npx drizzle-kit migrate --config=drizzle.config.ts</code> to apply changes</li>
             </ol>
             <p className="mt-2">For raw SQL, you will need to manage migrations manually or use a separate tool.</p>
           </div>
@@ -51,7 +51,7 @@ export function FAQ() {
           <div className="space-y-2">
             <h3 className="font-semibold text-lg">I added RAG/Chat but don't see tables?</h3>
             <p>
-              If you are using Drizzle, the CLI automatically updates <code>src/db/schema.ts</code>. Run <code>npm run db:push</code> to create them.
+              If you are using Drizzle, the CLI automatically updates <code>src/db/schema.ts</code>. Run <code>npx drizzle-kit migrate --config=drizzle.config.ts</code> to create them.
             </p>
             <p>
               If not using Drizzle, check the <code>sql/</code> folder for SQL scripts to run in your database dashboard.

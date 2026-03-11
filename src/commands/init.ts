@@ -374,7 +374,7 @@ function printNextSteps(config: ProjectConfig) {
   if (config.orm === 'drizzle') {
     console.log(chalk.yellow('📝 Drizzle Setup:'));
     console.log(chalk.gray('  npx drizzle-kit generate'));
-    console.log(chalk.gray('  npx drizzle-kit push\n'));
+    console.log(chalk.gray('  npx drizzle-kit migrate\n'));
   }
 
   if (config.ai?.rag || config.ai?.chat) {

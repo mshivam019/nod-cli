@@ -458,7 +458,7 @@ export async function transformProject(options: any) {
       console.log(chalk.yellow('📝 Drizzle Setup:'));
       console.log(chalk.gray('  1. Update drizzle.config.ts with your connection string'));
       console.log(chalk.gray('  2. Run: npx drizzle-kit generate'));
-      console.log(chalk.gray('  3. Run: npx drizzle-kit push\n'));
+      console.log(chalk.gray('  3. Run: npx drizzle-kit migrate\n'));
     }
 
   } catch (error) {

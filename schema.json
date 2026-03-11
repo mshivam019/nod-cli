@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/mshivam019/nod-cli/main/schema.json",
+  "title": "nod.config.json",
+  "description": "Schema for nod-cli generated nod.config.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "framework",
+    "typescript",
+    "database",
+    "orm",
+    "auth",
+    "paths",
+    "components"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "framework": {
+      "type": "string",
+      "enum": ["express", "hono"]
+    },
+    "typescript": {
+      "type": "boolean"
+    },
+    "database": {
+      "type": "string",
+      "enum": ["pg", "mysql", "none", "supabase", "drizzle"]
+    },
+    "orm": {
+      "type": "string",
+      "enum": ["drizzle", "raw", "none"]
+    },
+    "auth": {
+      "type": "string",
+      "enum": ["jwt", "jwks", "supabase", "none"]
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["src", "routes", "controllers", "services", "middleware", "db", "auth"],
+      "properties": {
+        "src": { "type": "string" },
+        "routes": { "type": "string" },
+        "controllers": { "type": "string" },
+        "services": { "type": "string" },
+        "middleware": { "type": "string" },
+        "db": { "type": "string" },
+        "auth": { "type": "string" }
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "supabaseAdmin": { "type": "boolean" },
+            "customJwt": { "type": "boolean" },
+            "jwks": { "type": "boolean" },
+            "forgotPassword": { "type": "boolean" },
+            "googleOAuth": { "type": "boolean" },
+            "emailService": { "type": "boolean" },
+            "authMode": {
+              "type": "string",
+              "enum": ["email-password", "oauth-only", "both"]
+            }
+          }
+        },
+        "ai": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rag": { "type": "boolean" },
+            "chat": { "type": "boolean" },
+            "langfuse": { "type": "boolean" },
+            "embeddings": {
+              "type": "string",
+              "enum": ["openai", "gemini", "cohere", "none"]
+            },
+            "vectorStore": {
+              "type": "string",
+              "enum": ["supabase", "pinecone", "chroma", "weaviate", "none"]
+            },
+            "llmProvider": {
+              "type": "string",
+              "enum": ["openai", "anthropic", "gemini", "none"]
+            },
+            "chatDatabase": {
+              "type": "string",
+              "enum": ["supabase", "pg", "mysql", "none"]
+            }
+          }
+        }
+      }
+    },
+    "supabase": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "usePooler": { "type": "boolean" },
+        "project": { "type": "string" }
+      }
+    }
+  }
+}

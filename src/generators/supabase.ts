@@ -2,6 +2,11 @@ import fs from 'fs-extra';
 import * as path from 'path';
 import { ProjectConfig } from '../types/index.js';
 
+function getProjectTablePrefix(projectName: string): string {
+  const [firstSegment] = projectName.split('-');
+  return firstSegment || projectName;
+}
+
 export async function generateSupabaseHelper(projectPath: string, config: ProjectConfig, ext: string) {
   const usePooler = config.supabase?.usePooler;
   const hasDrizzle = config.orm === 'drizzle';
@@ -162,8 +167,9 @@ export default supabase;
 
 async function generateDrizzleSetup(projectPath: string, config: ProjectConfig, ext: string) {
   const usePooler = config.supabase?.usePooler;
-  const auditTableName = `${config.name.replace(/-/g, '_')}_api_audit`;
-  const tablePrefix = `${config.name.replace(/-/g, '_')}_*`;
+  const tablePrefixBase = getProjectTablePrefix(config.name);
+  const auditTableName = `${tablePrefixBase}_api_audit`;
+  const tablePrefix = `${tablePrefixBase}_*`;
   const isTS = ext === 'ts';
 
   // Drizzle config

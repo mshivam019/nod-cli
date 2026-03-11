@@ -588,7 +588,7 @@ export async function addComponent(component: string, options: any) {
       console.log(chalk.gray('Set DATABASE_URL or SUPABASE_POOLER_URL in .env'));
       const drizzleConfigFile = isTypeScript ? 'drizzle.config.ts' : 'drizzle.config.js';
       console.log(chalk.gray(`npx drizzle-kit generate --config=${drizzleConfigFile}`));
-      console.log(chalk.gray(`npx drizzle-kit push --config=${drizzleConfigFile}`));
+      console.log(chalk.gray(`npx drizzle-kit migrate --config=${drizzleConfigFile}`));
       console.log(chalk.blue('\n📚 Drizzle docs: https://orm.drizzle.team/docs/overview\n'));
     } catch (error) {
       spinner.fail(chalk.red('Failed to add Drizzle ORM'));
@@ -807,7 +807,7 @@ if (component === 'langfuse') {
       if (hasDrizzle) {
         console.log(chalk.gray('  1. Review src/db/schema/auth.ts'));
         console.log(chalk.gray('  2. Run: npx drizzle-kit generate'));
-        console.log(chalk.gray('  3. Run: npx drizzle-kit push'));
+        console.log(chalk.gray('  3. Run: npx drizzle-kit migrate'));
       } else {
         console.log(chalk.gray('  Run sql/auth-schema.sql in your database'));
       }

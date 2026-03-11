@@ -8,7 +8,6 @@ export async function generateExpressProject(
   ctx: TemplateContext,
 ) {
   await generateAppFile(projectPath, config, ctx);
-  await generateServerFile(projectPath, config, ctx);
   await generateMiddleware(projectPath, config, ctx);
 
   if (config.database !== "none") {
@@ -29,11 +28,14 @@ async function generateAppFile(
 ) {
   const ext = ctx.fileExt;
   const isTS = ext === "ts";
+  const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
 
   const appContent = isTS
     ? `import cors from 'cors';
 import express, { Express, Request, Response } from 'express';
 import { router } from './routes/index.js';
+import { config } from './config/index.js';
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
 
@@ -55,14 +57,26 @@ export function createApp(): Express {
   // Error handler (must be last)
   app.use(errorHandler);
 
-  ${ctx.hasCron ? "initCronJobs();" : ""}
-
   return app;
 }
+
+async function startServer() {
+  ${needsDbConnect ? "await connectDatabase();" : ""}
+  ${ctx.hasCron ? "initCronJobs();" : ""}
+  const app = createApp();
+
+  app.listen(config.port, () => {
+    console.log(\`Server listening on \${config.port}\`);
+  });
+}
+
+startServer().catch(console.error);
 `
     : `import cors from 'cors';
 import express from 'express';
 import { router } from './routes/index.js';
+import { config } from './config/index.js';
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
 ${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
 
@@ -84,44 +98,23 @@ export function createApp() {
   // Error handler (must be last)
   app.use(errorHandler);
 
-  ${ctx.hasCron ? "initCronJobs();" : ""}
-
   return app;
 }
-`;
-
-  await fs.outputFile(path.join(projectPath, `src/app.${ext}`), appContent);
-}
-
-async function generateServerFile(
-  projectPath: string,
-  config: ProjectConfig,
-  ctx: TemplateContext,
-) {
-  const ext = ctx.fileExt;
-  const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
-
-  const serverContent = `import { createApp } from './app.js';
-import { config } from './config/index.js';
-${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
 
 async function startServer() {
   ${needsDbConnect ? "await connectDatabase();" : ""}
-
+  ${ctx.hasCron ? "initCronJobs();" : ""}
   const app = createApp();
 
   app.listen(config.port, () => {
-    console.log(\`🚀 Server running on port \${config.port}\`);
+    console.log(\`Server listening on \${config.port}\`);
   });
 }
 
 startServer().catch(console.error);
 `;
 
-  await fs.outputFile(
-    path.join(projectPath, `src/server.${ext}`),
-    serverContent,
-  );
+  await fs.outputFile(path.join(projectPath, `src/app.${ext}`), appContent);
 }
 
 async function generateMiddleware(
@@ -525,6 +518,24 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   }
 
   const middlewareListStr = defaultMiddlewares.map((m) => `'${m}'`).join(", ");
+  const hasSupabaseAuth = ctx.hasSupabaseAuth;
+  const hasAuditLogger = ctx.hasSupabaseAuth && ctx.hasApiAudit;
+  const hasSourceSelection = ctx.hasSourceConfig;
+  const adminRoles = hasSupabaseAuth ? "['org_admin', 'super_admin']" : "['admin', 'superAdmin']";
+
+  const sharedMiddlewareImportsTs = [
+    hasSupabaseAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : "",
+    hasAuditLogger ? "import auditLogger from '../middleware/auditLog.middleware.js';" : "",
+    hasSourceSelection ? "import sourceSelection from '../middleware/sourceSelection.middleware.js';" : "",
+    hasSupabaseAuth ? "import checkPermission from '../middleware/permission.middleware.js';" : "",
+  ].filter(Boolean).join("\n");
+
+  const sharedRegistrationTs = [
+    hasSupabaseAuth ? "  configuredRouter.registerMiddleware('jwtAuth', jwtAuth);" : "",
+    hasAuditLogger ? "  configuredRouter.registerMiddleware('auditLogger', auditLogger);" : "",
+    hasSourceSelection ? "  configuredRouter.registerMiddleware('sourceSelection', sourceSelection);" : "",
+    hasSupabaseAuth ? "  configuredRouter.registerMiddleware('roleCheck', checkPermission);" : "",
+  ].filter(Boolean).join("\n");
 
   // Generate route-builder helper
   await generateRouteBuilder(projectPath, ext, {
@@ -541,6 +552,7 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
     ? `import { Router } from 'express';
 import { createConfiguredRouter } from '../config/router.js';
 import { exampleRoutes } from './example.routes.js';
+${sharedMiddlewareImportsTs}
 
 export const router = Router();
 
@@ -558,17 +570,23 @@ const defaultRoles: string[] = [];
 
 const routes = [...exampleRoutes];
 
+const registerSharedMiddlewares = (configuredRouter: ReturnType<typeof createConfiguredRouter>) => {
+${sharedRegistrationTs}
+};
+
 // Apply routes with automatic response handling
 const configuredRouter = createConfiguredRouter({
   defaultMiddlewares,
   defaultRoles,
   routes
 });
+registerSharedMiddlewares(configuredRouter);
 configuredRouter.applyToExpress(router);
 `
     : `import { Router } from 'express';
 import { createConfiguredRouter } from '../config/router.js';
 import { exampleRoutes } from './example.routes.js';
+${sharedMiddlewareImportsTs}
 
 export const router = Router();
 
@@ -586,12 +604,17 @@ const defaultRoles = [];
 
 const routes = [...exampleRoutes];
 
+const registerSharedMiddlewares = (configuredRouter) => {
+${sharedRegistrationTs}
+};
+
 // Apply routes with automatic response handling
 const configuredRouter = createConfiguredRouter({
   defaultMiddlewares,
   defaultRoles,
   routes
 });
+registerSharedMiddlewares(configuredRouter);
 configuredRouter.applyToExpress(router);
 `;
 
@@ -621,7 +644,7 @@ export const exampleRoutes: RouteDefinition[] = [
     method: METHODS.POST,
     path: '/admin',
     handler: exampleController.adminAction,
-    roles: ['admin', 'superAdmin']
+    roles: ${adminRoles}
   }
 ];
 `
@@ -644,7 +667,7 @@ export const exampleRoutes = [
     method: METHODS.POST,
     path: '/admin',
     handler: exampleController.adminAction,
-    roles: ['admin', 'superAdmin']
+    roles: ${adminRoles}
   }
 ];
 `;

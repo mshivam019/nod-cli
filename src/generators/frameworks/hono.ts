@@ -450,6 +450,7 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth;
   const hasSupabaseAuth = ctx.hasSupabaseAuth;
   const hasAnyAuth = ctx.hasAuth;
+  const adminRoles = hasSupabaseAuth ? "['org_admin', 'super_admin']" : "['admin', 'superAdmin']";
   const authImportTs = hasCustomAuth
     ? "import { authMiddleware, roleMiddleware } from '../middleware/auth.js';"
     : hasSupabaseAuth
@@ -927,7 +928,7 @@ export const exampleRoutes = [
     method: METHODS.POST,
     path: '/admin',
     handler: exampleController.adminAction,
-    roles: ['admin', 'superAdmin']
+    roles: ${adminRoles}
   }`
       : ""
   }

@@ -204,7 +204,7 @@ export const ragService = {
           <p className="text-sm text-muted-foreground mt-1">
             If you have Drizzle installed (via preset or <code>nod add drizzle</code>), 
             the schema below is automatically added to your <code>src/db/schema.ts</code>.
-            Just run <code>npx drizzle-kit push</code> to apply changes.
+            Just run <code>npx drizzle-kit migrate --config=drizzle.config.ts</code> to apply changes.
           </p>
         </div>
 

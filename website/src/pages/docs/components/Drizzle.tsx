@@ -122,8 +122,8 @@ SUPABASE_STAGING_POOLER_URL=postgresql://user:pass@db.xxx.supabase.co:6543/postg
           code={`# Generate migrations from schema changes
 npx drizzle-kit generate --config=drizzle.config.ts
 
-# Push schema to database
-npx drizzle-kit push --config=drizzle.config.ts
+# Apply migrations
+npx drizzle-kit migrate --config=drizzle.config.ts
 
 # Open Drizzle Studio (GUI)
 npx drizzle-kit studio`}
