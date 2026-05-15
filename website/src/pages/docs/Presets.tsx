@@ -41,6 +41,10 @@ export function Presets() {
                 <td className="py-2 px-4">Full preset + RAG, Chat, Langfuse</td>
               </tr>
               <tr className="border-b">
+                <td className="py-2 px-4"><code>production-api</code></td>
+                <td className="py-2 px-4">Default strict Express API: Supabase, Drizzle, cookie sessions, trusted origins, request limits, Langfuse, and Lambda/SAM files</td>
+              </tr>
+              <tr className="border-b">
                 <td className="py-2 px-4"><code>1</code></td>
                 <td className="py-2 px-4">Supabase + Drizzle + Langfuse + API Audit + GitHub Actions</td>
               </tr>
@@ -51,14 +55,20 @@ export function Presets() {
         <h3 className="scroll-m-20 text-xl font-semibold tracking-tight mt-4">Usage</h3>
 
         <CodeBlock
-          code={`# Use a preset with --yes to skip prompts
+          code={`# Default strict production scaffold
+nod init my-api --yes
+
+# Use a lighter API preset with --yes
 nod init my-api --preset api --yes
 
 # Use the "1" preset
 nod my-api --preset 1 --yes
 
 # AI-focused project
-nod init my-api --preset ai --yes`}
+nod init my-api --preset ai --yes
+
+# Explicit production preset
+nod init my-api --preset production-api --yes`}
           language="bash"
         />
 

@@ -15,13 +15,13 @@ export function Installation() {
           Global Installation
         </h2>
 
-        <p>Install nod-cli globally using npm:</p>
+        <p>Install nod-cli globally using pnpm:</p>
 
-        <CodeBlock code="npm install -g nod-cli" language="bash" />
+        <CodeBlock code="pnpm add -g nod-cli" language="bash" />
 
-        <p>Or use npx to run without installing:</p>
+        <p>Or use pnpm dlx to run without installing:</p>
 
-        <CodeBlock code="npx nod-cli init my-api" language="bash" />
+        <CodeBlock code="pnpm dlx nod-cli init my-api" language="bash" />
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           Create a New Project
@@ -48,8 +48,11 @@ nod my-api`}
         <p>Use flags to skip prompts (great for CI/CD):</p>
 
         <CodeBlock
-          code={`# TypeScript with preset 1
-nod init my-api --preset 1 --yes
+          code={`# Default strict production API
+nod init my-api --yes
+
+# Explicit production preset
+nod init my-api --preset production-api --yes
 
 # JavaScript project with API preset
 nod init my-api --preset api --no-ts --yes
@@ -90,13 +93,23 @@ nod init my-api --framework hono --db supabase --auth supabase --yes`}
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>--auth</code></td>
-                <td className="py-2 px-4">jwt, jwks, supabase, or none</td>
-                <td className="py-2 px-4">jwt</td>
+                <td className="py-2 px-4">jwt, jwks, supabase, cookie-session, or none</td>
+                <td className="py-2 px-4">cookie-session via production-api</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>--preset</code></td>
                 <td className="py-2 px-4">Use a preset configuration</td>
-                <td className="py-2 px-4">-</td>
+                <td className="py-2 px-4">production-api</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>--security</code></td>
+                <td className="py-2 px-4">basic or strict</td>
+                <td className="py-2 px-4">strict via production-api</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>--deploy-target</code></td>
+                <td className="py-2 px-4">node or lambda-sam</td>
+                <td className="py-2 px-4">lambda-sam via production-api</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>-y, --yes</code></td>
@@ -113,10 +126,10 @@ nod init my-api --framework hono --db supabase --auth supabase --yes`}
 
         <CodeBlock
           code={`cd my-api
-npm install
+pnpm install
 cp .env.example .env
 # Edit .env with your settings
-npm run dev`}
+pnpm dev`}
           language="bash"
         />
       </div>

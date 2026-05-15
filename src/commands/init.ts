@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { ProjectConfig } from '../types/index.js';
 import { generateProject } from '../generators/project.js';
 import { loadPresetsConfig, getDefaultPreset, getBuiltinPresets, isBuiltinPreset } from '../utils/presets.js';
+import { DeployTarget, SecurityMode } from '../types/index.js';
 
 export async function initProject(name?: string, options?: any) {
   console.log(chalk.blue.bold('\n🚀 Welcome to nod-cli!\n'));
@@ -22,6 +23,9 @@ export async function initProject(name?: string, options?: any) {
   if (!presetToUse && defaultPreset) {
     presetToUse = defaultPreset;
   }
+  if (!presetToUse && isNonInteractive) {
+    presetToUse = 'production-api';
+  }
   
   // If non-interactive and we have name and preset, skip ALL prompts
   if (isNonInteractive && name && presetToUse) {
@@ -29,14 +33,16 @@ export async function initProject(name?: string, options?: any) {
     // Default to TypeScript (true) unless --no-ts was explicitly passed (options.ts === false)
     const isTS = options?.ts !== false;
     const framework = options?.framework || 'express';
+    const security = (options?.security || presetDefaults.features?.security || 'basic') as SecurityMode;
+    const deployTarget = (options?.deployTarget || presetDefaults.deployment?.target || 'node') as DeployTarget;
     
     config = {
       name,
       framework,
       typescript: isTS,
-      database: presetDefaults.database || 'pg',
-      auth: presetDefaults.auth || 'jwt',
-      queue: presetDefaults.queue || 'none',
+      database: options?.db || presetDefaults.database || 'pg',
+      auth: options?.auth || presetDefaults.auth || 'jwt',
+      queue: options?.queue || presetDefaults.queue || 'none',
       preset: presetToUse,
       orm: presetDefaults.orm || 'raw',
       features: {
@@ -50,6 +56,7 @@ export async function initProject(name?: string, options?: any) {
         sourceConfig: presetDefaults.features?.sourceConfig ?? false,
         modelConfig: presetDefaults.features?.modelConfig ?? false,
         apiAudit: presetDefaults.features?.apiAudit ?? false,
+        security,
       },
       ai: {
         rag: presetDefaults.ai?.rag ?? false,
@@ -64,6 +71,7 @@ export async function initProject(name?: string, options?: any) {
         vercel: presetDefaults.deployment?.vercel ?? false,
         vercelCron: presetDefaults.deployment?.vercelCron ?? false,
         githubWorkflow: presetDefaults.deployment?.githubWorkflow ?? true,
+        target: deployTarget,
       },
       supabase: {
         usePooler: presetDefaults.orm === 'drizzle',
@@ -93,6 +101,7 @@ export async function initProject(name?: string, options?: any) {
     { title: 'API - Standard REST API', value: 'api' },
     { title: 'Full - All features', value: 'full' },
     { title: 'AI - RAG, Chat, Langfuse', value: 'ai' },
+    { title: 'Production API - Strict security + Lambda/SAM ready', value: 'production-api' },
     { title: '1 - Your stack (Supabase + Drizzle + Vercel + AI)', value: '1' },
     ...customPresetNames.map(name => {
       const preset = presetsConfig.presets[name];
@@ -103,7 +112,8 @@ export async function initProject(name?: string, options?: any) {
   ];
   
   // Find initial index for default preset
-  let initialPresetIndex = 1; // default to 'api'
+  let initialPresetIndex = presetChoices.findIndex(c => c.value === 'production-api');
+  if (initialPresetIndex === -1) initialPresetIndex = 1;
   if (defaultPreset) {
     const idx = presetChoices.findIndex(c => c.value === defaultPreset);
     if (idx !== -1) initialPresetIndex = idx;
@@ -171,7 +181,28 @@ export async function initProject(name?: string, options?: any) {
         { title: 'JWT', value: 'jwt' },
         { title: 'JWKS (JWT with key rotation)', value: 'jwks' },
         { title: 'Supabase Auth', value: 'supabase' },
+        { title: 'Cookie Session', value: 'cookie-session' },
         { title: 'None', value: 'none' }
+      ],
+      initial: 0
+    },
+    {
+      type: (_prev, values) => values.preset === 'custom' ? 'select' : null,
+      name: 'security',
+      message: 'Security profile:',
+      choices: [
+        { title: 'Basic', value: 'basic' },
+        { title: 'Strict (trusted origins, CSRF, request limits)', value: 'strict' }
+      ],
+      initial: 0
+    },
+    {
+      type: (_prev, values) => values.preset === 'custom' ? 'select' : null,
+      name: 'deployTarget',
+      message: 'Deployment target:',
+      choices: [
+        { title: 'Node server', value: 'node' },
+        { title: 'AWS Lambda + SAM', value: 'lambda-sam' }
       ],
       initial: 0
     },
@@ -305,19 +336,21 @@ export async function initProject(name?: string, options?: any) {
   }
 
   // Apply preset defaults - use CLI option if provided
-  const selectedPreset = presetToUse || response.preset || 'api';
+  const selectedPreset = presetToUse || response.preset || 'production-api';
   const presetDefaults = await getPresetDefaults(selectedPreset, presetsConfig);
   
   // Determine TypeScript setting from CLI flags (--no-ts sets options.ts to false)
   const useTypeScript = options?.ts !== undefined ? options.ts : (response.typescript !== false);
+  const security = (options?.security || response.security || presetDefaults.features?.security || 'basic') as SecurityMode;
+  const deployTarget = (options?.deployTarget || response.deployTarget || presetDefaults.deployment?.target || 'node') as DeployTarget;
   
   config = {
     name: name || response.name,
     framework: options?.framework || response.framework || 'express',
     typescript: useTypeScript,
-    database: response.database || presetDefaults.database || 'pg',
-    auth: response.auth || presetDefaults.auth || 'jwt',
-    queue: response.queue || presetDefaults.queue || 'none',
+    database: options?.db || response.database || presetDefaults.database || 'pg',
+    auth: options?.auth || response.auth || presetDefaults.auth || 'jwt',
+    queue: options?.queue || response.queue || presetDefaults.queue || 'none',
     preset: selectedPreset,
     orm: response.orm || presetDefaults.orm || 'raw',
     features: {
@@ -331,6 +364,7 @@ export async function initProject(name?: string, options?: any) {
       sourceConfig: presetDefaults.features?.sourceConfig ?? false,
       modelConfig: presetDefaults.features?.modelConfig ?? false,
       apiAudit: presetDefaults.features?.apiAudit ?? false,
+      security,
     },
     ai: {
       rag: response.rag ?? presetDefaults.ai?.rag ?? false,
@@ -345,6 +379,7 @@ export async function initProject(name?: string, options?: any) {
       vercel: response.vercelCron ?? presetDefaults.deployment?.vercel ?? false,
       vercelCron: response.vercelCron ?? presetDefaults.deployment?.vercelCron ?? false,
       githubWorkflow: response.githubWorkflow ?? presetDefaults.deployment?.githubWorkflow ?? true,
+      target: deployTarget,
     },
     supabase: {
       usePooler: response.orm === 'drizzle' || presetDefaults.orm === 'drizzle',
@@ -367,14 +402,14 @@ export async function initProject(name?: string, options?: any) {
 function printNextSteps(config: ProjectConfig) {
   console.log(chalk.blue('\n📦 Next steps:'));
   console.log(chalk.gray(`  cd ${config.name}`));
-  console.log(chalk.gray('  npm install'));
+  console.log(chalk.gray('  pnpm install'));
   console.log(chalk.gray('  cp .env.example .env'));
-  console.log(chalk.gray('  npm run dev\n'));
+  console.log(chalk.gray('  pnpm dev\n'));
 
   if (config.orm === 'drizzle') {
     console.log(chalk.yellow('📝 Drizzle Setup:'));
-    console.log(chalk.gray('  npx drizzle-kit generate'));
-    console.log(chalk.gray('  npx drizzle-kit migrate\n'));
+    console.log(chalk.gray('  pnpm db:generate'));
+    console.log(chalk.gray('  pnpm exec drizzle-kit migrate\n'));
   }
 
   if (config.ai?.rag || config.ai?.chat) {
@@ -461,6 +496,27 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
     },
     ai: { rag: true, chat: true, langfuse: true, embeddings: 'openai' },
     deployment: { vercel: true, vercelCron: true, githubWorkflow: true },
+  },
+  'production-api': {
+    database: 'supabase',
+    auth: 'cookie-session',
+    queue: 'none',
+    orm: 'drizzle',
+    features: {
+      cron: false,
+      cronLock: 'supabase',
+      logging: true,
+      testing: true,
+      docker: false,
+      pm2: false,
+      environments: true,
+      sourceConfig: true,
+      modelConfig: false,
+      apiAudit: true,
+      security: 'strict',
+    },
+    ai: { rag: false, chat: false, langfuse: true, embeddings: 'none' },
+    deployment: { vercel: false, vercelCron: false, githubWorkflow: true, target: 'lambda-sam' },
   },
   // Preset "1" - Your exact stack from sample projects
   '1': {

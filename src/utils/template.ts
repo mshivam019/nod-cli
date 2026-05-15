@@ -16,6 +16,7 @@ export function getTemplateContext(config: ProjectConfig): TemplateContext {
     hasAuth: config.auth !== 'none',
     hasJWKS: config.auth === 'jwks',
     hasSupabaseAuth: config.auth === 'supabase',
+    hasCookieSessionAuth: config.auth === 'cookie-session',
     hasDatabase: config.database !== 'none',
     databaseType: config.database,
     hasQueue: config.queue !== 'none',

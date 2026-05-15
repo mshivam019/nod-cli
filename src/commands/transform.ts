@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
 import { generateAgentsGuide } from '../generators/agents.js';
+import { DEPENDENCIES, DEV_DEPENDENCIES } from '../utils/dependencies.js';
 
 const TRANSFORM_FEATURE_CHOICES = [
   { title: 'Environment Config (staging/production)', value: 'environments' },
@@ -244,7 +245,7 @@ export async function transformProject(options: any) {
         name: packageJson.name,
         supabase: { usePooler: features.includes('drizzle') }
       } as any, ext);
-      depsToAdd['dotenv'] = '^16.3.1';
+      depsToAdd['dotenv'] = DEPENDENCIES.dotenv;
     }
 
     if (features.includes('supabase')) {
@@ -254,19 +255,19 @@ export async function transformProject(options: any) {
         orm: features.includes('drizzle') ? 'drizzle' : 'raw',
         supabase: { usePooler: features.includes('drizzle') }
       } as any, ext);
-      depsToAdd['@supabase/supabase-js'] = '^2.39.0';
+      depsToAdd['@supabase/supabase-js'] = DEPENDENCIES.supabase;
     }
 
     if (features.includes('drizzle')) {
-      depsToAdd['drizzle-orm'] = '^0.29.0';
-      depsToAdd['postgres'] = '^3.4.0';
-      devDepsToAdd['drizzle-kit'] = '^0.20.0';
+      depsToAdd['drizzle-orm'] = DEPENDENCIES.drizzleOrm;
+      depsToAdd['postgres'] = DEPENDENCIES.postgres;
+      devDepsToAdd['drizzle-kit'] = DEV_DEPENDENCIES.drizzleKit;
     }
 
     if (features.includes('supabaseAuth')) {
       const { generateSupabaseJwtAuth } = await import('../generators/supabase.js');
       await generateSupabaseJwtAuth(projectPath, ext);
-      depsToAdd['jose'] = '^5.2.0';
+      depsToAdd['jose'] = DEPENDENCIES.jose;
     }
 
       if (features.includes('vercelCron')) {
@@ -305,29 +306,29 @@ export async function transformProject(options: any) {
         await generateRAGController(projectPath, ext);
       }
       
-      depsToAdd['@langchain/core'] = '^0.3.0';
+      depsToAdd['@langchain/core'] = DEPENDENCIES.langchainCore;
       
       // Embedding provider dependencies
       if (ragConfig.embeddingProvider === 'openai') {
-        depsToAdd['@langchain/openai'] = '^0.3.0';
+        depsToAdd['@langchain/openai'] = DEPENDENCIES.langchainOpenai;
       } else if (ragConfig.embeddingProvider === 'gemini') {
-        depsToAdd['@langchain/google-genai'] = '^0.1.0';
+        depsToAdd['@langchain/google-genai'] = DEPENDENCIES.langchainGoogleGenai;
       } else if (ragConfig.embeddingProvider === 'cohere') {
-        depsToAdd['@langchain/cohere'] = '^0.3.0';
+        depsToAdd['@langchain/cohere'] = DEPENDENCIES.langchainCohere;
       }
       
       // Vector store dependencies
       if (ragConfig.vectorStore === 'supabase') {
-        depsToAdd['@supabase/supabase-js'] = '^2.39.0';
+        depsToAdd['@supabase/supabase-js'] = DEPENDENCIES.supabase;
       } else if (ragConfig.vectorStore === 'pinecone') {
-        depsToAdd['@pinecone-database/pinecone'] = '^2.0.0';
-        depsToAdd['@langchain/pinecone'] = '^0.1.0';
+        depsToAdd['@pinecone-database/pinecone'] = DEPENDENCIES.pinecone;
+        depsToAdd['@langchain/pinecone'] = DEPENDENCIES.langchainPinecone;
       } else if (ragConfig.vectorStore === 'chroma') {
-        depsToAdd['chromadb'] = '^1.7.0';
-        depsToAdd['@langchain/community'] = '^0.3.0';
+        depsToAdd['chromadb'] = DEPENDENCIES.chromadb;
+        depsToAdd['@langchain/community'] = DEPENDENCIES.langchainCommunity;
       } else if (ragConfig.vectorStore === 'weaviate') {
-        depsToAdd['weaviate-ts-client'] = '^2.0.0';
-        depsToAdd['@langchain/weaviate'] = '^0.1.0';
+        depsToAdd['weaviate-ts-client'] = DEPENDENCIES.weaviate;
+        depsToAdd['@langchain/weaviate'] = DEPENDENCIES.langchainWeaviate;
       }
     }
 
@@ -354,35 +355,41 @@ export async function transformProject(options: any) {
         await generateChatController(projectPath, chatConfig.llmProvider, ext);
       }
       
-      depsToAdd['@langchain/core'] = '^0.3.0';
+      depsToAdd['@langchain/core'] = DEPENDENCIES.langchainCore;
       
       // LLM provider dependencies
       if (chatConfig.llmProvider === 'openai') {
-        depsToAdd['@langchain/openai'] = '^0.3.0';
+        depsToAdd['@langchain/openai'] = DEPENDENCIES.langchainOpenai;
       } else if (chatConfig.llmProvider === 'anthropic') {
-        depsToAdd['@langchain/anthropic'] = '^0.3.0';
+        depsToAdd['@langchain/anthropic'] = DEPENDENCIES.langchainAnthropic;
       } else if (chatConfig.llmProvider === 'gemini') {
-        depsToAdd['@langchain/google-genai'] = '^0.1.0';
+        depsToAdd['@langchain/google-genai'] = DEPENDENCIES.langchainGoogleGenai;
       }
       
       // Database dependencies
       if (chatConfig.chatDatabase === 'supabase') {
-        depsToAdd['@supabase/supabase-js'] = '^2.39.0';
+        depsToAdd['@supabase/supabase-js'] = DEPENDENCIES.supabase;
       } else if (chatConfig.chatDatabase === 'pg') {
-        depsToAdd['pg'] = '^8.11.0';
+        depsToAdd['pg'] = DEPENDENCIES.pg;
       } else if (chatConfig.chatDatabase === 'mysql') {
-        depsToAdd['mysql2'] = '^3.6.0';
+        depsToAdd['mysql2'] = DEPENDENCIES.mysql2;
       }
       
       // Langfuse
       if (chatConfig.langfuse) {
-        depsToAdd['langfuse-langchain'] = '^3.3.0';
-        depsToAdd['langchain'] = '^0.3.0'; // Required peer dependency for langfuse-langchain
+        depsToAdd['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
+        depsToAdd['@langfuse/core'] = DEPENDENCIES.langfuseCore;
+        depsToAdd['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
+        depsToAdd['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
+        depsToAdd['langchain'] = DEPENDENCIES.langchain;
       }
     }
 
     if (features.includes('langfuse')) {
-      depsToAdd['langfuse-langchain'] = '^3.3.0';
+      depsToAdd['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
+      depsToAdd['@langfuse/core'] = DEPENDENCIES.langfuseCore;
+      depsToAdd['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
+      depsToAdd['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
     }
 
     if (features.includes('modelSelection')) {
@@ -411,7 +418,7 @@ export async function transformProject(options: any) {
 
     if (features.includes('logger')) {
       await generateLogger(projectPath, ext);
-      depsToAdd['winston'] = '^3.11.0';
+      depsToAdd['winston'] = DEPENDENCIES.winston;
     }
 
     if (features.includes('responseFormatter')) {
@@ -469,17 +476,39 @@ export async function transformProject(options: any) {
 }
 
 async function generateErrorHandler(projectPath: string, ext: string) {
-  const content = `import logger from '../utils/logger.js';
+  const isTS = ext === 'ts';
+  const content = isTS
+    ? `import logger from '../utils/logger.js';
 
 interface ErrorWithStatus extends Error {
   statusCode?: number;
 }
 
-const errorHandler = (err: ErrorWithStatus, req: any, res: any, next: any) => {
+const errorHandler = (err: ErrorWithStatus, _req: any, res: any, _next: any) => {
   logger.error(err.stack || err.message);
 
   const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
+  const exposeDetails = process.env.NODE_ENV !== 'production' || statusCode < 500;
+  const message = exposeDetails ? (err.message || 'Internal Server Error') : 'Internal Server Error';
+
+  res.status(statusCode).json({
+    status: 'error',
+    statusCode,
+    message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+};
+
+export default errorHandler;
+`
+    : `import logger from '../utils/logger.js';
+
+const errorHandler = (err, _req, res, _next) => {
+  logger.error(err.stack || err.message);
+
+  const statusCode = err.statusCode || 500;
+  const exposeDetails = process.env.NODE_ENV !== 'production' || statusCode < 500;
+  const message = exposeDetails ? (err.message || 'Internal Server Error') : 'Internal Server Error';
 
   res.status(statusCode).json({
     status: 'error',
@@ -523,7 +552,9 @@ export default logger;
 }
 
 async function generateResponseFormatter(projectPath: string, ext: string) {
-  const content = `import logger from '../utils/logger.js';
+  const isTS = ext === 'ts';
+  const content = isTS
+    ? `import logger from '../utils/logger.js';
 
 /**
  * Parses a raw string response into a JSON object
@@ -586,15 +617,97 @@ export const apiResponse = {
     message: message || 'Success',
     data
   }),
-  
+
   error: (message: string, statusCode: number = 500, details?: any) => ({
     success: false,
     message,
     statusCode,
     ...(details && { details })
   }),
-  
+
   paginated: (data: any[], page: number, limit: number, total: number) => ({
+    success: true,
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: page * limit < total
+    }
+  })
+};
+`
+    : `import logger from '../utils/logger.js';
+
+/**
+ * Parses a raw string response into a JSON object
+ */
+export const formatJsonResponse = (rawResponse) => {
+  if (rawResponse === null || rawResponse === undefined) {
+    return { error: 'Invalid input: null or undefined value provided.' };
+  }
+
+  if (typeof rawResponse === 'object') {
+    if (rawResponse.error) return rawResponse;
+    try {
+      return JSON.parse(JSON.stringify(rawResponse));
+    } catch (error) {
+      return { error: 'Invalid input: object is not JSON-serializable.', details: error.message };
+    }
+  }
+
+  if (typeof rawResponse !== 'string') {
+    return { error: 'Invalid input type for JSON formatting.', inputType: typeof rawResponse };
+  }
+
+  if (rawResponse.trim() === '') {
+    return { error: 'Invalid input: empty string provided.' };
+  }
+
+  let cleanedString = rawResponse;
+
+  try {
+    return JSON.parse(cleanedString);
+  } catch (_error) {
+    // Continue with cleaning.
+  }
+
+  const codeBlockMatch = cleanedString.trim().match(/\`\`\`json\\s*([\\s\\S]*?)\\s*\`\`\`/i);
+  if (codeBlockMatch) {
+    cleanedString = codeBlockMatch[1].trim();
+  }
+
+  try {
+    return JSON.parse(cleanedString);
+  } catch (error) {
+    logger.error('Failed to parse JSON response', { error: error.message });
+    return {
+      error: 'Failed to format response as JSON.',
+      details: error.message,
+      originalLength: rawResponse.length
+    };
+  }
+};
+
+/**
+ * Standard API response formatter
+ */
+export const apiResponse = {
+  success: (data, message) => ({
+    success: true,
+    message: message || 'Success',
+    data
+  }),
+
+  error: (message, statusCode = 500, details) => ({
+    success: false,
+    message,
+    statusCode,
+    ...(details && { details })
+  }),
+
+  paginated: (data, page, limit, total) => ({
     success: true,
     data,
     pagination: {

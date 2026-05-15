@@ -23,11 +23,13 @@ export async function mcpCommand(options: { name?: string }) {
         {
           type: "text",
           text: [
-            "nod init my-api --preset api --yes",
+            "nod init my-api --preset production-api --yes",
+            "nod init my-api --preset api --security strict --deploy-target lambda-sam --yes",
             "nod add route --name users --method get --path /users --yes",
             "nod transform --features drizzle,github --yes",
             "nod validate",
             "nod preset list",
+            "Generated projects are pnpm-first: run pnpm install, pnpm dev, pnpm build.",
           ].join("\n"),
         },
       ],

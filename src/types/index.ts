@@ -1,11 +1,13 @@
 export type Framework = 'express' | 'hono';
 export type Database = 'pg' | 'mysql' | 'none' | 'supabase' | 'drizzle';
-export type Auth = 'jwt' | 'jwks' | 'supabase' | 'none';
+export type Auth = 'jwt' | 'jwks' | 'supabase' | 'cookie-session' | 'none';
 export type AuthMode = 'email-password' | 'oauth-only' | 'both';
 export type Queue = 'bull' | 'none';
-export type Preset = 'minimal' | 'api' | 'full' | 'ai' | '1' | 'custom';
+export type Preset = 'minimal' | 'api' | 'full' | 'ai' | 'production-api' | '1' | 'custom';
 export type CronLock = 'pg' | 'mysql' | 'redis' | 'file' | 'supabase';
 export type ORM = 'drizzle' | 'raw' | 'none';
+export type SecurityMode = 'basic' | 'strict';
+export type DeployTarget = 'node' | 'lambda-sam';
 
 // AI-related types
 export type EmbeddingProvider = 'openai' | 'gemini' | 'cohere' | 'none';
@@ -38,6 +40,7 @@ export interface DeploymentFeatures {
   vercel?: boolean;
   vercelCron?: boolean;
   githubWorkflow?: boolean;
+  target?: DeployTarget;
 }
 
 export interface ProjectConfig {
@@ -60,6 +63,7 @@ export interface ProjectConfig {
     sourceConfig?: boolean;
     modelConfig?: boolean;
     apiAudit?: boolean;
+    security?: SecurityMode;
   };
   ai?: AIFeatures;
   deployment?: DeploymentFeatures;
@@ -93,6 +97,7 @@ export interface TemplateContext {
   hasAuth: boolean;
   hasJWKS: boolean;
   hasSupabaseAuth: boolean;
+  hasCookieSessionAuth: boolean;
   hasDatabase: boolean;
   databaseType: string;
   hasQueue: boolean;
@@ -125,6 +130,8 @@ export interface NodConfig {
   database: Database;
   orm: ORM;
   auth: Auth;
+  security?: SecurityMode;
+  deployTarget?: DeployTarget;
   
   // Paths for code generation
   paths: {
@@ -147,6 +154,9 @@ export interface NodConfig {
       googleOAuth?: boolean;
       emailService?: boolean;
       authMode?: AuthMode;
+    };
+    security?: {
+      mode?: SecurityMode;
     };
     ai?: {
       rag?: boolean;

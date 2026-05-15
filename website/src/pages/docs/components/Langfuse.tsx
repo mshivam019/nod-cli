@@ -6,7 +6,7 @@ export function LangfuseComponent() {
       <div>
         <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">Langfuse</h1>
         <p className="text-lg text-muted-foreground mt-2">
-          LLM observability and tracing for monitoring your AI features.
+          LLM observability, LangChain callbacks, manual generation logging, and OpenTelemetry tracing.
         </p>
       </div>
 
@@ -14,18 +14,18 @@ export function LangfuseComponent() {
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
           Installation
         </h2>
-        <CodeBlock code={`nod add langfuse`} language="bash" />
+        <CodeBlock code={`nod add langfuse\npnpm install`} language="bash" />
       </section>
 
       <section className="space-y-4">
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
-          What it Does
+          What it Generates
         </h2>
         <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-          <li>Adds <code className="bg-muted px-1 rounded">langfuse-langchain</code> dependency</li>
-          <li>Enables tracing of all LangChain calls</li>
-          <li>Tracks token usage, latency, and costs</li>
-          <li>Provides debugging and analytics dashboard</li>
+          <li><code className="bg-muted px-1 rounded">@langfuse/langchain</code> callback helpers</li>
+          <li><code className="bg-muted px-1 rounded">@langfuse/core</code> ingestion logging via <code>langfuseService.logGeneration</code></li>
+          <li><code className="bg-muted px-1 rounded">@langfuse/otel</code> OpenTelemetry initialization</li>
+          <li>Environment-aware production and staging Langfuse keys</li>
         </ul>
       </section>
 
@@ -36,7 +36,11 @@ export function LangfuseComponent() {
         <CodeBlock
           code={`LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_HOST=https://cloud.langfuse.com  # or self-hosted URL`}
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+
+LANGFUSE_STAGING_PUBLIC_KEY=pk-lf-...
+LANGFUSE_STAGING_SECRET_KEY=sk-lf-...
+LANGFUSE_STAGING_BASE_URL=https://cloud.langfuse.com`}
           language="bash"
         />
       </section>
@@ -47,174 +51,60 @@ LANGFUSE_HOST=https://cloud.langfuse.com  # or self-hosted URL`}
         </h2>
         <CodeBlock
           tsCode={`import { ChatOpenAI } from '@langchain/openai';
-import { CallbackHandler } from 'langfuse-langchain';
+import { createLangfuseCallbacks } from '../config/config.js';
+import { langfuseService } from '../services/langfuse.service.js';
 
-// Create Langfuse callback handler
-const langfuseHandler = new CallbackHandler({
-  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-  secretKey: process.env.LANGFUSE_SECRET_KEY,
-  baseUrl: process.env.LANGFUSE_HOST,
+const llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+const startedAt = new Date().toISOString();
+
+const response = await llm.invoke('Hello!', {
+  callbacks: createLangfuseCallbacks({
+    userId: 'user-123',
+    sessionId: 'session-456',
+    tags: ['llm', 'openai', 'chat'],
+    traceMetadata: { feature: 'chat' },
+  }),
+  metadata: { provider: 'openai', feature: 'chat' },
 });
 
-// Use with LangChain
-const llm = new ChatOpenAI({
-  modelName: 'gpt-4o-mini',
-  callbacks: [langfuseHandler],
-});
-
-// All calls are now traced
-const response = await llm.invoke([
-  { role: 'user', content: 'Hello!' }
-]);
-
-// Add custom metadata to traces
-const handlerWithMetadata = new CallbackHandler({
-  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-  secretKey: process.env.LANGFUSE_SECRET_KEY,
+await langfuseService.logGeneration({
+  name: 'openai.chat',
+  model: 'gpt-4o-mini',
+  startedAt,
+  endedAt: new Date().toISOString(),
+  input: 'Hello!',
+  output: response.content,
   userId: 'user-123',
   sessionId: 'session-456',
-  metadata: { feature: 'chat', version: '1.0' },
 });`}
           jsCode={`import { ChatOpenAI } from '@langchain/openai';
-import { CallbackHandler } from 'langfuse-langchain';
+import { createLangfuseCallbacks } from '../config/config.js';
+import { langfuseService } from '../services/langfuse.service.js';
 
-// Create Langfuse callback handler
-const langfuseHandler = new CallbackHandler({
-  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-  secretKey: process.env.LANGFUSE_SECRET_KEY,
-  baseUrl: process.env.LANGFUSE_HOST,
+const llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
+const startedAt = new Date().toISOString();
+
+const response = await llm.invoke('Hello!', {
+  callbacks: createLangfuseCallbacks({
+    userId: 'user-123',
+    sessionId: 'session-456',
+    tags: ['llm', 'openai', 'chat'],
+    traceMetadata: { feature: 'chat' },
+  }),
+  metadata: { provider: 'openai', feature: 'chat' },
 });
 
-// Use with LangChain
-const llm = new ChatOpenAI({
-  modelName: 'gpt-4o-mini',
-  callbacks: [langfuseHandler],
-});
-
-// All calls are now traced
-const response = await llm.invoke([
-  { role: 'user', content: 'Hello!' }
-]);
-
-// Add custom metadata to traces
-const handlerWithMetadata = new CallbackHandler({
-  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-  secretKey: process.env.LANGFUSE_SECRET_KEY,
+await langfuseService.logGeneration({
+  name: 'openai.chat',
+  model: 'gpt-4o-mini',
+  startedAt,
+  endedAt: new Date().toISOString(),
+  input: 'Hello!',
+  output: response.content,
   userId: 'user-123',
   sessionId: 'session-456',
-  metadata: { feature: 'chat', version: '1.0' },
 });`}
         />
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
-          Manual Tracing
-        </h2>
-        <CodeBlock
-          tsCode={`import { Langfuse } from 'langfuse';
-
-const langfuse = new Langfuse({
-  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-  secretKey: process.env.LANGFUSE_SECRET_KEY,
-});
-
-// Create a trace
-const trace = langfuse.trace({
-  name: 'rag-query',
-  userId: 'user-123',
-  metadata: { query: 'What is RAG?' },
-});
-
-// Add spans for sub-operations
-const span = trace.span({
-  name: 'embedding-generation',
-  input: { text: 'What is RAG?' },
-});
-
-// ... do embedding work ...
-
-span.end({ output: { dimensions: 1536 } });
-
-// Add generation for LLM calls
-const generation = trace.generation({
-  name: 'llm-response',
-  model: 'gpt-4o-mini',
-  input: messages,
-  output: response,
-  usage: { promptTokens: 100, completionTokens: 50 },
-});
-
-// Flush at the end
-await langfuse.flushAsync();`}
-          jsCode={`import { Langfuse } from 'langfuse';
-
-const langfuse = new Langfuse({
-  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-  secretKey: process.env.LANGFUSE_SECRET_KEY,
-});
-
-// Create a trace
-const trace = langfuse.trace({
-  name: 'rag-query',
-  userId: 'user-123',
-  metadata: { query: 'What is RAG?' },
-});
-
-// Add spans for sub-operations
-const span = trace.span({
-  name: 'embedding-generation',
-  input: { text: 'What is RAG?' },
-});
-
-// ... do embedding work ...
-
-span.end({ output: { dimensions: 1536 } });
-
-// Add generation for LLM calls
-const generation = trace.generation({
-  name: 'llm-response',
-  model: 'gpt-4o-mini',
-  input: messages,
-  output: response,
-  usage: { promptTokens: 100, completionTokens: 50 },
-});
-
-// Flush at the end
-await langfuse.flushAsync();`}
-        />
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
-          Features
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2 mt-4">
-          <div className="rounded-lg border p-4">
-            <h4 className="font-medium">Tracing</h4>
-            <p className="text-sm text-muted-foreground mt-1">
-              Full visibility into LLM calls, latency, and token usage
-            </p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <h4 className="font-medium">Analytics</h4>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track costs, usage patterns, and performance metrics
-            </p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <h4 className="font-medium">Debugging</h4>
-            <p className="text-sm text-muted-foreground mt-1">
-              Inspect prompts, responses, and intermediate steps
-            </p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <h4 className="font-medium">Evaluation</h4>
-            <p className="text-sm text-muted-foreground mt-1">
-              Score and evaluate LLM outputs for quality
-            </p>
-          </div>
-        </div>
       </section>
     </div>
   )

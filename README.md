@@ -17,14 +17,17 @@ nod init my-api
 # Or use shorthand
 nod my-api
 
-# Non-interactive with preset (TypeScript by default)
+# Non-interactive default: strict production API (TypeScript by default)
+nod init my-api --yes
+
+# Or pick a specific preset
 nod init my-api --preset 1 --framework express --yes
 
 # Non-interactive with JavaScript
 nod init my-api --preset api --no-ts --yes
 
 # Follow the interactive prompts to configure:
-# - Preset (minimal, api, full, ai, 1, or custom presets)
+# - Preset (production-api, minimal, api, full, ai, 1, or custom presets)
 # - Framework (Express/Hono)
 # - TypeScript/JavaScript
 # - Database (PostgreSQL/MySQL/Supabase/None)
@@ -39,12 +42,13 @@ nod init my-api --preset api --no-ts --yes
 
 | Preset    | Description                                                             |
 | --------- | ----------------------------------------------------------------------- |
-| `minimal` | Basic setup, no database or auth                                        |
-| `api`     | Standard REST API with JWT auth                                         |
-| `full`    | All features including Supabase, Drizzle, Vercel cron                   |
-| `ai`      | Full preset + RAG, Chat, Langfuse                                       |
-| `1`       | Your stack - Supabase + Drizzle + Langfuse + API Audit + GitHub Actions |
-| `custom`  | Choose your own features                                                |
+| `production-api` | Default strict API: Supabase, Drizzle, cookie sessions, request limits, trusted origins, Langfuse, Lambda/SAM |
+| `minimal`        | Basic setup, no database or auth                                                                            |
+| `api`            | Standard REST API with JWT auth                                                                             |
+| `full`           | All features including Supabase, Drizzle, Vercel cron                                                       |
+| `ai`             | Full preset + RAG, Chat, Langfuse                                                                           |
+| `1`              | Your stack - Supabase + Drizzle + Langfuse + API Audit + GitHub Actions                                     |
+| `custom`         | Choose your own features                                                                                    |
 
 ### Custom Presets
 
@@ -91,9 +95,11 @@ nod <project-name>
 | `--ts`                    | Use TypeScript                                 | `true`    |
 | `--no-ts`                 | Use JavaScript instead of TypeScript           | -         |
 | `--db <database>`         | Database: `pg`, `mysql`, `supabase`, or `none` | `pg`      |
-| `--auth <auth>`           | Auth: `jwt`, `jwks`, `supabase`, or `none`     | `jwt`     |
+| `--auth <auth>`           | Auth: `jwt`, `jwks`, `supabase`, `cookie-session`, or `none` | preset |
 | `--queue <queue>`         | Queue: `bull` or `none`                        | `none`    |
-| `--preset <preset>`       | Use a preset configuration                     | -         |
+| `--preset <preset>`       | Use a preset configuration                     | `production-api` in non-interactive mode |
+| `--security <mode>`       | Security: `basic` or `strict`                  | preset    |
+| `--deploy-target <target>`| Deploy target: `node` or `lambda-sam`          | preset    |
 | `-y, --yes`               | Skip prompts, use defaults                     | -         |
 
 #### Examples
@@ -340,22 +346,22 @@ my-api/
 
 ```bash
 cd my-api
-npm install
+pnpm install
 cp .env.example .env
 # Edit .env with your settings
-npm run dev
+pnpm dev
 ```
 
 ### Available Scripts
 
 | Script           | Description                              |
 | ---------------- | ---------------------------------------- |
-| `npm run dev`    | Start development server with hot reload |
-| `npm run build`  | Build for production (TypeScript only)   |
-| `npm start`      | Start production server                  |
-| `npm run lint`   | Lint code with ESLint                    |
-| `npm run format` | Format code with Prettier                |
-| `npm test`       | Run tests (if testing enabled)           |
+| `pnpm dev`    | Start development server with hot reload |
+| `pnpm build`  | Build for production (TypeScript only)   |
+| `pnpm start`  | Start production server                  |
+| `pnpm lint`   | Lint code with ESLint                    |
+| `pnpm format` | Format code with Prettier                |
+| `pnpm test`   | Run tests (if testing enabled)           |
 
 ### Production
 

@@ -6,6 +6,7 @@ import { generateHonoProject } from './frameworks/hono.js';
 import { generateAgentsGuide } from './agents.js';
 import { getTemplateContext } from '../utils/template.js';
 import { createNodConfig, saveNodConfig } from '../utils/config.js';
+import { DEPENDENCIES, DEV_DEPENDENCIES } from '../utils/dependencies.js';
 
 function getProjectTablePrefix(projectName: string): string {
   const [firstSegment] = projectName.split('-');
@@ -83,6 +84,16 @@ export async function generateProject(config: ProjectConfig) {
   if (config.features.docker !== false) {
     await generateDockerFiles(projectPath, config);
   }
+
+  if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+    const { generateStrictSecurity } = await import('./security.js');
+    await generateStrictSecurity(projectPath, config, ext);
+  }
+
+  if (config.deployment?.target === 'lambda-sam') {
+    const { generateLambdaSam } = await import('./serverless.js');
+    await generateLambdaSam(projectPath, config, ext);
+  }
   
   await generateScripts(projectPath, config);
   
@@ -140,6 +151,11 @@ export async function generateProject(config: ProjectConfig) {
   if (config.ai?.chat) {
     const { generateChatService } = await import('./ai.js');
     await generateChatService(projectPath, config, ext);
+  }
+
+  if (config.ai?.langfuse) {
+    const { generateLangfuseObservability } = await import('./observability.js');
+    await generateLangfuseObservability(projectPath, config, ext);
   }
 
   // Generate model/source config
@@ -304,132 +320,177 @@ export const config = {
 
 async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   const dependencies: Record<string, string> = {
-    'dotenv': '^17.3.1',
+    'dotenv': DEPENDENCIES.dotenv,
   };
   
   const devDependencies: Record<string, string> = {
-    'nodemon': '^3.0.2',
-    'eslint': '^10.0.2',
-    '@eslint/js': '^10.0.1',
-    'prettier': '^3.1.1',
+    'nodemon': DEV_DEPENDENCIES.nodemon,
+    'eslint': DEV_DEPENDENCIES.eslint,
+    '@eslint/js': DEV_DEPENDENCIES.eslintJs,
+    'prettier': DEV_DEPENDENCIES.prettier,
   };
 
+  if (config.typescript || config.features.environments) {
+    dependencies['zod'] = DEPENDENCIES.zod;
+  }
+
   if (config.typescript) {
-    dependencies['zod'] = '^4.3.6';
-    devDependencies['@types/node'] = '^25.3.1';
-    devDependencies['typescript'] = '^5.3.3';
-    devDependencies['tsx'] = '^4.7.0';
-    devDependencies['@typescript-eslint/parser'] = '^8.43.0';
-    devDependencies['@typescript-eslint/eslint-plugin'] = '^8.43.0';
+    devDependencies['@types/node'] = DEV_DEPENDENCIES.typesNode;
+    devDependencies['typescript'] = DEV_DEPENDENCIES.typescript;
+    devDependencies['tsx'] = DEV_DEPENDENCIES.tsx;
+    devDependencies['@typescript-eslint/parser'] = DEV_DEPENDENCIES.typescriptEslintParser;
+    devDependencies['@typescript-eslint/eslint-plugin'] = DEV_DEPENDENCIES.typescriptEslintPlugin;
   }
 
   if (config.framework === 'express') {
-    dependencies['express'] = '^5.2.1';
-    dependencies['cors'] = '^2.8.5';
-    dependencies['helmet'] = '^8.1.0';
-    dependencies['morgan'] = '^1.10.0';
+    dependencies['express'] = DEPENDENCIES.express;
+    dependencies['cors'] = DEPENDENCIES.cors;
+    dependencies['helmet'] = DEPENDENCIES.helmet;
+    dependencies['morgan'] = DEPENDENCIES.morgan;
+    if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+      dependencies['cookie-parser'] = DEPENDENCIES.cookieParser;
+    }
     if (config.typescript) {
-      devDependencies['@types/express'] = '^5.0.6';
-      devDependencies['@types/cors'] = '^2.8.17';
-      devDependencies['@types/morgan'] = '^1.9.9';
+      devDependencies['@types/express'] = DEV_DEPENDENCIES.typesExpress;
+      devDependencies['@types/cors'] = DEV_DEPENDENCIES.typesCors;
+      devDependencies['@types/morgan'] = DEV_DEPENDENCIES.typesMorgan;
+      if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+        devDependencies['@types/cookie-parser'] = DEV_DEPENDENCIES.typesCookieParser;
+      }
     }
   } else if (config.framework === 'hono') {
-    dependencies['hono'] = '^4.6.0';
-    dependencies['@hono/node-server'] = '^1.13.0';
+    dependencies['hono'] = DEPENDENCIES.hono;
+    dependencies['@hono/node-server'] = DEPENDENCIES.honoNodeServer;
   }
 
   // Auth dependencies
   if (config.auth === 'jwt') {
-    dependencies['jsonwebtoken'] = '^9.0.2';
+    dependencies['jsonwebtoken'] = DEPENDENCIES.jsonwebtoken;
     if (config.typescript) {
-      devDependencies['@types/jsonwebtoken'] = '^9.0.5';
+      devDependencies['@types/jsonwebtoken'] = DEV_DEPENDENCIES.typesJsonwebtoken;
     }
   }
 
   if (config.auth === 'jwks') {
-    dependencies['jsonwebtoken'] = '^9.0.2';
-    dependencies['jwks-rsa'] = '^3.1.0';
+    dependencies['jsonwebtoken'] = DEPENDENCIES.jsonwebtoken;
+    dependencies['jwks-rsa'] = DEPENDENCIES.jwksRsa;
     if (config.typescript) {
-      devDependencies['@types/jsonwebtoken'] = '^9.0.5';
+      devDependencies['@types/jsonwebtoken'] = DEV_DEPENDENCIES.typesJsonwebtoken;
     }
   }
 
   if (config.auth === 'supabase') {
-    dependencies['jose'] = '^6.1.3';
+    dependencies['jose'] = DEPENDENCIES.jose;
   }
 
   // Database dependencies
   if (config.database === 'pg') {
-    dependencies['pg'] = '^8.11.3';
+    dependencies['pg'] = DEPENDENCIES.pg;
     if (config.typescript) {
-      devDependencies['@types/pg'] = '^8.10.9';
+      devDependencies['@types/pg'] = DEV_DEPENDENCIES.typesPg;
     }
   } else if (config.database === 'mysql') {
-    dependencies['mysql2'] = '^3.6.5';
+    dependencies['mysql2'] = DEPENDENCIES.mysql2;
   } else if (config.database === 'supabase') {
-    dependencies['@supabase/supabase-js'] = '^2.39.0';
+    dependencies['@supabase/supabase-js'] = DEPENDENCIES.supabase;
   }
 
   // ORM dependencies
   if (config.orm === 'drizzle') {
-    dependencies['drizzle-orm'] = '^0.45.1';
-    dependencies['postgres'] = '^3.4.0';
-    devDependencies['drizzle-kit'] = '^0.31.9';
+    dependencies['drizzle-orm'] = DEPENDENCIES.drizzleOrm;
+    dependencies['postgres'] = DEPENDENCIES.postgres;
+    devDependencies['drizzle-kit'] = DEV_DEPENDENCIES.drizzleKit;
   }
 
   // Cron dependencies
   if (config.features.cron) {
-    dependencies['node-cron'] = '^3.0.3';
+    dependencies['node-cron'] = DEPENDENCIES.nodeCron;
     if (config.typescript) {
-      devDependencies['@types/node-cron'] = '^3.0.11';
+      devDependencies['@types/node-cron'] = DEV_DEPENDENCIES.typesNodeCron;
     }
   }
 
   // Queue dependencies
   if (config.queue === 'bull') {
-    dependencies['bullmq'] = '^5.1.0';
-    dependencies['ioredis'] = '^5.3.2';
+    dependencies['bullmq'] = DEPENDENCIES.bullmq;
+    dependencies['ioredis'] = DEPENDENCIES.ioredis;
   }
 
   // Logging
-  dependencies['winston'] = '^3.11.0';
+  dependencies['winston'] = DEPENDENCIES.winston;
 
   // AI dependencies
   if (config.ai?.rag || config.ai?.chat) {
-    dependencies['@langchain/openai'] = '^0.6.0';
-    dependencies['@langchain/core'] = '^0.3.78';
-    dependencies['langchain'] = '^0.3.27';
+    dependencies['@langchain/core'] = DEPENDENCIES.langchainCore;
+    dependencies['langchain'] = DEPENDENCIES.langchain;
+  }
+
+  if (config.ai?.rag) {
+    if ((config.ai.embeddings || 'openai') === 'openai') {
+      dependencies['@langchain/openai'] = DEPENDENCIES.langchainOpenai;
+    } else if (config.ai.embeddings === 'gemini') {
+      dependencies['@langchain/google-genai'] = DEPENDENCIES.langchainGoogleGenai;
+    } else if (config.ai.embeddings === 'cohere') {
+      dependencies['@langchain/cohere'] = DEPENDENCIES.langchainCohere;
+    }
+
+    if ((config.ai.vectorStore || 'supabase') === 'supabase') {
+      dependencies['@supabase/supabase-js'] = DEPENDENCIES.supabase;
+    } else if (config.ai.vectorStore === 'pinecone') {
+      dependencies['@pinecone-database/pinecone'] = DEPENDENCIES.pinecone;
+      dependencies['@langchain/pinecone'] = DEPENDENCIES.langchainPinecone;
+    } else if (config.ai.vectorStore === 'chroma') {
+      dependencies['chromadb'] = DEPENDENCIES.chromadb;
+      dependencies['@langchain/community'] = DEPENDENCIES.langchainCommunity;
+    } else if (config.ai.vectorStore === 'weaviate') {
+      dependencies['weaviate-ts-client'] = DEPENDENCIES.weaviate;
+      dependencies['@langchain/weaviate'] = DEPENDENCIES.langchainWeaviate;
+    }
+  }
+
+  if (config.ai?.chat) {
+    if ((config.ai.llmProvider || 'openai') === 'openai') {
+      dependencies['@langchain/openai'] = DEPENDENCIES.langchainOpenai;
+    } else if (config.ai.llmProvider === 'anthropic') {
+      dependencies['@langchain/anthropic'] = DEPENDENCIES.langchainAnthropic;
+    } else if (config.ai.llmProvider === 'gemini') {
+      dependencies['@langchain/google-genai'] = DEPENDENCIES.langchainGoogleGenai;
+    }
   }
 
   if (config.ai?.langfuse) {
-    // Add langfuse-langchain for LLM observability
-    // These versions are compatible with @langchain/core@^0.3.x
-    dependencies['langfuse-langchain'] = '^3.37.0';
+    dependencies['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
+    dependencies['@langfuse/core'] = DEPENDENCIES.langfuseCore;
+    dependencies['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
+    dependencies['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
     
-    // If langfuse is enabled but no RAG/chat, still need langchain core
     if (!config.ai?.rag && !config.ai?.chat) {
-      dependencies['@langchain/core'] = '^0.3.78';
-      dependencies['langchain'] = '^0.3.27';
+      dependencies['@langchain/core'] = DEPENDENCIES.langchainCore;
+      dependencies['langchain'] = DEPENDENCIES.langchain;
     }
   }
 
   if (config.features.pm2) {
-    devDependencies['pm2'] = '^6.0.14';
+    devDependencies['pm2'] = DEV_DEPENDENCIES.pm2;
   }
 
   if (config.features.testing) {
-    devDependencies['vitest'] = '^1.0.4';
+    devDependencies['vitest'] = DEV_DEPENDENCIES.vitest;
+  }
+
+  if (config.deployment?.target === 'lambda-sam') {
+    dependencies['serverless-http'] = DEPENDENCIES.serverlessHttp;
   }
 
   const ext = config.typescript ? 'ts' : 'js';
   const drizzleConfigFile = config.typescript ? 'drizzle.config.ts' : 'drizzle.config.js';
-  const entryBaseName = config.framework === 'express' ? 'app' : 'server';
+  const entryBaseName = 'server';
   const scripts: Record<string, string> = {
     dev: config.typescript 
       ? `tsx watch src/${entryBaseName}.${ext}`
       : `nodemon src/${entryBaseName}.${ext}`,
     build: config.typescript ? 'tsc' : 'echo "No build needed for JS"',
-    start: config.typescript ? `node dist/${entryBaseName}.js` : `node src/${entryBaseName}.${ext}`,
+    start: config.typescript ? `node dist/server.js` : `node src/server.${ext}`,
     lint: 'eslint . --ext .ts,.js',
     format: 'prettier --write "src/**/*.{ts,js}"',
   };
@@ -458,6 +519,7 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     description: `Backend project generated with nod-cli`,
     main: config.typescript ? `dist/${entryBaseName}.js` : `src/${entryBaseName}.js`,
     type: 'module',
+    packageManager: 'pnpm@10.27.0',
     scripts,
     dependencies,
     devDependencies
@@ -481,6 +543,13 @@ NODE_ENV=development
 # JWT Authentication
 JWT_SECRET=your-super-secret-key-change-this-in-production-min-32-chars
 JWT_EXPIRES_IN=24h
+`;
+  }
+
+  if (config.auth === 'cookie-session') {
+    envContent += `
+# Cookie Session Authentication
+SESSION_SECRET=your-session-secret-change-this-in-production-min-32-chars
 `;
   }
 
@@ -589,6 +658,18 @@ MODEL_DOMAIN_MAPPING={"o3":"o3","mini":"gpt-4o-mini","default":"gpt-4o"}
 # Logging
 LOG_LEVEL=info
 `;
+
+  if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+    envContent += `
+# Strict Security
+TRUSTED_PARENT_DOMAINS=localhost
+ORIGIN_VERIFY_SECRET=
+JSON_BODY_LIMIT=256kb
+MAX_BODY_BYTES=262144
+URLENCODED_BODY_LIMIT=32kb
+URLENCODED_PARAMETER_LIMIT=100
+`;
+  }
 
   await fs.outputFile(path.join(projectPath, '.env.example'), envContent);
 }
@@ -850,13 +931,13 @@ ${config.deployment?.githubWorkflow ? '- GitHub workflow' : ''}
 
 \`\`\`bash
 # Install dependencies
-npm install
+pnpm install
 
 # Copy environment variables
 cp .env.example .env
 
 # Start development server
-npm run dev
+pnpm dev
 \`\`\`
 
 ${config.orm === 'drizzle' ? `## Database Setup (Drizzle)
@@ -875,15 +956,15 @@ npm run db:studio
 
 ## Scripts
 
-- \`npm run dev\` - Start development server
-- \`npm run build\` - Build for production
-- \`npm start\` - Start production server
-- \`npm run lint\` - Lint code
-- \`npm run format\` - Format code
-${config.features.testing ? '- `npm test` - Run tests' : ''}
-${config.orm === 'drizzle' ? `- \`npm run db:generate\` - Generate Drizzle migrations
-- \`npx drizzle-kit migrate --config=${drizzleConfigFile}\` - Apply Drizzle migrations
-- \`npm run db:studio\` - Open Drizzle Studio` : ''}
+- \`pnpm dev\` - Start development server
+- \`pnpm build\` - Build for production
+- \`pnpm start\` - Start production server
+- \`pnpm lint\` - Lint code
+- \`pnpm format\` - Format code
+${config.features.testing ? '- `pnpm test` - Run tests' : ''}
+${config.orm === 'drizzle' ? `- \`pnpm db:generate\` - Generate Drizzle migrations
+- \`pnpm exec drizzle-kit migrate --config=${drizzleConfigFile}\` - Apply Drizzle migrations
+- \`pnpm db:studio\` - Open Drizzle Studio` : ''}
 
 ## Project Structure
 

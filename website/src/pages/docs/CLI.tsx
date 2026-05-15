@@ -35,10 +35,12 @@ nod <project-name> [options]`}
           code={`--framework <framework>  Web framework: express or hono (default: express)
 --ts                     Use TypeScript (default: true)
 --no-ts                  Use JavaScript instead
---db <database>          Database: pg, mysql, supabase, or none (default: pg)
---auth <auth>            Auth: jwt, jwks, supabase, or none (default: jwt)
---queue <queue>          Queue: bull or none (default: none)
---preset <preset>        Use a preset: minimal, api, full, ai, 1, or custom
+--db <database>          Database: pg, mysql, supabase, or none
+--auth <auth>            Auth: jwt, jwks, supabase, cookie-session, or none
+--queue <queue>          Queue: bull or none
+--preset <preset>        Use a preset: production-api, minimal, api, full, ai, 1, or custom
+--security <mode>        Security: basic or strict
+--deploy-target <target> Deploy target: node or lambda-sam
 -y, --yes                Skip prompts, use defaults`}
           language="plaintext"
         />

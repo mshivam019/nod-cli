@@ -22,11 +22,11 @@ export function MCP() {
           everywhere:
         </p>
 
-        <CodeBlock code="npm install -g nod-cli" language="bash" />
+        <CodeBlock code="pnpm add -g nod-cli" language="bash" />
 
-        <p>Or run directly with npx (no global install required):</p>
+        <p>Or run directly with pnpm dlx (no global install required):</p>
 
-        <CodeBlock code="npx -y nod-cli mcp" language="bash" />
+        <CodeBlock code="pnpm dlx nod-cli mcp" language="bash" />
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           Usage
@@ -62,7 +62,7 @@ nod mcp --name nod-cli`}
         <p>Add via Codex CLI:</p>
 
         <CodeBlock
-          code={`codex mcp add nod-cli -- npx -y nod-cli mcp`}
+          code={`codex mcp add nod-cli -- pnpm dlx nod-cli mcp`}
           language="bash"
         />
 
@@ -73,8 +73,8 @@ nod mcp --name nod-cli`}
 
         <CodeBlock
           code={`[mcp_servers.nod_cli]
-command = "npx"
-args = ["-y", "nod-cli", "mcp"]`}
+command = "pnpm"
+args = ["dlx", "nod-cli", "mcp"]`}
           language="toml"
         />
 
@@ -85,7 +85,7 @@ args = ["-y", "nod-cli", "mcp"]`}
         <p>Add a local stdio server:</p>
 
         <CodeBlock
-          code={`claude mcp add --transport stdio nod-cli -- npx -y nod-cli mcp`}
+          code={`claude mcp add --transport stdio nod-cli -- pnpm dlx nod-cli mcp`}
           language="bash"
         />
 
@@ -97,8 +97,8 @@ args = ["-y", "nod-cli", "mcp"]`}
           code={`{
   "mcpServers": {
     "nod-cli": {
-      "command": "npx",
-      "args": ["-y", "nod-cli", "mcp"],
+      "command": "pnpm",
+      "args": ["dlx", "nod-cli", "mcp"],
       "env": {}
     }
   }
@@ -121,7 +121,7 @@ args = ["-y", "nod-cli", "mcp"]`}
   "mcp": {
     "nod-cli": {
       "type": "local",
-      "command": ["npx", "-y", "nod-cli", "mcp"],
+      "command": ["pnpm", "dlx", "nod-cli", "mcp"],
       "enabled": true
     }
   }
@@ -150,14 +150,14 @@ args = ["-y", "nod-cli", "mcp"]`}
           language="json"
         />
 
-        <p>If you do not install globally, use npx as the command:</p>
+        <p>If you do not install globally, use pnpm dlx as the command:</p>
 
         <CodeBlock
           code={`{
   "mcpServers": {
     "nod-cli": {
-      "command": "npx",
-      "args": ["-y", "nod-cli", "mcp"]
+      "command": "pnpm",
+      "args": ["dlx", "nod-cli", "mcp"]
     }
   }
 }`}
@@ -240,7 +240,7 @@ timeoutMs: 120000`}
         <ul className="list-disc pl-6 space-y-1 text-sm">
           <li>
             If a host cannot find <code>nod</code>, switch to{" "}
-            <code>npx -y nod-cli mcp</code> in the MCP command.
+            <code>pnpm dlx nod-cli mcp</code> in the MCP command.
           </li>
           <li>
             For Claude Code on native Windows, wrap npx with <code>cmd /c</code>{" "}

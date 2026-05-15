@@ -114,7 +114,7 @@ async function generateMiddleware(
 ) {
   const ext = ctx.fileExt;
   const isTS = ext === "ts";
-  const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth;
+  const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth && !ctx.hasCookieSessionAuth;
 
   if (hasCustomAuth) {
     const authMiddleware = isTS
@@ -447,7 +447,7 @@ async function generateCronSetup(
 async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   const ext = ctx.fileExt;
   const isTS = ext === "ts";
-  const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth;
+  const hasCustomAuth = ctx.hasAuth && !ctx.hasSupabaseAuth && !ctx.hasCookieSessionAuth;
   const hasSupabaseAuth = ctx.hasSupabaseAuth;
   const hasAnyAuth = ctx.hasAuth;
   const adminRoles = hasSupabaseAuth ? "['org_admin', 'super_admin']" : "['admin', 'superAdmin']";

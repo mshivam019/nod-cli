@@ -17,7 +17,7 @@ const CLI_PATH = path.join(ROOT_DIR, 'dist', 'cli.js');
 // Test configurations
 const FRAMEWORKS = ['express', 'hono'];
 const LANGUAGES = ['ts', 'js'];
-const PRESETS = ['minimal', 'api', 'full', 'ai', '1'];
+const PRESETS = ['minimal', 'api', 'full', 'ai', 'production-api', '1'];
 
 // Files to check for TypeScript syntax errors in JS files
 const TS_SYNTAX_PATTERNS = [
@@ -281,8 +281,8 @@ async function checkRequiredFiles(projectPath, config) {
   // Check based on preset
   if (config.preset !== 'minimal') {
     requiredFiles.push(`src/routes/index.${ext}`);
-    requiredFiles.push(`src/controllers/example.${ext}`);
-    requiredFiles.push(`src/services/example.${ext}`);
+    requiredFiles.push(`src/controllers/example.controller.${ext}`);
+    requiredFiles.push(`src/services/example.service.${ext}`);
   }
   
   // Supabase auth
@@ -398,7 +398,7 @@ async function testProjectGeneration(framework, language, preset) {
     
     // Install dependencies
     log(`Installing dependencies...`, 'info');
-    const installResult = runCommand('npm install', projectPath, true);
+    const installResult = runCommand('pnpm install', projectPath, true);
     if (!installResult.success) {
       testResult.errors.push(`npm install failed: ${installResult.error}`);
     }
@@ -406,7 +406,7 @@ async function testProjectGeneration(framework, language, preset) {
     // For TypeScript projects, try to compile
     if (isTS && installResult.success) {
       log(`Compiling TypeScript...`, 'info');
-      const buildResult = runCommand('npm run build', projectPath, true);
+      const buildResult = runCommand('pnpm build', projectPath, true);
       if (!buildResult.success) {
         testResult.errors.push(`TypeScript compilation failed: ${buildResult.error}`);
       }

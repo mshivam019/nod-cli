@@ -12,26 +12,27 @@ const program = new Command();
 program
   .name("nod-cli")
   .description("Backend scaffolding CLI with best practices built-in")
-  .version("0.4.0");
+  .version("0.4.5");
 
 // Define the init command with all options
 const initCommand = program
   .command("init [name]")
   .description("Initialize a new project")
-  .option("--framework <framework>", "Framework: express or hono", "express")
+  .option("--framework <framework>", "Framework: express or hono")
   .option("--ts", "Use TypeScript (default: true)")
   .option("--no-ts", "Use JavaScript")
   .option(
     "--db <database>",
     "Database: pg, mysql, supabase, drizzle, or none",
-    "pg",
   )
-  .option("--auth <auth>", "Auth: jwt, jwks, supabase, or none", "jwt")
-  .option("--queue <queue>", "Queue: bull or none", "none")
+  .option("--auth <auth>", "Auth: jwt, jwks, supabase, cookie-session, or none")
+  .option("--queue <queue>", "Queue: bull or none")
   .option(
     "--preset <preset>",
-    "Preset: minimal, api, full, ai, 1, or custom preset name",
+    "Preset: minimal, api, full, ai, production-api, 1, or custom preset name",
   )
+  .option("--security <mode>", "Security mode: basic or strict")
+  .option("--deploy-target <target>", "Deploy target: node or lambda-sam")
   .option("-y, --yes", "Skip prompts and use defaults/provided options")
   .action(initProject);
 

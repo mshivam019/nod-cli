@@ -32,6 +32,8 @@ export function createNodConfig(config: ProjectConfig): NodConfig {
     database: config.database,
     orm: config.orm || 'raw',
     auth: config.auth,
+    security: config.features.security,
+    deployTarget: config.deployment?.target,
     paths: getDefaultPaths(),
     components: {
       ai: config.ai ? {
@@ -43,6 +45,9 @@ export function createNodConfig(config: ProjectConfig): NodConfig {
         llmProvider: config.ai.llmProvider,
         chatDatabase: config.ai.chatDatabase,
       } : undefined,
+      security: {
+        mode: config.features.security || 'basic',
+      },
     },
     supabase: config.supabase,
   };

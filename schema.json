@@ -41,7 +41,15 @@
     },
     "auth": {
       "type": "string",
-      "enum": ["jwt", "jwks", "supabase", "none"]
+      "enum": ["jwt", "jwks", "supabase", "cookie-session", "none"]
+    },
+    "security": {
+      "type": "string",
+      "enum": ["basic", "strict"]
+    },
+    "deployTarget": {
+      "type": "string",
+      "enum": ["node", "lambda-sam"]
     },
     "paths": {
       "type": "object",
@@ -99,6 +107,17 @@
             "chatDatabase": {
               "type": "string",
               "enum": ["supabase", "pg", "mysql", "none"]
+            }
+          }
+        }
+        ,
+        "security": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["basic", "strict"]
             }
           }
         }

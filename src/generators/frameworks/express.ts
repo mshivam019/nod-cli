@@ -8,6 +8,7 @@ export async function generateExpressProject(
   ctx: TemplateContext,
 ) {
   await generateAppFile(projectPath, config, ctx);
+  await generateServerFile(projectPath, config, ctx);
   await generateMiddleware(projectPath, config, ctx);
 
   if (config.database !== "none") {
@@ -28,23 +29,37 @@ async function generateAppFile(
 ) {
   const ext = ctx.fileExt;
   const isTS = ext === "ts";
-  const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
+  const strictSecurity = config.features.security === "strict" || config.auth === "cookie-session";
 
   const appContent = isTS
-    ? `import cors from 'cors';
+    ? `${strictSecurity ? "" : "import cors from 'cors';\n"}${strictSecurity ? "import cookieParser from 'cookie-parser';\nimport helmet from 'helmet';\n" : ""}
 import express, { Express, Request, Response } from 'express';
 import { router } from './routes/index.js';
-import { config } from './config/index.js';
-${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
-${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
+${strictSecurity ? "import corsMiddleware from './middleware/cors.middleware.js';\nimport csrfProtection from './middleware/csrf.middleware.js';\nimport originVerify from './middleware/originVerify.middleware.js';\nimport requestSizeGuard from './middleware/requestSize.middleware.js';\nimport { requestBodyLimits } from './config/requestLimits.js';" : ""}
+${ctx.hasLangfuse ? "import { initializeTelemetry } from './instrumentation.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
 
 export function createApp(): Express {
   const app = express();
 
-  app.use(express.json());
+  ${strictSecurity ? `app.disable('x-powered-by');
+  app.use(originVerify);
+  app.use(helmet());
+  app.use(requestSizeGuard);
+  app.use(cookieParser());
+  app.use(corsMiddleware);
+  app.use(express.json({
+    limit: requestBodyLimits.json,
+    strict: true,
+  }));
+  app.use(express.urlencoded({
+    extended: true,
+    limit: requestBodyLimits.urlencoded,
+    parameterLimit: requestBodyLimits.urlencodedParameterLimit,
+  }));
+  app.use(csrfProtection);` : `app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use(cors());
+  app.use(cors());`}
 
   // Health check
   app.get('/health', (_req: Request, res: Response) => {
@@ -60,32 +75,37 @@ export function createApp(): Express {
   return app;
 }
 
-async function startServer() {
-  ${needsDbConnect ? "await connectDatabase();" : ""}
-  ${ctx.hasCron ? "initCronJobs();" : ""}
-  const app = createApp();
-
-  app.listen(config.port, () => {
-    console.log(\`Server listening on \${config.port}\`);
-  });
-}
-
-startServer().catch(console.error);
+${ctx.hasLangfuse ? "void initializeTelemetry();\n" : ""}
+export default createApp;
 `
-    : `import cors from 'cors';
+    : `${strictSecurity ? "" : "import cors from 'cors';\n"}${strictSecurity ? "import cookieParser from 'cookie-parser';\nimport helmet from 'helmet';\n" : ""}
 import express from 'express';
 import { router } from './routes/index.js';
-import { config } from './config/index.js';
-${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
-${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
+${strictSecurity ? "import corsMiddleware from './middleware/cors.middleware.js';\nimport csrfProtection from './middleware/csrf.middleware.js';\nimport originVerify from './middleware/originVerify.middleware.js';\nimport requestSizeGuard from './middleware/requestSize.middleware.js';\nimport { requestBodyLimits } from './config/requestLimits.js';" : ""}
+${ctx.hasLangfuse ? "import { initializeTelemetry } from './instrumentation.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
 
 export function createApp() {
   const app = express();
 
-  app.use(express.json());
+  ${strictSecurity ? `app.disable('x-powered-by');
+  app.use(originVerify);
+  app.use(helmet());
+  app.use(requestSizeGuard);
+  app.use(cookieParser());
+  app.use(corsMiddleware);
+  app.use(express.json({
+    limit: requestBodyLimits.json,
+    strict: true,
+  }));
+  app.use(express.urlencoded({
+    extended: true,
+    limit: requestBodyLimits.urlencoded,
+    parameterLimit: requestBodyLimits.urlencodedParameterLimit,
+  }));
+  app.use(csrfProtection);` : `app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use(cors());
+  app.use(cors());`}
 
   // Health check
   app.get('/health', (_req, res) => {
@@ -101,6 +121,26 @@ export function createApp() {
   return app;
 }
 
+${ctx.hasLangfuse ? "void initializeTelemetry();\n" : ""}
+export default createApp;
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/app.${ext}`), appContent);
+}
+
+async function generateServerFile(
+  projectPath: string,
+  config: ProjectConfig,
+  ctx: TemplateContext,
+) {
+  const ext = ctx.fileExt;
+  const needsDbConnect = ctx.hasDatabase && !ctx.hasDrizzle;
+
+  const serverContent = `import { createApp } from './app.js';
+import { config } from './config/index.js';
+${needsDbConnect ? "import { connectDatabase } from './db/index.js';" : ""}
+${ctx.hasCron ? "import { initCronJobs } from './cron/index.js';" : ""}
+
 async function startServer() {
   ${needsDbConnect ? "await connectDatabase();" : ""}
   ${ctx.hasCron ? "initCronJobs();" : ""}
@@ -114,7 +154,7 @@ async function startServer() {
 startServer().catch(console.error);
 `;
 
-  await fs.outputFile(path.join(projectPath, `src/app.${ext}`), appContent);
+  await fs.outputFile(path.join(projectPath, `src/server.${ext}`), serverContent);
 }
 
 async function generateMiddleware(
@@ -176,7 +216,8 @@ export function wrapHandler<T>(
     } catch (error) {
       // Handle thrown errors with status codes
       const statusCode = (error as ApiError).statusCode || 500;
-      const message = (error as Error).message || 'Internal server error';
+      const exposeDetails = process.env.NODE_ENV !== 'production' || statusCode < 500;
+      const message = exposeDetails ? ((error as Error).message || 'Internal server error') : 'Internal server error';
 
       res.status(statusCode).json({
         success: false,
@@ -253,7 +294,8 @@ export function wrapHandler(handler) {
     } catch (error) {
       // Handle thrown errors with status codes
       const statusCode = error.statusCode || 500;
-      const message = error.message || 'Internal server error';
+      const exposeDetails = process.env.NODE_ENV !== 'production' || statusCode < 500;
+      const message = exposeDetails ? (error.message || 'Internal server error') : 'Internal server error';
 
       res.status(statusCode).json({
         success: false,
@@ -313,7 +355,8 @@ const errorHandler = (err: ErrorWithStatus, _req: any, res: any, _next: any) => 
   logger.error(err.stack || err.message);
 
   const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
+  const exposeDetails = process.env.NODE_ENV !== 'production' || statusCode < 500;
+  const message = exposeDetails ? (err.message || 'Internal Server Error') : 'Internal Server Error';
 
   res.status(statusCode).json({
     success: false,
@@ -330,7 +373,8 @@ const errorHandler = (err, _req, res, _next) => {
   logger.error(err.stack || err.message);
 
   const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
+  const exposeDetails = process.env.NODE_ENV !== 'production' || statusCode < 500;
+  const message = exposeDetails ? (err.message || 'Internal Server Error') : 'Internal Server Error';
 
   res.status(statusCode).json({
     success: false,
@@ -348,7 +392,7 @@ export default errorHandler;
   );
 
   // Auth middleware (if enabled)
-  if (ctx.hasAuth && !ctx.hasSupabaseAuth) {
+  if (ctx.hasAuth && !ctx.hasSupabaseAuth && !ctx.hasCookieSessionAuth) {
     const authContent = isTS
       ? `import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
@@ -510,6 +554,9 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   if (ctx.hasSupabaseAuth) {
     defaultMiddlewares.push("jwtAuth");
   }
+  if (ctx.hasCookieSessionAuth) {
+    defaultMiddlewares.push("sessionAuth");
+  }
   if (ctx.hasSupabaseAuth && ctx.hasApiAudit) {
     defaultMiddlewares.push("auditLogger");
   }
@@ -519,12 +566,14 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
 
   const middlewareListStr = defaultMiddlewares.map((m) => `'${m}'`).join(", ");
   const hasSupabaseAuth = ctx.hasSupabaseAuth;
+  const hasCookieSessionAuth = ctx.hasCookieSessionAuth;
   const hasAuditLogger = ctx.hasSupabaseAuth && ctx.hasApiAudit;
   const hasSourceSelection = ctx.hasSourceConfig;
-  const adminRoles = hasSupabaseAuth ? "['org_admin', 'super_admin']" : "['admin', 'superAdmin']";
+  const adminRoles = hasSupabaseAuth || hasCookieSessionAuth ? "['org_admin', 'super_admin']" : "['admin', 'superAdmin']";
 
   const sharedMiddlewareImportsTs = [
     hasSupabaseAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : "",
+    hasCookieSessionAuth ? "import sessionAuth from '../middleware/sessionAuth.middleware.js';" : "",
     hasAuditLogger ? "import auditLogger from '../middleware/auditLog.middleware.js';" : "",
     hasSourceSelection ? "import sourceSelection from '../middleware/sourceSelection.middleware.js';" : "",
     hasSupabaseAuth ? "import checkPermission from '../middleware/permission.middleware.js';" : "",
@@ -532,6 +581,7 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
 
   const sharedRegistrationTs = [
     hasSupabaseAuth ? "  configuredRouter.registerMiddleware('jwtAuth', jwtAuth);" : "",
+    hasCookieSessionAuth ? "  configuredRouter.registerMiddleware('sessionAuth', sessionAuth);" : "",
     hasAuditLogger ? "  configuredRouter.registerMiddleware('auditLogger', auditLogger);" : "",
     hasSourceSelection ? "  configuredRouter.registerMiddleware('sourceSelection', sourceSelection);" : "",
     hasSupabaseAuth ? "  configuredRouter.registerMiddleware('roleCheck', checkPermission);" : "",
@@ -539,7 +589,7 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
 
   // Generate route-builder helper
   await generateRouteBuilder(projectPath, ext, {
-    hasAuth: ctx.hasSupabaseAuth,
+    hasAuth: ctx.hasSupabaseAuth || ctx.hasCookieSessionAuth,
     hasAuditLogger: ctx.hasApiAudit,
     hasSourceSelection: ctx.hasSourceConfig,
   });
@@ -554,7 +604,7 @@ import { createConfiguredRouter } from '../config/router.js';
 import { exampleRoutes } from './example.routes.js';
 ${sharedMiddlewareImportsTs}
 
-export const router = Router();
+export const router: Router = Router();
 
 /**
  * Default middlewares applied to all routes

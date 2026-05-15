@@ -984,7 +984,6 @@ function generateChatServiceContent(isTS: boolean, llmProvider: LLMProvider, cha
         temperature,
         maxTokens,
         openAIApiKey: process.env.OPENAI_API_KEY,
-        ${hasLangfuse ? 'callbacks: [langfuseHandler],' : ''}
       });`;
   } else if (llmProvider === 'anthropic') {
     llmImport = `import { ChatAnthropic } from '@langchain/anthropic';`;
@@ -993,7 +992,6 @@ function generateChatServiceContent(isTS: boolean, llmProvider: LLMProvider, cha
         temperature,
         maxTokens,
         anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-        ${hasLangfuse ? 'callbacks: [langfuseHandler],' : ''}
       });`;
   } else if (llmProvider === 'gemini') {
     llmImport = `import { ChatGoogleGenerativeAI } from '@langchain/google-genai';`;
@@ -1002,7 +1000,6 @@ function generateChatServiceContent(isTS: boolean, llmProvider: LLMProvider, cha
         temperature,
         maxOutputTokens: maxTokens,
         apiKey: process.env.GOOGLE_API_KEY,
-        ${hasLangfuse ? 'callbacks: [langfuseHandler],' : ''}
       });`;
   }
   
@@ -1053,11 +1050,8 @@ ${dbImport}
 ${llmImport}
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
-${hasLangfuse ? `import { CallbackHandler } from 'langfuse-langchain';
-const langfuseHandler = new CallbackHandler({
-  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-  secretKey: process.env.LANGFUSE_SECRET_KEY,
-});` : ''}
+${hasLangfuse ? `import { createLangfuseCallbacks } from '../config/config.js';
+import { langfuseService } from './langfuse.service.js';` : ''}
 ${interfaces}
 const chatService = {
   /**
@@ -1129,6 +1123,8 @@ const chatService = {
       systemPrompt = 'You are a helpful assistant.'
     } = options;
 
+    const startedAt = new Date().toISOString();
+
     try {
       ${llmInit}
 
@@ -1140,10 +1136,41 @@ const chatService = {
       const prompt = ChatPromptTemplate.fromMessages(formattedMessages);
       const chain = prompt.pipe(llm).pipe(new StringOutputParser());
       
-      const response = await chain.invoke({});
+      const response = await chain.invoke({}, ${hasLangfuse ? `{
+        callbacks: createLangfuseCallbacks({
+          tags: ['llm', '${llmProvider}', 'chat-response'],
+        }),
+        metadata: {
+          provider: '${llmProvider}',
+          model,
+          feature: 'chat-response',
+        },
+      }` : '{}'});
+      ${hasLangfuse ? `await langfuseService.logGeneration({
+        name: '${llmProvider}.chat-response',
+        model,
+        startedAt,
+        endedAt: new Date().toISOString(),
+        input: { messageCount: messages.length, systemPrompt },
+        output: response,
+        tags: ['llm', '${llmProvider}', 'chat-response'],
+        metadata: { provider: '${llmProvider}', feature: 'chat-response' },
+      });` : ''}
       return response;
     } catch (error${typeAnnotations.any}) {
       logger.error('Error generating AI response:', error);
+      ${hasLangfuse ? `await langfuseService.logGeneration({
+        name: '${llmProvider}.chat-response',
+        model,
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        input: { messageCount: messages.length, systemPrompt },
+        output: { error: error instanceof Error ? error.message : String(error) },
+        tags: ['llm', '${llmProvider}', 'chat-response'],
+        level: 'ERROR',
+        statusMessage: error instanceof Error ? error.message : String(error),
+        metadata: { provider: '${llmProvider}', feature: 'chat-response' },
+      });` : ''}
       throw error;
     }
   },
@@ -1162,7 +1189,19 @@ const chatService = {
       ]);
 
       const chain = prompt.pipe(llm).pipe(new StringOutputParser());
-      const aiTitle = await chain.invoke({ message: firstMessage.substring(0, 200) });
+      const aiTitle = await chain.invoke(
+        { message: firstMessage.substring(0, 200) },
+        ${hasLangfuse ? `{
+          callbacks: createLangfuseCallbacks({
+            tags: ['llm', '${llmProvider}', 'chat-title'],
+          }),
+          metadata: {
+            provider: '${llmProvider}',
+            model,
+            feature: 'chat-title',
+          },
+        }` : '{}'}
+      );
 
       return aiTitle.replace(/['\"]/g, '').trim().substring(0, 60);
     } catch (error${typeAnnotations.any}) {

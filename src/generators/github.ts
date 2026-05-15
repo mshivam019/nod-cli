@@ -70,16 +70,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Run linter
-        run: npm run lint
+        run: pnpm lint
 
       - name: Run tests
-        run: npm test
+        run: pnpm test
 `;
 
     await fs.outputFile(

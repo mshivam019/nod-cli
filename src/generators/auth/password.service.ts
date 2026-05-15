@@ -2,18 +2,18 @@ import fs from 'fs-extra';
 import path from 'path';
 
 /**
- * Password Service - Hash and verify passwords using bcrypt
+ * Password Service - Hash and verify passwords using bcryptjs
  */
 export async function generatePasswordService(projectPath: string, ext: string) {
   const isTS = ext === 'ts';
 
   const content = isTS
-    ? `import bcrypt from 'bcrypt';
+    ? `import bcrypt from 'bcryptjs';
 
 const SALT_ROUNDS = 12;
 
 /**
- * Hash a password using bcrypt
+ * Hash a password using bcryptjs
  */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -60,12 +60,12 @@ export default {
   validatePasswordStrength
 };
 `
-    : `import bcrypt from 'bcrypt';
+    : `import bcrypt from 'bcryptjs';
 
 const SALT_ROUNDS = 12;
 
 /**
- * Hash a password using bcrypt
+ * Hash a password using bcryptjs
  */
 export async function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);

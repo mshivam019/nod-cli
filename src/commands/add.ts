@@ -8,6 +8,7 @@ import { generateCronLocks } from '../generators/cron-locks.js';
 import { generatePM2Config } from '../generators/pm2.js';
 import fs from 'fs-extra';
 import path from 'path';
+import { DEPENDENCIES, DEV_DEPENDENCIES } from '../utils/dependencies.js';
 
 const CRON_LOCK_VALUES = ['pg', 'mysql', 'redis', 'supabase', 'file'] as const;
 const EMBEDDING_VALUES = ['openai', 'gemini', 'cohere'] as const;
@@ -260,30 +261,30 @@ export async function addComponent(component: string, options: any) {
       
       // Add dependencies based on selections
       const deps: Record<string, string> = {
-        '@langchain/core': '^0.3.0'
+        '@langchain/core': DEPENDENCIES.langchainCore
       };
       
       // Embedding provider dependencies
       if (ragConfig.embeddingProvider === 'openai') {
-        deps['@langchain/openai'] = '^0.3.0';
+        deps['@langchain/openai'] = DEPENDENCIES.langchainOpenai;
       } else if (ragConfig.embeddingProvider === 'gemini') {
-        deps['@langchain/google-genai'] = '^0.1.0';
+        deps['@langchain/google-genai'] = DEPENDENCIES.langchainGoogleGenai;
       } else if (ragConfig.embeddingProvider === 'cohere') {
-        deps['@langchain/cohere'] = '^0.3.0';
+        deps['@langchain/cohere'] = DEPENDENCIES.langchainCohere;
       }
       
       // Vector store dependencies
       if (ragConfig.vectorStore === 'supabase') {
-        deps['@supabase/supabase-js'] = '^2.39.0';
+        deps['@supabase/supabase-js'] = DEPENDENCIES.supabase;
       } else if (ragConfig.vectorStore === 'pinecone') {
-        deps['@pinecone-database/pinecone'] = '^2.0.0';
-        deps['@langchain/pinecone'] = '^0.1.0';
+        deps['@pinecone-database/pinecone'] = DEPENDENCIES.pinecone;
+        deps['@langchain/pinecone'] = DEPENDENCIES.langchainPinecone;
       } else if (ragConfig.vectorStore === 'chroma') {
-        deps['chromadb'] = '^1.7.0';
-        deps['@langchain/community'] = '^0.3.0';
+        deps['chromadb'] = DEPENDENCIES.chromadb;
+        deps['@langchain/community'] = DEPENDENCIES.langchainCommunity;
       } else if (ragConfig.vectorStore === 'weaviate') {
-        deps['weaviate-ts-client'] = '^2.0.0';
-        deps['@langchain/weaviate'] = '^0.1.0';
+        deps['weaviate-ts-client'] = DEPENDENCIES.weaviate;
+        deps['@langchain/weaviate'] = DEPENDENCIES.langchainWeaviate;
       }
       
       packageJson.dependencies = {
@@ -433,31 +434,34 @@ export async function addComponent(component: string, options: any) {
       
       // Add dependencies based on selections
       const deps: Record<string, string> = {
-        '@langchain/core': '^0.3.0'
+        '@langchain/core': DEPENDENCIES.langchainCore
       };
       
       // LLM provider dependencies
       if (chatConfig.llmProvider === 'openai') {
-        deps['@langchain/openai'] = '^0.3.0';
+        deps['@langchain/openai'] = DEPENDENCIES.langchainOpenai;
       } else if (chatConfig.llmProvider === 'anthropic') {
-        deps['@langchain/anthropic'] = '^0.3.0';
+        deps['@langchain/anthropic'] = DEPENDENCIES.langchainAnthropic;
       } else if (chatConfig.llmProvider === 'gemini') {
-        deps['@langchain/google-genai'] = '^0.1.0';
+        deps['@langchain/google-genai'] = DEPENDENCIES.langchainGoogleGenai;
       }
       
       // Database dependencies
       if (chatConfig.chatDatabase === 'supabase') {
-        deps['@supabase/supabase-js'] = '^2.39.0';
+        deps['@supabase/supabase-js'] = DEPENDENCIES.supabase;
       } else if (chatConfig.chatDatabase === 'pg') {
-        deps['pg'] = '^8.11.0';
+        deps['pg'] = DEPENDENCIES.pg;
       } else if (chatConfig.chatDatabase === 'mysql') {
-        deps['mysql2'] = '^3.6.0';
+        deps['mysql2'] = DEPENDENCIES.mysql2;
       }
       
       // Langfuse
       if (chatConfig.langfuse) {
-        deps['langfuse-langchain'] = '^3.37.0';
-        deps['langchain'] = '^0.3.27'; // Required peer dependency for langfuse-langchain
+        deps['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
+        deps['@langfuse/core'] = DEPENDENCIES.langfuseCore;
+        deps['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
+        deps['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
+        deps['langchain'] = DEPENDENCIES.langchain;
       }
       
       packageJson.dependencies = {
@@ -539,13 +543,13 @@ export async function addComponent(component: string, options: any) {
         await generateSupabaseJwtAuth(process.cwd(), ext);
         packageJson.dependencies = {
           ...packageJson.dependencies,
-          'jose': '^6.1.3'
+          'jose': DEPENDENCIES.jose
         };
       }
       
       packageJson.dependencies = {
         ...packageJson.dependencies,
-        '@supabase/supabase-js': '^2.39.0'
+        '@supabase/supabase-js': DEPENDENCIES.supabase
       };
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
@@ -573,13 +577,13 @@ export async function addComponent(component: string, options: any) {
       
       packageJson.dependencies = {
         ...packageJson.dependencies,
-        'drizzle-orm': '^0.45.1',
-        'postgres': '^3.4.0',
-        '@supabase/supabase-js': '^2.39.0'
+        'drizzle-orm': DEPENDENCIES.drizzleOrm,
+        'postgres': DEPENDENCIES.postgres,
+        '@supabase/supabase-js': DEPENDENCIES.supabase
       };
       packageJson.devDependencies = {
         ...packageJson.devDependencies,
-        'drizzle-kit': '^0.31.9'
+        'drizzle-kit': DEV_DEPENDENCIES.drizzleKit
       };
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
@@ -601,9 +605,16 @@ export async function addComponent(component: string, options: any) {
 if (component === 'langfuse') {
     const spinner = ora('Adding Langfuse integration...').start();
     try {
+      const { generateLangfuseObservability } = await import('../generators/observability.js');
+      await generateLangfuseObservability(process.cwd(), { name: projectName } as any, ext);
       packageJson.dependencies = {
         ...packageJson.dependencies,
-        'langfuse-langchain': '^3.37.0'
+        '@langfuse/langchain': DEPENDENCIES.langfuseLangchainModern,
+        '@langfuse/core': DEPENDENCIES.langfuseCore,
+        '@langfuse/otel': DEPENDENCIES.langfuseOtel,
+        '@opentelemetry/sdk-node': DEPENDENCIES.opentelemetrySdkNode,
+        '@langchain/core': DEPENDENCIES.langchainCore,
+        'langchain': DEPENDENCIES.langchain
       };
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
@@ -716,20 +727,20 @@ if (component === 'langfuse') {
       
       // Add dependencies
       const deps: Record<string, string> = {
-        'jose': '^5.2.0'
+        'jose': DEPENDENCIES.jose
       };
       
       // Only add bcrypt if using password auth
       if (needsPassword) {
-        deps['bcrypt'] = '^5.1.1';
+        deps['bcryptjs'] = DEPENDENCIES.bcryptjs;
       }
       
       if (featuresResponse.supabaseAdmin) {
-        deps['@supabase/supabase-js'] = '^2.39.0';
+        deps['@supabase/supabase-js'] = DEPENDENCIES.supabase;
       }
       
       if (needsPassword && featuresResponse.emailService) {
-        deps['nodemailer'] = '^6.9.0';
+        deps['nodemailer'] = DEPENDENCIES.nodemailer;
       }
       
       packageJson.dependencies = {
@@ -741,9 +752,9 @@ if (component === 'langfuse') {
       if (isTypeScript) {
         const devDeps: Record<string, string> = {};
         if (needsPassword) {
-          devDeps['@types/bcrypt'] = '^5.0.2';
+          devDeps['@types/bcryptjs'] = DEV_DEPENDENCIES.typesBcryptjs;
           if (featuresResponse.emailService) {
-            devDeps['@types/nodemailer'] = '^6.4.14';
+            devDeps['@types/nodemailer'] = DEV_DEPENDENCIES.typesNodemailer;
           }
         }
         if (Object.keys(devDeps).length > 0) {
@@ -762,7 +773,7 @@ if (component === 'langfuse') {
       console.log(chalk.gray('  src/auth/jwks.service.ts       - JWKS auto-generation'));
       console.log(chalk.gray('  src/auth/jwt.service.ts        - Custom JWT signing/verification'));
       if (needsPassword) {
-        console.log(chalk.gray('  src/auth/password.service.ts   - Password hashing with bcrypt'));
+        console.log(chalk.gray('  src/auth/password.service.ts   - Password hashing with bcryptjs'));
       }
       console.log(chalk.gray('  src/auth/auth.service.ts       - Main auth orchestration'));
       console.log(chalk.gray('  src/auth/auth.controller.ts    - Route handlers'));

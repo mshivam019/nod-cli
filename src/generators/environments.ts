@@ -31,16 +31,30 @@ export async function generateEnvironments(projectPath: string, config: ProjectC
 export async function generateEnvConfig(projectPath: string, config: ProjectConfig, ext: string) {
   const hasLangfuse = config.ai?.langfuse;
   const hasRAG = config.ai?.rag;
+  const isTS = ext === 'ts';
   
   const configContent = `import 'dotenv/config';
 import { production } from '../environments/production.js';
 import { staging } from '../environments/staging.js';
-${hasLangfuse ? `import { CallbackHandler } from 'langfuse-langchain';` : ''}
+${hasLangfuse ? `import { CallbackHandler } from '@langfuse/langchain';` : ''}
 import { z } from 'zod';
 
 const nodeEnvSchema = z.enum(['development', 'staging', 'production', 'test']);
 
 export const env = nodeEnvSchema.catch('development').parse(process.env.NODE_ENV);
+
+${hasLangfuse ? `const resolvedLangfusePublicKey = env === 'production'
+  ? process.env.LANGFUSE_PUBLIC_KEY
+  : (process.env.LANGFUSE_STAGING_PUBLIC_KEY ?? process.env.LANGFUSE_PUBLIC_KEY);
+
+const resolvedLangfuseSecretKey = env === 'production'
+  ? process.env.LANGFUSE_SECRET_KEY
+  : (process.env.LANGFUSE_STAGING_SECRET_KEY ?? process.env.LANGFUSE_SECRET_KEY);
+
+const resolvedLangfuseBaseUrl = env === 'production'
+  ? (process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com')
+  : (process.env.LANGFUSE_STAGING_BASE_URL ?? process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com');
+` : ''}
 
 // Disable tracing in non-production
 if (env !== 'production') {
@@ -63,7 +77,8 @@ const configSchema = z.object({
   
   ${hasLangfuse ? `// Langfuse
   langfusePublicKey: z.string().min(1).optional(),
-  langfuseSecretKey: z.string().min(1).optional(),` : ''}
+  langfuseSecretKey: z.string().min(1).optional(),
+  langfuseBaseUrl: z.string().url('Langfuse base URL must be a valid URL'),` : ''}
   
   // Cron
   cronSecret: z.string().min(1).optional(),
@@ -91,19 +106,53 @@ export const config = configSchema.parse({
   openaiApiKey: process.env.OPENAI_API_KEY,` : ''}
   
   ${hasLangfuse ? `// Langfuse
-  langfusePublicKey: env === 'production' ? process.env.LANGFUSE_PUBLIC_KEY : process.env.LANGFUSE_STAGING_PUBLIC_KEY,
-  langfuseSecretKey: env === 'production' ? process.env.LANGFUSE_SECRET_KEY : process.env.LANGFUSE_STAGING_SECRET_KEY,` : ''}
+  langfusePublicKey: resolvedLangfusePublicKey,
+  langfuseSecretKey: resolvedLangfuseSecretKey,
+  langfuseBaseUrl: resolvedLangfuseBaseUrl,` : ''}
   
   // Cron
   cronSecret: process.env.CRON_SECRET,
 });
 
 ${hasLangfuse ? `
-export const langfuseHandler = new CallbackHandler({
-  publicKey: config.langfusePublicKey || '',
-  secretKey: config.langfuseSecretKey || '',
-  baseUrl: 'https://cloud.langfuse.com'
-});` : ''}
+process.env.LANGFUSE_BASE_URL = config.langfuseBaseUrl;
+
+if (config.langfusePublicKey && config.langfuseSecretKey) {
+  process.env.LANGFUSE_PUBLIC_KEY = config.langfusePublicKey;
+  process.env.LANGFUSE_SECRET_KEY = config.langfuseSecretKey;
+}
+
+${isTS ? `interface LangfuseCallbackOptions {
+  userId?: string;
+  sessionId?: string;
+  tags?: string[];
+  version?: string;
+  traceMetadata?: Record<string, unknown>;
+}
+` : ''}
+
+const BASE_LANGFUSE_TAGS = ['${config.name}', env];
+const isLangfuseConfigured = Boolean(config.langfusePublicKey && config.langfuseSecretKey);
+
+export const createLangfuseCallbacks = (options${isTS ? ': LangfuseCallbackOptions' : ''} = {})${isTS ? ': CallbackHandler[]' : ''} => {
+  if (!isLangfuseConfigured) {
+    return [];
+  }
+
+  const tags = Array.from(new Set([...(options.tags || []), ...BASE_LANGFUSE_TAGS]));
+
+  return [
+    new CallbackHandler({
+      userId: options.userId,
+      sessionId: options.sessionId,
+      tags,
+      version: options.version,
+      traceMetadata: options.traceMetadata,
+    }),
+  ];
+};
+
+export const langfuseHandler = createLangfuseCallbacks()[0] ?? new CallbackHandler();` : ''}
 
 export default config;
 `;
