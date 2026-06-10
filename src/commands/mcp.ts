@@ -24,9 +24,13 @@ export async function mcpCommand(options: { name?: string }) {
           type: "text",
           text: [
             "nod init my-api --preset production-api --yes",
+            "nod backend my-api",
             "nod init my-api --preset api --security strict --deploy-target lambda-sam --yes",
             "nod add route --name users --method get --path /users --yes",
+            "nod add middleware --name requestLogger --type logger --default true --yes",
+            "nod add service --name users --methods getAll,getById,create --with-database false --yes",
             "nod transform --features drizzle,github --yes",
+            "nod preset create sam-api --db supabase --orm drizzle --auth better-auth --security strict --deploy-target lambda-sam --yes",
             "nod validate",
             "nod preset list",
             "Generated projects are pnpm-first: run pnpm install, pnpm dev, pnpm build.",
@@ -60,6 +64,7 @@ export async function mcpCommand(options: { name?: string }) {
     async ({ command, args, cwd, timeoutMs }) => {
       const allowedCommands = new Set([
         "init",
+        "backend",
         "add",
         "transform",
         "validate",

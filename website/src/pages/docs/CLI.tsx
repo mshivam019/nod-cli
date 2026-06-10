@@ -36,9 +36,9 @@ nod <project-name> [options]`}
 --ts                     Use TypeScript (default: true)
 --no-ts                  Use JavaScript instead
 --db <database>          Database: pg, mysql, supabase, or none
---auth <auth>            Auth: jwt, jwks, supabase, cookie-session, or none
+--auth <auth>            Auth: jwt, jwks, supabase, cookie-session, better-auth, or none
 --queue <queue>          Queue: bull or none
---preset <preset>        Use a preset: production-api, minimal, api, full, ai, 1, or custom
+--preset <preset>        Use a preset: production-api, aws-sam-backend, minimal, api, full, ai, 1, or custom
 --security <mode>        Security: basic or strict
 --deploy-target <target> Deploy target: node or lambda-sam
 -y, --yes                Skip prompts, use defaults`}
@@ -50,6 +50,20 @@ nod <project-name> [options]`}
           <code>AGENTS.md</code> file in the project root so AI contributors
           know the expected file layout and coding conventions.
         </p>
+
+        <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
+          backend
+        </h2>
+
+        <p>Create a production AWS SAM backend without prompts.</p>
+
+        <CodeBlock
+          code={`nod backend my-api
+
+# Equivalent explicit init form
+nod init my-api --preset aws-sam-backend --deploy-target lambda-sam --auth better-auth --yes`}
+          language="bash"
+        />
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           add
@@ -98,6 +112,15 @@ nod add chat`}
 --create-controller <boolean> true|false
 --create-service <boolean>    true|false
 --middleware <list>           authMiddleware,loggingMiddleware,roleMiddleware`}
+          language="plaintext"
+        />
+
+        <CodeBlock
+          code={`middleware/service options:
+--type <type>                 logger|rateLimit|cors|custom
+--default <boolean>           true|false
+--with-database <boolean>     true|false
+--methods <list>              getAll,getById,create,update,delete`}
           language="plaintext"
         />
 
@@ -183,6 +206,17 @@ nod preset create [name]     # Create a new preset
 nod preset delete [name]     # Delete a custom preset
 nod preset default [name]    # Set default preset
 nod preset show <name>       # Show preset details`}
+          language="bash"
+        />
+
+        <CodeBlock
+          code={`# Non-interactive preset creation
+nod preset create sam-api --db supabase --orm drizzle --auth better-auth --security strict --deploy-target lambda-sam --yes
+
+# Non-interactive delete/default
+nod preset delete sam-api --yes
+nod preset default aws-sam-backend
+nod preset default --clear --yes`}
           language="bash"
         />
 

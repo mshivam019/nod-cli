@@ -6,7 +6,7 @@ export function LangfuseComponent() {
       <div>
         <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">Langfuse</h1>
         <p className="text-lg text-muted-foreground mt-2">
-          LLM observability, LangChain callbacks, manual generation logging, and OpenTelemetry tracing.
+          Optional LLM observability with explicit generation logging and OpenTelemetry tracing.
         </p>
       </div>
 
@@ -22,7 +22,6 @@ export function LangfuseComponent() {
           What it Generates
         </h2>
         <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-          <li><code className="bg-muted px-1 rounded">@langfuse/langchain</code> callback helpers</li>
           <li><code className="bg-muted px-1 rounded">@langfuse/core</code> ingestion logging via <code>langfuseService.logGeneration</code></li>
           <li><code className="bg-muted px-1 rounded">@langfuse/otel</code> OpenTelemetry initialization</li>
           <li>Environment-aware production and staging Langfuse keys</li>
@@ -47,60 +46,40 @@ LANGFUSE_STAGING_BASE_URL=https://cloud.langfuse.com`}
 
       <section className="space-y-4">
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
-          Usage with LangChain
+          Usage
         </h2>
         <CodeBlock
-          tsCode={`import { ChatOpenAI } from '@langchain/openai';
-import { createLangfuseCallbacks } from '../config/config.js';
-import { langfuseService } from '../services/langfuse.service.js';
+          tsCode={`import { langfuseService } from '../services/langfuse.service.js';
 
-const llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
 const startedAt = new Date().toISOString();
+const input = 'Hello!';
 
-const response = await llm.invoke('Hello!', {
-  callbacks: createLangfuseCallbacks({
-    userId: 'user-123',
-    sessionId: 'session-456',
-    tags: ['llm', 'openai', 'chat'],
-    traceMetadata: { feature: 'chat' },
-  }),
-  metadata: { provider: 'openai', feature: 'chat' },
-});
+const output = await generateText(input);
 
 await langfuseService.logGeneration({
-  name: 'openai.chat',
-  model: 'gpt-4o-mini',
+  name: 'chat.response',
+  model: 'your-model-name',
   startedAt,
   endedAt: new Date().toISOString(),
-  input: 'Hello!',
-  output: response.content,
+  input,
+  output,
   userId: 'user-123',
   sessionId: 'session-456',
 });`}
-          jsCode={`import { ChatOpenAI } from '@langchain/openai';
-import { createLangfuseCallbacks } from '../config/config.js';
-import { langfuseService } from '../services/langfuse.service.js';
+          jsCode={`import { langfuseService } from '../services/langfuse.service.js';
 
-const llm = new ChatOpenAI({ model: 'gpt-4o-mini' });
 const startedAt = new Date().toISOString();
+const input = 'Hello!';
 
-const response = await llm.invoke('Hello!', {
-  callbacks: createLangfuseCallbacks({
-    userId: 'user-123',
-    sessionId: 'session-456',
-    tags: ['llm', 'openai', 'chat'],
-    traceMetadata: { feature: 'chat' },
-  }),
-  metadata: { provider: 'openai', feature: 'chat' },
-});
+const output = await generateText(input);
 
 await langfuseService.logGeneration({
-  name: 'openai.chat',
-  model: 'gpt-4o-mini',
+  name: 'chat.response',
+  model: 'your-model-name',
   startedAt,
   endedAt: new Date().toISOString(),
-  input: 'Hello!',
-  output: response.content,
+  input,
+  output,
   userId: 'user-123',
   sessionId: 'session-456',
 });`}

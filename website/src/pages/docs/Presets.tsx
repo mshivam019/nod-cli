@@ -42,11 +42,15 @@ export function Presets() {
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>production-api</code></td>
-                <td className="py-2 px-4">Default strict Express API: Supabase, Drizzle, cookie sessions, trusted origins, request limits, Langfuse, and Lambda/SAM files</td>
+                <td className="py-2 px-4">Default strict Express API: Supabase, Drizzle, Better Auth, trusted origins, request limits, and Lambda/SAM files</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>aws-sam-backend</code></td>
+                <td className="py-2 px-4">One-command AWS SAM backend with Express, TypeScript, Better Auth, Drizzle, and Node 22 Lambda</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>1</code></td>
-                <td className="py-2 px-4">Supabase + Drizzle + Langfuse + API Audit + GitHub Actions</td>
+                <td className="py-2 px-4">Supabase + Drizzle + API Audit + GitHub Actions</td>
               </tr>
             </tbody>
           </table>
@@ -68,7 +72,10 @@ nod my-api --preset 1 --yes
 nod init my-api --preset ai --yes
 
 # Explicit production preset
-nod init my-api --preset production-api --yes`}
+nod init my-api --preset production-api --yes
+
+# One-command AWS SAM backend
+nod backend my-api`}
           language="bash"
         />
 
@@ -125,8 +132,8 @@ nod preset default mystack
       "typescript": true,
       "database": "supabase",
       "orm": "drizzle",
-      "auth": "supabase",
-      "features": ["langfuse", "audit", "github"]
+      "auth": "better-auth",
+      "features": ["audit", "github"]
     }
   },
   "default": "mystack"

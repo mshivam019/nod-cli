@@ -172,6 +172,10 @@ async function generateDrizzleSetup(projectPath: string, config: ProjectConfig, 
   const tablePrefix = `${tablePrefixBase}_*`;
   const isTS = ext === 'ts';
 
+  const schemaFiles = config.auth === 'better-auth'
+    ? `['./src/db/schema.${ext}', './src/db/generated-auth-schema.${ext}']`
+    : `'./src/db/schema.${ext}'`;
+
   // Drizzle config
   const drizzleConfigContent = isTS
     ? `/// <reference types="node" />
@@ -184,7 +188,7 @@ const connectionString = env === 'production'
   : process.env.${usePooler ? 'SUPABASE_STAGING_POOLER_URL' : 'DATABASE_STAGING_URL'};
 
 export default defineConfig({
-  schema: './src/db/schema.ts',
+  schema: ${schemaFiles},
   out: './drizzle',
   dialect: 'postgresql',
   schemaFilter: ['public'],
@@ -204,7 +208,7 @@ const connectionString = env === 'production'
   : process.env.${usePooler ? 'SUPABASE_STAGING_POOLER_URL' : 'DATABASE_STAGING_URL'};
 
 export default defineConfig({
-  schema: './src/db/schema.js',
+  schema: ${schemaFiles},
   out: './drizzle',
   dialect: 'postgresql',
   schemaFilter: ['public'],
@@ -217,11 +221,20 @@ export default defineConfig({
 `;
 
   // Drizzle DB connection
+  const schemaImports = config.auth === 'better-auth'
+    ? `import * as appSchema from './schema.js';
+import * as authSchema from './generated-auth-schema.js';
+
+const schema = { ...appSchema, ...authSchema };
+`
+    : `import * as schema from './schema.js';
+`;
+
   const drizzleDbContent = isTS
     ? `import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import config from '../config/config.js';
-import * as schema from './schema.js';
+${schemaImports}
 
 const connectionString = config.${usePooler ? 'supabasePoolerUrl' : 'supabaseUrl'};
 
@@ -242,7 +255,7 @@ export default db;
     : `import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import config from '../config/config.js';
-import * as schema from './schema.js';
+${schemaImports}
 
 const connectionString = config.${usePooler ? 'supabasePoolerUrl' : 'supabaseUrl'};
 
@@ -282,6 +295,74 @@ export const apiAudit = pgTable('${auditTableName}', {
   await fs.outputFile(path.join(projectPath, `drizzle.config.${ext}`), drizzleConfigContent);
   await fs.outputFile(path.join(projectPath, `src/db/index.${ext}`), drizzleDbContent);
   await fs.outputFile(path.join(projectPath, `src/db/schema.${ext}`), schemaContent);
+
+  if (config.auth === 'better-auth') {
+    await fs.outputFile(path.join(projectPath, `src/db/generated-auth-schema.${ext}`), generateBetterAuthSchema(ext));
+  }
+}
+
+function generateBetterAuthSchema(ext: string) {
+  const isTS = ext === 'ts';
+  const content = `import { boolean, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+
+export const user = pgTable('user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  image: text('image'),
+  role: text('role'),
+  banned: boolean('banned'),
+  banReason: text('ban_reason'),
+  banExpires: timestamp('ban_expires', { withTimezone: true }),
+  userMetadata: jsonb('user_metadata')${isTS ? '.$type<Record<string, unknown> | null>()' : ''},
+  appMetadata: jsonb('app_metadata')${isTS ? '.$type<Record<string, unknown> | null>()' : ''},
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const session = pgTable('session', {
+  id: text('id').primaryKey(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  token: text('token').notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+}, table => [
+  index('idx_session_user_id').on(table.userId),
+]);
+
+export const account = pgTable('account', {
+  id: text('id').primaryKey(),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+  scope: text('scope'),
+  password: text('password'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  index('idx_account_user_id').on(table.userId),
+]);
+
+export const verification = pgTable('verification', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+`;
+
+  return ext === 'ts' ? content : content.replace(/\.\$type<Record<string, unknown> \| null>\(\)/g, '');
 }
 
 export async function generateSupabaseJwtAuth(projectPath: string, ext: string, framework: 'express' | 'hono' = 'express') {
@@ -579,14 +660,10 @@ export default jwtAuth;
 
   // Permission middleware - reads from JWT payload app_metadata.permission
   const permissionMiddlewareContent = isTS
-    ? `import sourceConfig from '../utils/sourceConfig.js';
-
-/**
- * Permission middleware that checks user role based on source
+    ? `/**
+ * Permission middleware that checks user role from JWT app metadata.
  * Permission structure from JWT payload (req.user.app_metadata.permission):
  * {
- *   "icici": "org_admin",
- *   "hdfc": "org_admin", 
  *   "default": "org_admin"
  * }
  */
@@ -603,8 +680,7 @@ export const checkPermission = (allowedRoles: string[] = ['org_admin', 'super_ad
       // Get permission object from JWT payload
       const permission = req.user.app_metadata?.permission || {};
       
-      // Get source from request (set by sourceSelection middleware)
-      const source = req.requestSource || sourceConfig.getSourceForRequest(req);
+      const source = 'default';
       
       // Get user's role for this source from permission object
       const userRoleForSource = permission[source] || permission['default'];
@@ -641,14 +717,10 @@ export const checkPermission = (allowedRoles: string[] = ['org_admin', 'super_ad
 
 export default checkPermission;
 `
-    : `import sourceConfig from '../utils/sourceConfig.js';
-
-/**
- * Permission middleware that checks user role based on source
+    : `/**
+ * Permission middleware that checks user role from JWT app metadata.
  * Permission structure from JWT payload (req.user.app_metadata.permission):
  * {
- *   "icici": "org_admin",
- *   "hdfc": "org_admin",
  *   "default": "org_admin"
  * }
  */
@@ -665,8 +737,7 @@ export const checkPermission = (allowedRoles = ['org_admin', 'super_admin']) => 
       // Get permission object from JWT payload
       const permission = req.user.app_metadata?.permission || {};
       
-      // Get source from request (set by sourceSelection middleware)
-      const source = req.requestSource || sourceConfig.getSourceForRequest(req);
+      const source = 'default';
       
       // Get user's role for this source from permission object
       const userRoleForSource = permission[source] || permission['default'];

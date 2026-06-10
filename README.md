@@ -5,7 +5,7 @@ Backend scaffolding CLI for Node.js with best practices built-in. Generate produ
 ## Installation
 
 ```bash
-npm install -g nod-cli
+pnpm add -g nod-cli
 ```
 
 ## Quick Start
@@ -20,6 +20,9 @@ nod my-api
 # Non-interactive default: strict production API (TypeScript by default)
 nod init my-api --yes
 
+# One-command AWS SAM backend
+nod backend my-api
+
 # Or pick a specific preset
 nod init my-api --preset 1 --framework express --yes
 
@@ -27,12 +30,12 @@ nod init my-api --preset 1 --framework express --yes
 nod init my-api --preset api --no-ts --yes
 
 # Follow the interactive prompts to configure:
-# - Preset (production-api, minimal, api, full, ai, 1, or custom presets)
+# - Preset (production-api, aws-sam-backend, minimal, api, full, ai, 1, or custom presets)
 # - Framework (Express/Hono)
 # - TypeScript/JavaScript
 # - Database (PostgreSQL/MySQL/Supabase/None)
 # - ORM (Drizzle/Raw SQL)
-# - Authentication (JWT/JWKS/Supabase/None)
+# - Authentication (JWT/JWKS/Supabase/Better Auth/None)
 # - AI features (RAG, Chat, Langfuse)
 # - Deployment (Vercel cron, GitHub workflow)
 # - Docker & PM2 configuration
@@ -42,12 +45,13 @@ nod init my-api --preset api --no-ts --yes
 
 | Preset    | Description                                                             |
 | --------- | ----------------------------------------------------------------------- |
-| `production-api` | Default strict API: Supabase, Drizzle, cookie sessions, request limits, trusted origins, Langfuse, Lambda/SAM |
+| `production-api` | Default strict API: Supabase, Drizzle, Better Auth, request limits, trusted origins, Lambda/SAM |
+| `aws-sam-backend` | Production AWS SAM backend: Express, TypeScript, Supabase/Drizzle, Better Auth, strict security, Node 22 Lambda |
 | `minimal`        | Basic setup, no database or auth                                                                            |
 | `api`            | Standard REST API with JWT auth                                                                             |
 | `full`           | All features including Supabase, Drizzle, Vercel cron                                                       |
 | `ai`             | Full preset + RAG, Chat, Langfuse                                                                           |
-| `1`              | Your stack - Supabase + Drizzle + Langfuse + API Audit + GitHub Actions                                     |
+| `1`              | Supabase + Drizzle + API Audit + GitHub Actions                                                             |
 | `custom`         | Choose your own features                                                                                    |
 
 ### Custom Presets
@@ -87,6 +91,14 @@ nod init <project-name>
 nod <project-name>
 ```
 
+### Create AWS SAM Backend
+
+```bash
+nod backend <project-name>
+```
+
+This is shorthand for a production AWS SAM backend preset with Express, TypeScript, strict security, Supabase/Drizzle, Better Auth, `tsup`, Node.js 22 Lambda, `template.yaml`, `samconfig.toml`, and `docs/aws-sam-setup.md`.
+
 #### Options
 
 | Option                    | Description                                    | Default   |
@@ -95,7 +107,7 @@ nod <project-name>
 | `--ts`                    | Use TypeScript                                 | `true`    |
 | `--no-ts`                 | Use JavaScript instead of TypeScript           | -         |
 | `--db <database>`         | Database: `pg`, `mysql`, `supabase`, or `none` | `pg`      |
-| `--auth <auth>`           | Auth: `jwt`, `jwks`, `supabase`, `cookie-session`, or `none` | preset |
+| `--auth <auth>`           | Auth: `jwt`, `jwks`, `supabase`, `cookie-session`, `better-auth`, or `none` | preset |
 | `--queue <queue>`         | Queue: `bull` or `none`                        | `none`    |
 | `--preset <preset>`       | Use a preset configuration                     | `production-api` in non-interactive mode |
 | `--security <mode>`       | Security: `basic` or `strict`                  | preset    |
@@ -194,7 +206,6 @@ Select features to add:
 - RAG Service
 - Chat Service
 - Langfuse Integration
-- Model/Source Selection Middleware
 - Error Handler
 - Winston Logger
 - Response Formatter
@@ -269,7 +280,10 @@ my-api/
 ├── .gitignore
 ├── package.json
 ├── tsconfig.json        # TypeScript config (TS only)
+├── tsup.config.ts       # Lambda/server bundling config (AWS SAM backend)
 ├── drizzle.config.ts    # Drizzle config (if using Drizzle)
+├── template.yaml        # AWS SAM template (if using AWS SAM)
+├── samconfig.toml       # AWS SAM deploy profiles (if using AWS SAM)
 ├── vercel.json          # Vercel config (if using Vercel cron)
 ├── Dockerfile           # Docker config (if enabled)
 ├── docker-compose.yml   # Docker Compose (if enabled)
@@ -334,13 +348,12 @@ my-api/
 
 - **RAG Service** - Vector similarity search with OpenAI embeddings
 - **Chat Service** - Conversation management with LangChain
-- **Langfuse** - LLM observability and tracing
+- **Langfuse** - Optional LLM observability and tracing
 
 ### Deployment
 
 - **Vercel Cron** - Cron job configuration with auth middleware
 - **GitHub Workflow** - Deploy trigger workflow
-- **Source Selection** - Domain-based routing
 
 ## Running Your Project
 
@@ -366,26 +379,27 @@ pnpm dev
 ### Production
 
 ```bash
-npm run build
+pnpm build
 pm2 start ecosystem.config.js
 ```
 
 ### PM2 Commands
 
 ```bash
-npm run start:pm2    # Start with PM2
-npm run stop:pm2     # Stop PM2 processes
-npm run restart:pm2  # Restart PM2 processes
-npm run logs:pm2     # View PM2 logs
-npm run monit:pm2    # Monitor PM2 processes
+pnpm start:pm2    # Start with PM2
+pnpm stop:pm2     # Stop PM2 processes
+pnpm restart:pm2  # Restart PM2 processes
+pnpm logs:pm2     # View PM2 logs
+pnpm monit:pm2    # Monitor PM2 processes
 ```
 
 ### Drizzle Commands
 
 ```bash
-npm run db:generate  # Generate migrations
-npx drizzle-kit migrate --config=<drizzle.config.ts|drizzle.config.js>  # Apply migrations
-npm run db:studio    # Open Drizzle Studio
+pnpm db:generate  # Generate migrations
+pnpm db:migrate   # Apply migrations
+pnpm exec drizzle-kit migrate --config=<drizzle.config.ts|drizzle.config.js>  # Apply migrations
+pnpm db:studio    # Open Drizzle Studio
 ```
 
 ## CI/CD & Non-Interactive Mode

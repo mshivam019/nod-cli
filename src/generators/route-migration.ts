@@ -4,7 +4,6 @@ import * as path from 'path';
 export interface RouteMigrationOptions {
   hasAuth: boolean;
   hasAuditLogger: boolean;
-  hasSourceSelection: boolean;
   defaultMiddleware: string[];
   defaultRoles: string[];
 }
@@ -148,7 +147,7 @@ function extractRouteComment(content: string, routeIndex: number): string | unde
 }
 
 function generateDeclarativeRoutes(originalContent: string, routes: ParsedRoute[], options: RouteMigrationOptions): string {
-  const { defaultMiddleware, defaultRoles, hasAuth, hasAuditLogger, hasSourceSelection } = options;
+  const { defaultMiddleware, defaultRoles, hasAuth, hasAuditLogger } = options;
 
   // Build the imports section
   const importSection = generateImportsSection(originalContent);

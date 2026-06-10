@@ -4,10 +4,9 @@ import * as path from 'path';
 export async function generateRouterConfig(projectPath: string, ext: string, options: {
   hasAuth: boolean;
   hasAuditLogger: boolean;
-  hasSourceSelection: boolean;
-} = { hasAuth: false, hasAuditLogger: false, hasSourceSelection: false }) {
+} = { hasAuth: false, hasAuditLogger: false }) {
   const isTS = ext === 'ts';
-  const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
+  const { hasAuth, hasAuditLogger } = options;
 
   const content = isTS
     ? `/**
@@ -20,7 +19,6 @@ export async function generateRouterConfig(projectPath: string, ext: string, opt
 import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 ${hasAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
 ${hasAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
-${hasSourceSelection ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
 
 // Re-export METHODS for use in route files
 export { METHODS };
@@ -68,7 +66,6 @@ export function createConfiguredRouter(config: {
   // Register all available middlewares
   ${hasAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
   ${hasAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;
@@ -86,7 +83,6 @@ export default { createConfiguredRouter, METHODS, roleCheck };
 import { DeclarativeRouter, METHODS } from '../helpers/route-builder.js';
 ${hasAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
 ${hasAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
-${hasSourceSelection ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
 
 // Re-export METHODS for use in route files
 export { METHODS };
@@ -130,7 +126,6 @@ export function createConfiguredRouter(config) {
   // Register all available middlewares
   ${hasAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
   ${hasAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;

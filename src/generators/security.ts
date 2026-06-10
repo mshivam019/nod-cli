@@ -22,6 +22,10 @@ export async function generateStrictSecurity(projectPath: string, config: Projec
   if (config.auth === 'cookie-session') {
     await generateCookieSession(projectPath, ext);
   }
+
+  if (config.auth === 'better-auth') {
+    await generateBetterAuth(projectPath, ext);
+  }
 }
 
 async function generateTrustedOrigins(projectPath: string, ext: string) {
@@ -61,6 +65,21 @@ export const isAllowedCorsHostname = (hostname${isTS ? ': string' : ''}, nodeEnv
 
   return allowLocalhostForEnv(nodeEnv)
     && (normalized === 'localhost' || normalized === '127.0.0.1');
+};
+
+export const getBetterAuthTrustedOrigins = (nodeEnv${isTS ? ': NodeEnv | string' : ''})${isTS ? ': string[]' : ''} => {
+  const explicitOrigins = parseCsv(process.env.BETTER_AUTH_TRUSTED_ORIGINS);
+  if (explicitOrigins.length > 0) {
+    return explicitOrigins;
+  }
+
+  const origins = [
+    process.env.BACKEND_URL,
+    ...parseCsv(process.env.CORS_ALLOWED_ORIGINS),
+    ...(allowLocalhostForEnv(nodeEnv) ? localhostOrigins : []),
+  ].filter(Boolean)${isTS ? ' as string[]' : ''};
+
+  return Array.from(new Set(origins));
 };
 `;
 
@@ -351,5 +370,196 @@ export default sessionAuth;
 `;
 
   await fs.outputFile(path.join(projectPath, `src/helpers/accessSession.helper.${ext}`), helperContent);
+  await fs.outputFile(path.join(projectPath, `src/middleware/sessionAuth.middleware.${ext}`), middlewareContent);
+}
+
+async function generateBetterAuth(projectPath: string, ext: string) {
+  const isTS = ext === 'ts';
+  const helperContent = isTS
+    ? `import { betterAuth as createBetterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import bcrypt from 'bcryptjs';
+
+import config from '../config/config.js';
+import { getBetterAuthTrustedOrigins } from '../config/trustedOrigins.js';
+import database from '../db/index.js';
+
+interface AuthProviderDependencies {
+  db: typeof database;
+  config: {
+    backendUrl?: string;
+    authSecret: string;
+    nodeEnv: string;
+  };
+  trustedOrigins?: string[];
+}
+
+export const createAuthProvider = ({ db, config, trustedOrigins = [] }: AuthProviderDependencies) =>
+  createBetterAuth({
+    baseURL: config.backendUrl,
+    database: drizzleAdapter(db, {
+      provider: 'pg',
+    }),
+    secret: config.authSecret,
+    basePath: '/api/auth/provider',
+    emailAndPassword: {
+      enabled: true,
+      password: {
+        hash: async (password: string) => bcrypt.hash(password, 10),
+        verify: async ({ hash, password }) => bcrypt.compare(password, hash),
+      },
+    },
+    advanced: {
+      useSecureCookies: config.backendUrl?.startsWith('https://') || config.nodeEnv === 'staging' || config.nodeEnv === 'production',
+      database: {
+        generateId: 'uuid',
+      },
+    },
+    trustedOrigins,
+  });
+
+export const auth = createAuthProvider({
+  db: database,
+  config,
+  trustedOrigins: getBetterAuthTrustedOrigins(config.nodeEnv),
+});
+`
+    : `import { betterAuth as createBetterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import bcrypt from 'bcryptjs';
+
+import config from '../config/config.js';
+import { getBetterAuthTrustedOrigins } from '../config/trustedOrigins.js';
+import database from '../db/index.js';
+
+export const createAuthProvider = ({ db, config, trustedOrigins = [] }) =>
+  createBetterAuth({
+    baseURL: config.backendUrl,
+    database: drizzleAdapter(db, {
+      provider: 'pg',
+    }),
+    secret: config.authSecret,
+    basePath: '/api/auth/provider',
+    emailAndPassword: {
+      enabled: true,
+      password: {
+        hash: async (password) => bcrypt.hash(password, 10),
+        verify: async ({ hash, password }) => bcrypt.compare(password, hash),
+      },
+    },
+    advanced: {
+      useSecureCookies: config.backendUrl?.startsWith('https://') || config.nodeEnv === 'staging' || config.nodeEnv === 'production',
+      database: {
+        generateId: 'uuid',
+      },
+    },
+    trustedOrigins,
+  });
+
+export const auth = createAuthProvider({
+  db: database,
+  config,
+  trustedOrigins: getBetterAuthTrustedOrigins(config.nodeEnv),
+});
+`;
+
+  const middlewareContent = isTS
+    ? `import { fromNodeHeaders } from 'better-auth/node';
+import type { NextFunction, Request, Response } from 'express';
+
+import { auth } from '../helpers/authProvider.helper.js';
+
+const toRequestUser = (session: any) => {
+  const user = session?.user;
+  if (!user?.id) {
+    return null;
+  }
+
+  const appMetadata = user.appMetadata ?? user.app_metadata ?? {};
+  const userMetadata = user.userMetadata ?? user.user_metadata ?? {};
+
+  return {
+    ...user,
+    app_metadata: appMetadata,
+    user_metadata: userMetadata,
+    permissions: user.permissions ?? appMetadata.permission,
+    session_id: session.session?.id,
+  };
+};
+
+const sessionAuth = async (req: Request & { user?: unknown }, res: Response, next: NextFunction) => {
+  try {
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    const user = toRequestUser(session);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    req.user = user;
+    return next();
+  } catch {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+  }
+};
+
+export default sessionAuth;
+`
+    : `import { fromNodeHeaders } from 'better-auth/node';
+
+import { auth } from '../helpers/authProvider.helper.js';
+
+const toRequestUser = (session) => {
+  const user = session?.user;
+  if (!user?.id) {
+    return null;
+  }
+
+  const appMetadata = user.appMetadata ?? user.app_metadata ?? {};
+  const userMetadata = user.userMetadata ?? user.user_metadata ?? {};
+
+  return {
+    ...user,
+    app_metadata: appMetadata,
+    user_metadata: userMetadata,
+    permissions: user.permissions ?? appMetadata.permission,
+    session_id: session.session?.id,
+  };
+};
+
+const sessionAuth = async (req, res, next) => {
+  try {
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    const user = toRequestUser(session);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    req.user = user;
+    return next();
+  } catch {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+  }
+};
+
+export default sessionAuth;
+`;
+
+  await fs.outputFile(path.join(projectPath, `src/helpers/authProvider.helper.${ext}`), helperContent);
   await fs.outputFile(path.join(projectPath, `src/middleware/sessionAuth.middleware.${ext}`), middlewareContent);
 }

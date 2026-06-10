@@ -111,12 +111,6 @@ nod transform \
             </p>
           </div>
           <div className="rounded-lg border p-4">
-            <h3 className="font-semibold">Model/Source Selection</h3>
-            <p className="text-sm text-muted-foreground">
-              Domain-based routing middleware
-            </p>
-          </div>
-          <div className="rounded-lg border p-4">
             <h3 className="font-semibold">Error Handler</h3>
             <p className="text-sm text-muted-foreground">
               Centralized error handling middleware
@@ -153,7 +147,6 @@ nod transform \
   ◯ RAG Service
   ◯ Chat Service
   ◯ Langfuse Integration
-  ◯ Model/Source Selection Middleware
   ◯ Error Handler
   ◯ Winston Logger
   ◯ Response Formatter`}

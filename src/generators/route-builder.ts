@@ -4,8 +4,7 @@ import * as path from 'path';
 export async function generateRouteBuilder(projectPath: string, ext: string, options: {
   hasAuth: boolean;
   hasAuditLogger: boolean;
-  hasSourceSelection: boolean;
-} = { hasAuth: false, hasAuditLogger: false, hasSourceSelection: false }) {
+} = { hasAuth: false, hasAuditLogger: false }) {
   const isTS = ext === 'ts';
 
   const content = isTS

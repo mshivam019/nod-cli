@@ -132,8 +132,8 @@ jobs:
           cache: 'pnpm'
       
       - run: pnpm install
-      - run: pnpm run lint
-      - run: pnpm run build
+      - run: pnpm lint
+      - run: pnpm build
       - run: pnpm test
 
   deploy:

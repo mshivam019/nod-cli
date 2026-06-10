@@ -20,7 +20,7 @@ export interface PresetsConfig {
 }
 
 // Built-in presets that cannot be overwritten
-const BUILTIN_PRESETS = ['minimal', 'api', 'full', 'ai', 'production-api', 'custom'];
+const BUILTIN_PRESETS = ['minimal', 'api', 'full', 'ai', 'production-api', 'aws-sam-backend', 'custom'];
 
 async function ensureConfigDir(): Promise<void> {
   await fs.ensureDir(CONFIG_DIR);

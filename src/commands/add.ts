@@ -18,6 +18,8 @@ const CHAT_DB_VALUES = ['supabase', 'pg', 'mysql'] as const;
 const AUTH_MODE_VALUES = ['email-password', 'oauth-only', 'both'] as const;
 const ROUTE_METHOD_VALUES = ['get', 'post', 'put', 'delete', 'patch'] as const;
 const ROUTE_MIDDLEWARE_VALUES = ['authMiddleware', 'loggingMiddleware', 'roleMiddleware'] as const;
+const MIDDLEWARE_TYPE_VALUES = ['logger', 'rateLimit', 'cors', 'custom'] as const;
+const SERVICE_METHOD_VALUES = ['getAll', 'getById', 'create', 'update', 'delete'] as const;
 
 function parseBooleanOption(value: unknown, optionName: string): boolean | undefined {
   if (value === undefined || value === null) return undefined;
@@ -294,7 +296,7 @@ export async function addComponent(component: string, options: any) {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
       spinner.succeed(chalk.green('RAG service added!'));
-      console.log(chalk.gray('\nnpm install'));
+      console.log(chalk.gray('\npnpm install'));
       
       // Provider-specific instructions
       if (ragConfig.embeddingProvider === 'openai') {
@@ -457,11 +459,9 @@ export async function addComponent(component: string, options: any) {
       
       // Langfuse
       if (chatConfig.langfuse) {
-        deps['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
         deps['@langfuse/core'] = DEPENDENCIES.langfuseCore;
         deps['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
         deps['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
-        deps['langchain'] = DEPENDENCIES.langchain;
       }
       
       packageJson.dependencies = {
@@ -471,7 +471,7 @@ export async function addComponent(component: string, options: any) {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
       spinner.succeed(chalk.green('Chat service added!'));
-      console.log(chalk.gray('\nnpm install'));
+      console.log(chalk.gray('\npnpm install'));
       
       // Provider-specific instructions
       if (chatConfig.llmProvider === 'openai') {
@@ -554,7 +554,7 @@ export async function addComponent(component: string, options: any) {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
       spinner.succeed(chalk.green('Supabase helper added!'));
-      console.log(chalk.gray('\nnpm install'));
+      console.log(chalk.gray('\npnpm install'));
       console.log(chalk.gray('Set SUPABASE_URL and SUPABASE_API_KEY in .env'));
       console.log(chalk.blue('\n📚 Supabase docs: https://supabase.com/docs\n'));
     } catch (error) {
@@ -588,11 +588,11 @@ export async function addComponent(component: string, options: any) {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
       spinner.succeed(chalk.green('Drizzle ORM added!'));
-      console.log(chalk.gray('\nnpm install'));
+      console.log(chalk.gray('\npnpm install'));
       console.log(chalk.gray('Set DATABASE_URL or SUPABASE_POOLER_URL in .env'));
       const drizzleConfigFile = isTypeScript ? 'drizzle.config.ts' : 'drizzle.config.js';
-      console.log(chalk.gray(`npx drizzle-kit generate --config=${drizzleConfigFile}`));
-      console.log(chalk.gray(`npx drizzle-kit migrate --config=${drizzleConfigFile}`));
+      console.log(chalk.gray(`pnpm exec drizzle-kit generate --config=${drizzleConfigFile}`));
+      console.log(chalk.gray(`pnpm exec drizzle-kit migrate --config=${drizzleConfigFile}`));
       console.log(chalk.blue('\n📚 Drizzle docs: https://orm.drizzle.team/docs/overview\n'));
     } catch (error) {
       spinner.fail(chalk.red('Failed to add Drizzle ORM'));
@@ -609,19 +609,16 @@ if (component === 'langfuse') {
       await generateLangfuseObservability(process.cwd(), { name: projectName } as any, ext);
       packageJson.dependencies = {
         ...packageJson.dependencies,
-        '@langfuse/langchain': DEPENDENCIES.langfuseLangchainModern,
         '@langfuse/core': DEPENDENCIES.langfuseCore,
         '@langfuse/otel': DEPENDENCIES.langfuseOtel,
-        '@opentelemetry/sdk-node': DEPENDENCIES.opentelemetrySdkNode,
-        '@langchain/core': DEPENDENCIES.langchainCore,
-        'langchain': DEPENDENCIES.langchain
+        '@opentelemetry/sdk-node': DEPENDENCIES.opentelemetrySdkNode
       };
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
       spinner.succeed(chalk.green('Langfuse dependency added!'));
-      console.log(chalk.gray('\nnpm install'));
+      console.log(chalk.gray('\npnpm install'));
       console.log(chalk.gray('Set LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in .env'));
-      console.log(chalk.gray('Import and use langfuseHandler in your LLM calls'));
+      console.log(chalk.gray('Import and use langfuseService for explicit generation logging'));
       console.log(chalk.blue('\n📚 Langfuse docs: https://langfuse.com/docs\n'));
     } catch (error) {
       spinner.fail(chalk.red('Failed to add Langfuse'));
@@ -768,7 +765,7 @@ if (component === 'langfuse') {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       
       spinner.succeed(chalk.green(`Auth module added! (mode: ${authMode})`));
-      console.log(chalk.gray('\nnpm install'));
+      console.log(chalk.gray('\npnpm install'));
       console.log(chalk.yellow('\n📁 Generated files:'));
       console.log(chalk.gray('  src/auth/jwks.service.ts       - JWKS auto-generation'));
       console.log(chalk.gray('  src/auth/jwt.service.ts        - Custom JWT signing/verification'));
@@ -817,8 +814,8 @@ if (component === 'langfuse') {
       console.log(chalk.yellow('\n🗄️  Database setup:'));
       if (hasDrizzle) {
         console.log(chalk.gray('  1. Review src/db/schema/auth.ts'));
-        console.log(chalk.gray('  2. Run: npx drizzle-kit generate'));
-        console.log(chalk.gray('  3. Run: npx drizzle-kit migrate'));
+        console.log(chalk.gray('  2. Run: pnpm exec drizzle-kit generate'));
+        console.log(chalk.gray('  3. Run: pnpm exec drizzle-kit migrate'));
       } else {
         console.log(chalk.gray('  Run sql/auth-schema.sql in your database'));
       }
@@ -896,10 +893,32 @@ if (component === 'langfuse') {
         break;
       }
       case 'middleware':
-        await addMiddleware(name);
+        await addMiddleware(name, {
+          nonInteractive: isNonInteractive,
+          type: parseEnumOption(options?.type, MIDDLEWARE_TYPE_VALUES, '--type'),
+          isDefault: parseBooleanOption(options?.default, '--default')
+        });
         break;
       case 'service':
-        await addService(name);
+        {
+          const methods = parseListOption(options?.methods);
+          if (methods) {
+            const invalidMethods = methods.filter(
+              (item) => !(SERVICE_METHOD_VALUES as readonly string[]).includes(item)
+            );
+            if (invalidMethods.length > 0) {
+              console.log(chalk.red(`\n❌ Invalid --methods values: ${invalidMethods.join(', ')}`));
+              console.log(chalk.gray(`Valid values: ${SERVICE_METHOD_VALUES.join(', ')}\n`));
+              process.exit(1);
+            }
+          }
+
+          await addService(name, {
+            nonInteractive: isNonInteractive,
+            withDatabase: parseBooleanOption(options?.withDatabase, '--with-database'),
+            methods
+          });
+        }
         break;
       case 'controller':
         console.log(chalk.yellow('Controller generation coming soon!'));

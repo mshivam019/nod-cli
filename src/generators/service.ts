@@ -3,16 +3,35 @@ import * as path from "path";
 import chalk from "chalk";
 import prompts from "prompts";
 
-export async function addService(name: string) {
-  const response = await prompts([
+interface AddServiceOptions {
+  nonInteractive?: boolean;
+  withDatabase?: boolean;
+  methods?: string[];
+}
+
+export async function addService(name: string, options: AddServiceOptions = {}) {
+  const defaults = {
+    withDatabase: options.withDatabase ?? false,
+    methods: options.methods || [
+      "getAll",
+      "getById",
+      "create",
+      "update",
+      "delete",
+    ],
+  };
+
+  const response = options.nonInteractive
+    ? defaults
+    : await prompts([
     {
-      type: "confirm",
+      type: options.withDatabase !== undefined ? null : "confirm",
       name: "withDatabase",
       message: "Include database operations?",
       initial: true,
     },
     {
-      type: "multiselect",
+      type: options.methods ? null : "multiselect",
       name: "methods",
       message: "Select methods to generate:",
       choices: [
@@ -26,7 +45,10 @@ export async function addService(name: string) {
   ]);
 
   const projectRoot = process.cwd();
-  await createService(projectRoot, name, response);
+  await createService(projectRoot, name, {
+    withDatabase: response.withDatabase ?? defaults.withDatabase,
+    methods: response.methods || defaults.methods,
+  });
 }
 
 async function createService(projectRoot: string, name: string, config: any) {

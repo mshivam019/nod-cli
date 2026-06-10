@@ -25,16 +25,34 @@ const initCommand = program
     "--db <database>",
     "Database: pg, mysql, supabase, drizzle, or none",
   )
-  .option("--auth <auth>", "Auth: jwt, jwks, supabase, cookie-session, or none")
+  .option("--auth <auth>", "Auth: jwt, jwks, supabase, cookie-session, better-auth, or none")
   .option("--queue <queue>", "Queue: bull or none")
   .option(
     "--preset <preset>",
-    "Preset: minimal, api, full, ai, production-api, 1, or custom preset name",
+    "Preset: minimal, api, full, ai, production-api, aws-sam-backend, 1, or custom preset name",
   )
   .option("--security <mode>", "Security mode: basic or strict")
   .option("--deploy-target <target>", "Deploy target: node or lambda-sam")
   .option("-y, --yes", "Skip prompts and use defaults/provided options")
   .action(initProject);
+
+program
+  .command("backend <name>")
+  .description("Create a production Express + TypeScript AWS SAM backend")
+  .option("--preset <preset>", "Preset to use", "aws-sam-backend")
+  .option("--security <mode>", "Security mode: basic or strict")
+  .option("--db <database>", "Database: supabase, pg, or none")
+  .option("--auth <auth>", "Auth: better-auth, cookie-session, jwt, jwks, supabase, or none")
+  .action((name, options) =>
+    initProject(name, {
+      ...options,
+      yes: true,
+      framework: "express",
+      ts: true,
+      preset: options.preset || "aws-sam-backend",
+      deployTarget: "lambda-sam",
+    }),
+  );
 
 program
   .command("add <component>")
@@ -108,6 +126,22 @@ program
     "Create service for `add route` (true|false)",
   )
   .option("--middleware <list>", "Comma-separated middleware for `add route`")
+  .option(
+    "--type <type>",
+    "Middleware type for `add middleware`: logger, rateLimit, cors, or custom",
+  )
+  .option(
+    "--default <boolean>",
+    "Apply middleware as default for `add middleware` (true|false)",
+  )
+  .option(
+    "--with-database <boolean>",
+    "Include database operations for `add service` (true|false)",
+  )
+  .option(
+    "--methods <list>",
+    "Comma-separated service methods for `add service`: getAll,getById,create,update,delete",
+  )
   .action(addComponent);
 
 program
@@ -154,6 +188,23 @@ program
 program
   .command("preset [action] [name]")
   .description("Manage presets: list, create, delete, default, show")
+  .option("-y, --yes", "Run non-interactively with defaults/provided options")
+  .option("--description <description>", "Description for `preset create`")
+  .option("--db <database>", "Preset database: pg, mysql, supabase, or none")
+  .option("--orm <orm>", "Preset ORM: drizzle, raw, or none")
+  .option("--auth <auth>", "Preset auth: jwt, jwks, supabase, better-auth, cookie-session, or none")
+  .option("--security <mode>", "Preset security mode: basic or strict")
+  .option("--deploy-target <target>", "Preset deploy target: node or lambda-sam")
+  .option("--cron <boolean>", "Include cron support (true|false)")
+  .option("--environments <boolean>", "Include environment config (true|false)")
+  .option("--api-audit <boolean>", "Include API audit logging (true|false)")
+  .option("--langfuse <boolean>", "Include Langfuse config (true|false)")
+  .option("--github-workflow <boolean>", "Include GitHub workflow (true|false)")
+  .option("--docker <boolean>", "Include Docker config (true|false)")
+  .option("--pm2 <boolean>", "Include PM2 config (true|false)")
+  .option("--testing <boolean>", "Include testing setup (true|false)")
+  .option("--vercel-cron <boolean>", "Include Vercel cron config (true|false)")
+  .option("--clear", "Clear the default preset for `preset default`")
   .action(presetCommand);
 
 program
@@ -166,6 +217,7 @@ program
 // Check if the first argument is not a known command
 const knownCommands = [
   "init",
+  "backend",
   "add",
   "transform",
   "validate",

@@ -13,7 +13,44 @@ import {
 } from '../utils/presets.js';
 import { ProjectConfig } from '../types/index.js';
 
-export async function presetCommand(action?: string, name?: string) {
+const DATABASE_VALUES = ['pg', 'mysql', 'supabase', 'none'] as const;
+const ORM_VALUES = ['drizzle', 'raw', 'none'] as const;
+const AUTH_VALUES = ['jwt', 'jwks', 'supabase', 'better-auth', 'cookie-session', 'none'] as const;
+const SECURITY_VALUES = ['basic', 'strict'] as const;
+const DEPLOY_TARGET_VALUES = ['node', 'lambda-sam'] as const;
+
+function isNonInteractive(options?: any): boolean {
+  return Boolean(options?.yes || process.env.CI === 'true');
+}
+
+function parseBooleanOption(value: unknown, optionName: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'boolean') return value;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+
+  console.log(chalk.red(`\n❌ Invalid value for ${optionName}: ${String(value)}. Use true or false.\n`));
+  process.exit(1);
+}
+
+function parseEnumOption<T extends readonly string[]>(
+  value: unknown,
+  validValues: T,
+  optionName: string
+): T[number] | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).trim();
+  if ((validValues as readonly string[]).includes(normalized)) {
+    return normalized as T[number];
+  }
+
+  console.log(chalk.red(`\n❌ Invalid value for ${optionName}: ${normalized}. Valid values: ${validValues.join(', ')}\n`));
+  process.exit(1);
+}
+
+export async function presetCommand(action?: string, name?: string, options?: any) {
   switch (action) {
     case 'list':
     case 'ls':
@@ -21,14 +58,14 @@ export async function presetCommand(action?: string, name?: string) {
       break;
     case 'create':
     case 'add':
-      await createPresetCommand(name);
+      await createPresetCommand(name, options);
       break;
     case 'delete':
     case 'rm':
-      await deletePresetCommand(name);
+      await deletePresetCommand(name, options);
       break;
     case 'default':
-      await setDefaultCommand(name);
+      await setDefaultCommand(name, options);
       break;
     case 'show':
       await showPresetCommand(name);
@@ -68,10 +105,43 @@ async function listPresetsCommand() {
   console.log(chalk.gray('Use `nod preset default <name>` to set default preset\n'));
 }
 
-async function createPresetCommand(name?: string) {
+async function createPresetCommand(name?: string, options?: any) {
   console.log(chalk.blue.bold('\n🔧 Create Custom Preset\n'));
+
+  const nonInteractive = isNonInteractive(options);
+  if (nonInteractive && !name) {
+    console.log(chalk.red('\n❌ Preset name is required in non-interactive mode.\n'));
+    process.exit(1);
+  }
+
+  const optionDefaults = {
+    database: parseEnumOption(options?.db, DATABASE_VALUES, '--db') || 'supabase',
+    orm: parseEnumOption(options?.orm, ORM_VALUES, '--orm'),
+    auth: parseEnumOption(options?.auth, AUTH_VALUES, '--auth') || 'better-auth',
+    security: parseEnumOption(options?.security, SECURITY_VALUES, '--security') || 'strict',
+    deployTarget: parseEnumOption(options?.deployTarget, DEPLOY_TARGET_VALUES, '--deploy-target') || 'lambda-sam',
+    cron: parseBooleanOption(options?.cron, '--cron') ?? false,
+    environments: parseBooleanOption(options?.environments, '--environments') ?? true,
+    apiAudit: parseBooleanOption(options?.apiAudit, '--api-audit') ?? true,
+    langfuse: parseBooleanOption(options?.langfuse, '--langfuse') ?? false,
+    vercelCron: parseBooleanOption(options?.vercelCron, '--vercel-cron') ?? false,
+    githubWorkflow: parseBooleanOption(options?.githubWorkflow, '--github-workflow') ?? true,
+    docker: parseBooleanOption(options?.docker, '--docker') ?? false,
+    pm2: parseBooleanOption(options?.pm2, '--pm2') ?? false,
+    testing: parseBooleanOption(options?.testing, '--testing') ?? true,
+  };
+
+  if (!optionDefaults.orm) {
+    optionDefaults.orm = optionDefaults.database === 'pg' || optionDefaults.database === 'supabase'
+      ? 'drizzle'
+      : 'none';
+  }
   
-  const response = await prompts([
+  const response = nonInteractive ? {
+    name,
+    description: options?.description,
+    ...optionDefaults,
+  } : await prompts([
     {
       type: name ? null : 'text',
       name: 'name',
@@ -119,9 +189,31 @@ async function createPresetCommand(name?: string) {
         { title: 'JWT', value: 'jwt' },
         { title: 'JWKS (JWT with key rotation)', value: 'jwks' },
         { title: 'Supabase Auth', value: 'supabase' },
+        { title: 'Better Auth', value: 'better-auth' },
+        { title: 'Cookie Session', value: 'cookie-session' },
         { title: 'None', value: 'none' }
       ],
-      initial: 2
+      initial: 3
+    },
+    {
+      type: 'select',
+      name: 'security',
+      message: 'Security profile:',
+      choices: [
+        { title: 'Basic', value: 'basic' },
+        { title: 'Strict', value: 'strict' }
+      ],
+      initial: 1
+    },
+    {
+      type: 'select',
+      name: 'deployTarget',
+      message: 'Deployment target:',
+      choices: [
+        { title: 'Node server', value: 'node' },
+        { title: 'AWS Lambda + SAM', value: 'lambda-sam' }
+      ],
+      initial: 1
     },
     {
       type: 'confirm',
@@ -137,12 +229,6 @@ async function createPresetCommand(name?: string) {
     },
     {
       type: 'confirm',
-      name: 'sourceConfig',
-      message: 'Include source config (domain-based routing)?',
-      initial: true
-    },
-    {
-      type: 'confirm',
       name: 'apiAudit',
       message: 'Include API audit logging?',
       initial: true
@@ -151,7 +237,7 @@ async function createPresetCommand(name?: string) {
       type: 'confirm',
       name: 'langfuse',
       message: 'Include Langfuse for LLM observability?',
-      initial: true
+      initial: false
     },
     {
       type: 'confirm',
@@ -205,9 +291,8 @@ async function createPresetCommand(name?: string) {
       docker: response.docker,
       pm2: response.pm2,
       environments: response.environments,
-      sourceConfig: response.sourceConfig,
-      modelConfig: false,
       apiAudit: response.apiAudit,
+      security: response.security,
     },
     ai: {
       rag: false,
@@ -219,6 +304,10 @@ async function createPresetCommand(name?: string) {
       vercel: response.vercelCron,
       vercelCron: response.vercelCron,
       githubWorkflow: response.githubWorkflow,
+      target: response.deployTarget,
+    },
+    supabase: {
+      usePooler: response.orm === 'drizzle',
     },
   };
   
@@ -231,8 +320,15 @@ async function createPresetCommand(name?: string) {
   }
 }
 
-async function deletePresetCommand(name?: string) {
+async function deletePresetCommand(name?: string, options?: any) {
+  const nonInteractive = isNonInteractive(options);
+
   if (!name) {
+    if (nonInteractive) {
+      console.log(chalk.red('\n❌ Preset name is required in non-interactive mode.\n'));
+      process.exit(1);
+    }
+
     const customPresets = await listPresets();
     
     if (customPresets.length === 0) {
@@ -255,12 +351,17 @@ async function deletePresetCommand(name?: string) {
     name = response.name;
   }
   
-  const confirm = await prompts({
-    type: 'confirm',
-    name: 'yes',
-    message: `Delete preset '${name}'?`,
-    initial: false
-  });
+  if (nonInteractive && !options?.yes) {
+    console.log(chalk.red('\n❌ Refusing to delete without --yes in non-interactive mode.\n'));
+    process.exit(1);
+  }
+
+  const confirm = options?.yes ? { yes: true } : await prompts({
+      type: 'confirm',
+      name: 'yes',
+      message: `Delete preset '${name}'?`,
+      initial: false
+    });
   
   if (!confirm.yes) {
     console.log(chalk.red('\n❌ Deletion cancelled\n'));
@@ -279,10 +380,23 @@ async function deletePresetCommand(name?: string) {
   }
 }
 
-async function setDefaultCommand(name?: string) {
+async function setDefaultCommand(name?: string, options?: any) {
   const currentDefault = await getDefaultPreset();
+  const nonInteractive = isNonInteractive(options);
+
+  if (options?.clear) {
+    name = null as any;
+  }
   
   if (!name) {
+    if (nonInteractive && !options?.clear) {
+      console.log(chalk.red('\n❌ Preset name is required in non-interactive mode. Use --clear to clear it.\n'));
+      process.exit(1);
+    }
+
+    if (options?.clear) {
+      // Skip the interactive selector below.
+    } else {
     const customPresets = await listPresets();
     const builtinPresets = getBuiltinPresets();
     
@@ -311,6 +425,7 @@ async function setDefaultCommand(name?: string) {
     }
     
     name = response.name === '__none__' ? null : response.name;
+    }
   }
   
   try {

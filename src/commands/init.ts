@@ -53,8 +53,6 @@ export async function initProject(name?: string, options?: any) {
         docker: presetDefaults.features?.docker ?? true,
         pm2: presetDefaults.features?.pm2 ?? false,
         environments: presetDefaults.features?.environments ?? true,
-        sourceConfig: presetDefaults.features?.sourceConfig ?? false,
-        modelConfig: presetDefaults.features?.modelConfig ?? false,
         apiAudit: presetDefaults.features?.apiAudit ?? false,
         security,
       },
@@ -102,6 +100,7 @@ export async function initProject(name?: string, options?: any) {
     { title: 'Full - All features', value: 'full' },
     { title: 'AI - RAG, Chat, Langfuse', value: 'ai' },
     { title: 'Production API - Strict security + Lambda/SAM ready', value: 'production-api' },
+    { title: 'AWS SAM Backend - Express + Drizzle + strict security', value: 'aws-sam-backend' },
     { title: '1 - Your stack (Supabase + Drizzle + Vercel + AI)', value: '1' },
     ...customPresetNames.map(name => {
       const preset = presetsConfig.presets[name];
@@ -182,6 +181,7 @@ export async function initProject(name?: string, options?: any) {
         { title: 'JWKS (JWT with key rotation)', value: 'jwks' },
         { title: 'Supabase Auth', value: 'supabase' },
         { title: 'Cookie Session', value: 'cookie-session' },
+        { title: 'Better Auth', value: 'better-auth' },
         { title: 'None', value: 'none' }
       ],
       initial: 0
@@ -361,8 +361,6 @@ export async function initProject(name?: string, options?: any) {
       docker: response.docker ?? presetDefaults.features?.docker ?? true,
       pm2: response.pm2 ?? presetDefaults.features?.pm2 ?? false,
       environments: response.environments ?? presetDefaults.features?.environments ?? true,
-      sourceConfig: presetDefaults.features?.sourceConfig ?? false,
-      modelConfig: presetDefaults.features?.modelConfig ?? false,
       apiAudit: presetDefaults.features?.apiAudit ?? false,
       security,
     },
@@ -409,7 +407,7 @@ function printNextSteps(config: ProjectConfig) {
   if (config.orm === 'drizzle') {
     console.log(chalk.yellow('📝 Drizzle Setup:'));
     console.log(chalk.gray('  pnpm db:generate'));
-    console.log(chalk.gray('  pnpm exec drizzle-kit migrate\n'));
+    console.log(chalk.gray('  pnpm db:migrate\n'));
   }
 
   if (config.ai?.rag || config.ai?.chat) {
@@ -435,8 +433,6 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: false,
       pm2: false,
       environments: false,
-      sourceConfig: false,
-      modelConfig: false,
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: false },
@@ -453,8 +449,6 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
-      sourceConfig: false,
-      modelConfig: false,
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true },
@@ -472,8 +466,6 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
-      sourceConfig: true,
-      modelConfig: true,
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: true, vercelCron: true, githubWorkflow: true },
@@ -491,15 +483,13 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
-      sourceConfig: true,
-      modelConfig: true,
     },
     ai: { rag: true, chat: true, langfuse: true, embeddings: 'openai' },
     deployment: { vercel: true, vercelCron: true, githubWorkflow: true },
   },
   'production-api': {
     database: 'supabase',
-    auth: 'cookie-session',
+    auth: 'better-auth',
     queue: 'none',
     orm: 'drizzle',
     features: {
@@ -510,13 +500,31 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: false,
       pm2: false,
       environments: true,
-      sourceConfig: true,
-      modelConfig: false,
       apiAudit: true,
       security: 'strict',
     },
-    ai: { rag: false, chat: false, langfuse: true, embeddings: 'none' },
+    ai: { rag: false, chat: false, langfuse: false, embeddings: 'none' },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true, target: 'lambda-sam' },
+  },
+  'aws-sam-backend': {
+    database: 'supabase',
+    auth: 'better-auth',
+    queue: 'none',
+    orm: 'drizzle',
+    features: {
+      cron: false,
+      cronLock: 'supabase',
+      logging: true,
+      testing: true,
+      docker: false,
+      pm2: false,
+      environments: true,
+      apiAudit: true,
+      security: 'strict',
+    },
+    ai: { rag: false, chat: false, langfuse: false, embeddings: 'none' },
+    deployment: { vercel: false, vercelCron: false, githubWorkflow: true, target: 'lambda-sam' },
+    supabase: { usePooler: true },
   },
   // Preset "1" - Your exact stack from sample projects
   '1': {
@@ -532,11 +540,9 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: false,
       pm2: false,
       environments: true,
-      sourceConfig: true,
-      modelConfig: false,
       apiAudit: true,
     },
-    ai: { rag: false, chat: false, langfuse: true, embeddings: 'none' },
+    ai: { rag: false, chat: false, langfuse: false, embeddings: 'none' },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true },
   },
   custom: {
@@ -551,8 +557,6 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
-      sourceConfig: false,
-      modelConfig: false,
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true },

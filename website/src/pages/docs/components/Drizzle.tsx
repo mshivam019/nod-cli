@@ -120,13 +120,13 @@ SUPABASE_STAGING_POOLER_URL=postgresql://user:pass@db.xxx.supabase.co:6543/postg
         </h2>
         <CodeBlock
           code={`# Generate migrations from schema changes
-npx drizzle-kit generate --config=drizzle.config.ts
+pnpm exec drizzle-kit generate --config=drizzle.config.ts
 
 # Apply migrations
-npx drizzle-kit migrate --config=drizzle.config.ts
+pnpm exec drizzle-kit migrate --config=drizzle.config.ts
 
 # Open Drizzle Studio (GUI)
-npx drizzle-kit studio`}
+pnpm exec drizzle-kit studio`}
           language="bash"
         />
         <p className="text-sm text-muted-foreground">

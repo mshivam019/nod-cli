@@ -4,7 +4,6 @@ import * as path from 'path';
 export interface MigrationOptions {
   hasAuth: boolean;
   hasAuditLogger: boolean;
-  hasSourceSelection: boolean;
   defaultMiddleware: string[];
   defaultRoles: string[];
 }
@@ -137,7 +136,7 @@ function generateDeclarativeRoutes(
   fileExt: string,
   options: MigrationOptions
 ): string {
-  const { defaultMiddleware, defaultRoles, hasAuth, hasAuditLogger, hasSourceSelection } = options;
+  const { defaultMiddleware, defaultRoles, hasAuth, hasAuditLogger } = options;
   const isTS = fileExt === 'ts';
 
   const preservedImports = originalContent

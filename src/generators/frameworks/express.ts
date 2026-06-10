@@ -29,12 +29,14 @@ async function generateAppFile(
 ) {
   const ext = ctx.fileExt;
   const isTS = ext === "ts";
-  const strictSecurity = config.features.security === "strict" || config.auth === "cookie-session";
+  const strictSecurity = config.features.security === "strict" || config.auth === "cookie-session" || config.auth === "better-auth";
 
   const appContent = isTS
     ? `${strictSecurity ? "" : "import cors from 'cors';\n"}${strictSecurity ? "import cookieParser from 'cookie-parser';\nimport helmet from 'helmet';\n" : ""}
+${ctx.hasBetterAuth ? "import { toNodeHandler } from 'better-auth/node';\n" : ""}
 import express, { Express, Request, Response } from 'express';
 import { router } from './routes/index.js';
+${ctx.hasBetterAuth ? "import { auth } from './helpers/authProvider.helper.js';\n" : ""}
 ${strictSecurity ? "import corsMiddleware from './middleware/cors.middleware.js';\nimport csrfProtection from './middleware/csrf.middleware.js';\nimport originVerify from './middleware/originVerify.middleware.js';\nimport requestSizeGuard from './middleware/requestSize.middleware.js';\nimport { requestBodyLimits } from './config/requestLimits.js';" : ""}
 ${ctx.hasLangfuse ? "import { initializeTelemetry } from './instrumentation.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
@@ -48,6 +50,7 @@ export function createApp(): Express {
   app.use(requestSizeGuard);
   app.use(cookieParser());
   app.use(corsMiddleware);
+  ${ctx.hasBetterAuth ? "app.all('/api/auth/provider/{*any}', toNodeHandler(auth));" : ""}
   app.use(express.json({
     limit: requestBodyLimits.json,
     strict: true,
@@ -79,8 +82,10 @@ ${ctx.hasLangfuse ? "void initializeTelemetry();\n" : ""}
 export default createApp;
 `
     : `${strictSecurity ? "" : "import cors from 'cors';\n"}${strictSecurity ? "import cookieParser from 'cookie-parser';\nimport helmet from 'helmet';\n" : ""}
+${ctx.hasBetterAuth ? "import { toNodeHandler } from 'better-auth/node';\n" : ""}
 import express from 'express';
 import { router } from './routes/index.js';
+${ctx.hasBetterAuth ? "import { auth } from './helpers/authProvider.helper.js';\n" : ""}
 ${strictSecurity ? "import corsMiddleware from './middleware/cors.middleware.js';\nimport csrfProtection from './middleware/csrf.middleware.js';\nimport originVerify from './middleware/originVerify.middleware.js';\nimport requestSizeGuard from './middleware/requestSize.middleware.js';\nimport { requestBodyLimits } from './config/requestLimits.js';" : ""}
 ${ctx.hasLangfuse ? "import { initializeTelemetry } from './instrumentation.js';" : ""}
 import errorHandler from './middleware/errorHandler.js';
@@ -94,6 +99,7 @@ export function createApp() {
   app.use(requestSizeGuard);
   app.use(cookieParser());
   app.use(corsMiddleware);
+  ${ctx.hasBetterAuth ? "app.all('/api/auth/provider/{*any}', toNodeHandler(auth));" : ""}
   app.use(express.json({
     limit: requestBodyLimits.json,
     strict: true,
@@ -392,7 +398,7 @@ export default errorHandler;
   );
 
   // Auth middleware (if enabled)
-  if (ctx.hasAuth && !ctx.hasSupabaseAuth && !ctx.hasCookieSessionAuth) {
+  if (ctx.hasAuth && !ctx.hasSupabaseAuth && !ctx.hasCookieSessionAuth && !ctx.hasBetterAuth) {
     const authContent = isTS
       ? `import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
@@ -554,44 +560,36 @@ async function generateExampleRoute(projectPath: string, ctx: TemplateContext) {
   if (ctx.hasSupabaseAuth) {
     defaultMiddlewares.push("jwtAuth");
   }
-  if (ctx.hasCookieSessionAuth) {
+  if (ctx.hasCookieSessionAuth || ctx.hasBetterAuth) {
     defaultMiddlewares.push("sessionAuth");
   }
   if (ctx.hasSupabaseAuth && ctx.hasApiAudit) {
     defaultMiddlewares.push("auditLogger");
   }
-  if (ctx.hasSourceConfig) {
-    defaultMiddlewares.push("sourceSelection");
-  }
-
   const middlewareListStr = defaultMiddlewares.map((m) => `'${m}'`).join(", ");
   const hasSupabaseAuth = ctx.hasSupabaseAuth;
-  const hasCookieSessionAuth = ctx.hasCookieSessionAuth;
+  const hasSessionAuth = ctx.hasCookieSessionAuth || ctx.hasBetterAuth;
   const hasAuditLogger = ctx.hasSupabaseAuth && ctx.hasApiAudit;
-  const hasSourceSelection = ctx.hasSourceConfig;
-  const adminRoles = hasSupabaseAuth || hasCookieSessionAuth ? "['org_admin', 'super_admin']" : "['admin', 'superAdmin']";
+  const adminRoles = hasSupabaseAuth || hasSessionAuth ? "['org_admin', 'super_admin']" : "['admin', 'superAdmin']";
 
   const sharedMiddlewareImportsTs = [
     hasSupabaseAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : "",
-    hasCookieSessionAuth ? "import sessionAuth from '../middleware/sessionAuth.middleware.js';" : "",
+    hasSessionAuth ? "import sessionAuth from '../middleware/sessionAuth.middleware.js';" : "",
     hasAuditLogger ? "import auditLogger from '../middleware/auditLog.middleware.js';" : "",
-    hasSourceSelection ? "import sourceSelection from '../middleware/sourceSelection.middleware.js';" : "",
     hasSupabaseAuth ? "import checkPermission from '../middleware/permission.middleware.js';" : "",
   ].filter(Boolean).join("\n");
 
   const sharedRegistrationTs = [
     hasSupabaseAuth ? "  configuredRouter.registerMiddleware('jwtAuth', jwtAuth);" : "",
-    hasCookieSessionAuth ? "  configuredRouter.registerMiddleware('sessionAuth', sessionAuth);" : "",
+    hasSessionAuth ? "  configuredRouter.registerMiddleware('sessionAuth', sessionAuth);" : "",
     hasAuditLogger ? "  configuredRouter.registerMiddleware('auditLogger', auditLogger);" : "",
-    hasSourceSelection ? "  configuredRouter.registerMiddleware('sourceSelection', sourceSelection);" : "",
     hasSupabaseAuth ? "  configuredRouter.registerMiddleware('roleCheck', checkPermission);" : "",
   ].filter(Boolean).join("\n");
 
   // Generate route-builder helper
   await generateRouteBuilder(projectPath, ext, {
-    hasAuth: ctx.hasSupabaseAuth || ctx.hasCookieSessionAuth,
+    hasAuth: ctx.hasSupabaseAuth || hasSessionAuth,
     hasAuditLogger: ctx.hasApiAudit,
-    hasSourceSelection: ctx.hasSourceConfig,
   });
 
   // Generate router config (simple re-export)
@@ -801,11 +799,10 @@ async function generateRouteBuilder(
   options: {
     hasAuth: boolean;
     hasAuditLogger: boolean;
-    hasSourceSelection: boolean;
   },
 ) {
   const isTS = ext === "ts";
-  const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
+  const { hasAuth, hasAuditLogger } = options;
 
   const content = isTS
     ? `/**
@@ -939,7 +936,6 @@ export function createConfiguredRouter(config: {
 
   ${hasAuth ? "router.registerMiddleware('jwtAuth', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ""}
   ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ""}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (_req: Request, _res: Response, next: NextFunction) => { next(); });" : ""}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;
@@ -1048,7 +1044,6 @@ export function createConfiguredRouter(config) {
 
   ${hasAuth ? "router.registerMiddleware('jwtAuth', (req, res, next) => { next(); });" : ""}
   ${hasAuditLogger ? "router.registerMiddleware('auditLogger', (req, res, next) => { next(); });" : ""}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', (req, res, next) => { next(); });" : ""}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;
@@ -1070,11 +1065,10 @@ async function generateRouterConfig(
   options: {
     hasAuth: boolean;
     hasAuditLogger: boolean;
-    hasSourceSelection: boolean;
   },
 ) {
   const isTS = ext === "ts";
-  const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
+  const { hasAuth, hasAuditLogger } = options;
 
   const content = isTS
     ? `/**

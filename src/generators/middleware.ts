@@ -3,8 +3,26 @@ import fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-export async function addMiddleware(name: string, preset?: { type?: string; isDefault?: boolean }) {
-  const response = preset ?? await prompts([
+interface AddMiddlewareOptions {
+  nonInteractive?: boolean;
+  type?: string;
+  isDefault?: boolean;
+}
+
+export async function addMiddleware(name: string, preset?: AddMiddlewareOptions) {
+  const defaults = {
+    type: preset?.type || 'custom',
+    isDefault: preset?.isDefault ?? false
+  };
+
+  const response = preset?.nonInteractive
+    ? defaults
+    : preset?.type || preset?.isDefault !== undefined
+      ? {
+          type: preset.type || defaults.type,
+          isDefault: preset.isDefault ?? defaults.isDefault
+        }
+      : await prompts([
     {
       type: 'select',
       name: 'type',
@@ -25,7 +43,10 @@ export async function addMiddleware(name: string, preset?: { type?: string; isDe
   ]);
 
   const projectRoot = process.cwd();
-  await createMiddleware(projectRoot, name, response);
+  await createMiddleware(projectRoot, name, {
+    type: response.type || defaults.type,
+    isDefault: response.isDefault ?? defaults.isDefault
+  });
 }
 
 async function createMiddleware(projectRoot: string, name: string, config: any) {

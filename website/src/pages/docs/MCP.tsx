@@ -243,8 +243,8 @@ timeoutMs: 120000`}
             <code>pnpm dlx nod-cli mcp</code> in the MCP command.
           </li>
           <li>
-            For Claude Code on native Windows, wrap npx with <code>cmd /c</code>{" "}
-            when adding stdio servers.
+            For Claude Code on native Windows, prefer <code>pnpm dlx</code>{" "}
+            so the MCP command does not depend on npm shims.
           </li>
           <li>
             Keep stdout clean in MCP servers; nod-cli MCP logs startup to stderr

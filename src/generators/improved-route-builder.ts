@@ -15,10 +15,9 @@ import * as path from 'path';
 export async function generateImprovedRouteBuilder(projectPath: string, ext: string, options: {
   hasAuth: boolean;
   hasAuditLogger: boolean;
-  hasSourceSelection: boolean;
-} = { hasAuth: false, hasAuditLogger: false, hasSourceSelection: false }) {
+} = { hasAuth: false, hasAuditLogger: false }) {
   const isTS = ext === 'ts';
-  const { hasAuth, hasAuditLogger, hasSourceSelection } = options;
+  const { hasAuth, hasAuditLogger } = options;
 
   const content = isTS
     ? `/**
@@ -43,7 +42,6 @@ import { Router } from 'express';
 import { wrapHandler, wrapResponse, createError, success, fail } from '../helpers/response-wrapper.js';
 ${hasAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
 ${hasAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
-${hasSourceSelection ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
 
 export const METHODS = {
   GET: 'get',
@@ -187,7 +185,6 @@ export function createConfiguredRouter(config: {
   // Register all available middlewares
   ${hasAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
   ${hasAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;
@@ -218,7 +215,6 @@ import { Router } from 'express';
 import { wrapHandler, wrapResponse, createError, success, fail } from '../helpers/response-wrapper.js';
 ${hasAuth ? "import jwtAuth from '../middleware/jwtAuth.middleware.js';" : ''}
 ${hasAuditLogger ? "import { auditLogger } from '../middleware/auditLog.middleware.js';" : ''}
-${hasSourceSelection ? "import { sourceSelection } from '../middleware/sourceSelection.middleware.js';" : ''}
 
 export const METHODS = {
   GET: 'get',
@@ -338,7 +334,6 @@ export function createConfiguredRouter(config) {
   // Register all available middlewares
   ${hasAuth ? "router.registerMiddleware('jwtAuth', jwtAuth);" : ''}
   ${hasAuditLogger ? "router.registerMiddleware('auditLogger', auditLogger);" : ''}
-  ${hasSourceSelection ? "router.registerMiddleware('sourceSelection', sourceSelection);" : ''}
   router.registerMiddleware('roleCheck', roleCheck);
 
   return router;

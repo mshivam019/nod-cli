@@ -1,9 +1,9 @@
 export type Framework = 'express' | 'hono';
 export type Database = 'pg' | 'mysql' | 'none' | 'supabase' | 'drizzle';
-export type Auth = 'jwt' | 'jwks' | 'supabase' | 'cookie-session' | 'none';
+export type Auth = 'jwt' | 'jwks' | 'supabase' | 'cookie-session' | 'better-auth' | 'none';
 export type AuthMode = 'email-password' | 'oauth-only' | 'both';
 export type Queue = 'bull' | 'none';
-export type Preset = 'minimal' | 'api' | 'full' | 'ai' | 'production-api' | '1' | 'custom';
+export type Preset = 'minimal' | 'api' | 'full' | 'ai' | 'production-api' | 'aws-sam-backend' | '1' | 'custom';
 export type CronLock = 'pg' | 'mysql' | 'redis' | 'file' | 'supabase';
 export type ORM = 'drizzle' | 'raw' | 'none';
 export type SecurityMode = 'basic' | 'strict';
@@ -60,8 +60,6 @@ export interface ProjectConfig {
     docker?: boolean;
     pm2?: boolean;
     environments?: boolean;
-    sourceConfig?: boolean;
-    modelConfig?: boolean;
     apiAudit?: boolean;
     security?: SecurityMode;
   };
@@ -98,6 +96,7 @@ export interface TemplateContext {
   hasJWKS: boolean;
   hasSupabaseAuth: boolean;
   hasCookieSessionAuth: boolean;
+  hasBetterAuth: boolean;
   hasDatabase: boolean;
   databaseType: string;
   hasQueue: boolean;
@@ -105,8 +104,6 @@ export interface TemplateContext {
   hasLogging: boolean;
   fileExt: string;
   hasEnvironments: boolean;
-  hasSourceConfig: boolean;
-  hasModelConfig: boolean;
   hasRAG: boolean;
   hasChat: boolean;
   hasLangfuse: boolean;

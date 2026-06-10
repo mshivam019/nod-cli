@@ -57,7 +57,7 @@ export function Introduction() {
           >
             <h3 className="font-semibold">AI Features</h3>
             <p className="text-sm text-muted-foreground">
-              RAG, Chat services, and Langfuse observability
+              RAG, chat services, and optional Langfuse observability
             </p>
           </Link>
           <Link
@@ -95,10 +95,10 @@ export function Introduction() {
 
         <CodeBlock
           code={`# Install globally
-npm install -g nod-cli
+pnpm add -g nod-cli
 
-# Create a new project
-nod init my-api
+# Create a SAM backend in one command
+nod backend my-api
 
 # Or use shorthand
 nod my-api`}

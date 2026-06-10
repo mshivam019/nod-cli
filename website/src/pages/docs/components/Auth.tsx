@@ -145,7 +145,7 @@ CREATE INDEX idx_users_google_id ON users(google_id);`}
         
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-            <strong>After generation:</strong> If using Drizzle, run <code>npm run db:generate && npx drizzle-kit migrate --config=drizzle.config.ts</code> to create tables. 
+            <strong>After generation:</strong> If using Drizzle, run <code>pnpm db:generate && pnpm exec drizzle-kit migrate --config=drizzle.config.ts</code> to create tables. 
             For raw SQL, execute the schema file against your database.
           </p>
         </div>

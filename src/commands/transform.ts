@@ -16,8 +16,6 @@ const TRANSFORM_FEATURE_CHOICES = [
   { title: 'RAG Service', value: 'rag' },
   { title: 'Chat Service', value: 'chat' },
   { title: 'Langfuse Integration', value: 'langfuse' },
-  { title: 'Model Selection Middleware', value: 'modelSelection' },
-  { title: 'Source Selection Middleware', value: 'sourceSelection' },
   { title: 'Error Handler Middleware', value: 'errorHandler' },
   { title: 'Winston Logger', value: 'logger' },
   { title: 'Response Formatter Helper', value: 'responseFormatter' },
@@ -377,39 +375,16 @@ export async function transformProject(options: any) {
       
       // Langfuse
       if (chatConfig.langfuse) {
-        depsToAdd['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
         depsToAdd['@langfuse/core'] = DEPENDENCIES.langfuseCore;
         depsToAdd['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
         depsToAdd['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
-        depsToAdd['langchain'] = DEPENDENCIES.langchain;
       }
     }
 
     if (features.includes('langfuse')) {
-      depsToAdd['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
       depsToAdd['@langfuse/core'] = DEPENDENCIES.langfuseCore;
       depsToAdd['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
       depsToAdd['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
-    }
-
-    if (features.includes('modelSelection')) {
-      const { generateModelConfig, generateSelectionMiddleware } = await import('../generators/ai.js');
-      await generateModelConfig(projectPath, ext);
-      // Only generate model selection middleware
-      const modelSelectionContent = await fs.readFile(
-        path.join(projectPath, `src/middleware/modelSelection.middleware.${ext}`), 
-        'utf-8'
-      ).catch(() => null);
-      
-      if (!modelSelectionContent) {
-        await generateSelectionMiddleware(projectPath, ext);
-      }
-    }
-
-    if (features.includes('sourceSelection')) {
-      const { generateSourceConfig, generateSelectionMiddleware } = await import('../generators/ai.js');
-      await generateSourceConfig(projectPath, ext);
-      await generateSelectionMiddleware(projectPath, ext);
     }
 
     if (features.includes('errorHandler')) {
@@ -449,7 +424,7 @@ export async function transformProject(options: any) {
     spinner.succeed(chalk.green('Project transformed successfully!'));
     
     console.log(chalk.blue('\n📦 Next steps:'));
-    console.log(chalk.gray('  npm install'));
+    console.log(chalk.gray('  pnpm install'));
     console.log(chalk.gray('  # Update your .env file with required variables'));
     console.log(chalk.gray('  # Import and use the new features in your app\n'));
     console.log(chalk.gray('  # Review AGENTS.md for project-specific AI contributor guidance\n'));
@@ -464,8 +439,8 @@ export async function transformProject(options: any) {
     if (features.includes('drizzle')) {
       console.log(chalk.yellow('📝 Drizzle Setup:'));
       console.log(chalk.gray('  1. Update drizzle.config.ts with your connection string'));
-      console.log(chalk.gray('  2. Run: npx drizzle-kit generate'));
-      console.log(chalk.gray('  3. Run: npx drizzle-kit migrate\n'));
+      console.log(chalk.gray('  2. Run: pnpm exec drizzle-kit generate'));
+      console.log(chalk.gray('  3. Run: pnpm exec drizzle-kit migrate\n'));
     }
 
   } catch (error) {
@@ -733,13 +708,11 @@ async function migrateRoutesToDeclarative(projectPath: string, ext: string) {
     const hasAuth = await fs.pathExists(path.join(projectPath, `src/middleware/jwtAuth.middleware.${ext}`)) ||
                     await fs.pathExists(path.join(projectPath, `src/middleware/auth.${ext}`));
     const hasAuditLogger = await fs.pathExists(path.join(projectPath, `src/middleware/auditLog.middleware.${ext}`));
-    const hasSourceSelection = await fs.pathExists(path.join(projectPath, `src/middleware/sourceSelection.middleware.${ext}`));
 
     // Build default middleware list
     const defaultMiddleware: string[] = [];
     if (hasAuth) defaultMiddleware.push('jwtAuth');
     if (hasAuditLogger) defaultMiddleware.push('auditLogger');
-    if (hasSourceSelection) defaultMiddleware.push('sourceSelection');
 
     // Ensure required directories exist
     await fs.ensureDir(path.join(projectPath, 'src/helpers'));
@@ -754,8 +727,7 @@ async function migrateRoutesToDeclarative(projectPath: string, ext: string) {
     const { generateImprovedRouteBuilder } = await import('../generators/improved-route-builder.js');
     await generateImprovedRouteBuilder(projectPath, ext, {
       hasAuth,
-      hasAuditLogger,
-      hasSourceSelection
+      hasAuditLogger
     });
     console.log(chalk.green('✓ Generated route-builder helper'));
 
@@ -769,7 +741,6 @@ async function migrateRoutesToDeclarative(projectPath: string, ext: string) {
     await migrateRoutes(projectPath, ext, {
       hasAuth,
       hasAuditLogger,
-      hasSourceSelection,
       defaultMiddleware,
       defaultRoles: []
     });

@@ -55,8 +55,8 @@ function buildAgentRules(context: AgentsGuideContext): string {
 - Add any shared helpers to \`src/helpers\` instead of duplicating code.
 - Respect generated stack defaults (framework: \`${cfg.framework}\`, language: \`${cfg.typescript ? 'ts' : 'js'}\`).
 - Use Prettier with 4-space indentation (\`.prettierrc.json\` with \`tabWidth: 4\`, \`useTabs: false\`).
-- Run \`npm run lint\` and \`npm run build\` after code changes.
-- Run \`npm run db:generate\` when schema or Drizzle config changes.
+- Run \`pnpm lint\` and \`pnpm build\` after code changes.
+- Run \`pnpm db:generate\` when schema or Drizzle config changes.
 - Keep Drizzle migrations in \`drizzle/\` tracked in git; do not add \`drizzle/\` to \`.gitignore\`.
 - Drizzle should only manage project tables prefixed with \`${getProjectTablePrefix(cfg.name)}_\`.
 - \`npm test\` may not be configured; check scripts before assuming tests exist.`;

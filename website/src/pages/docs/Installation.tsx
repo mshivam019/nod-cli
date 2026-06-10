@@ -51,8 +51,8 @@ nod my-api`}
           code={`# Default strict production API
 nod init my-api --yes
 
-# Explicit production preset
-nod init my-api --preset production-api --yes
+# One-command AWS SAM backend
+nod backend my-api
 
 # JavaScript project with API preset
 nod init my-api --preset api --no-ts --yes
@@ -93,13 +93,13 @@ nod init my-api --framework hono --db supabase --auth supabase --yes`}
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>--auth</code></td>
-                <td className="py-2 px-4">jwt, jwks, supabase, cookie-session, or none</td>
-                <td className="py-2 px-4">cookie-session via production-api</td>
+                <td className="py-2 px-4">jwt, jwks, supabase, cookie-session, better-auth, or none</td>
+                <td className="py-2 px-4">better-auth via production-api</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>--preset</code></td>
                 <td className="py-2 px-4">Use a preset configuration</td>
-                <td className="py-2 px-4">production-api</td>
+                <td className="py-2 px-4">production-api; aws-sam-backend for nod backend</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>--security</code></td>

@@ -31,12 +31,11 @@ export async function generateEnvironments(projectPath: string, config: ProjectC
 export async function generateEnvConfig(projectPath: string, config: ProjectConfig, ext: string) {
   const hasLangfuse = config.ai?.langfuse;
   const hasRAG = config.ai?.rag;
-  const isTS = ext === 'ts';
+  const hasBetterAuth = config.auth === 'better-auth';
   
   const configContent = `import 'dotenv/config';
 import { production } from '../environments/production.js';
 import { staging } from '../environments/staging.js';
-${hasLangfuse ? `import { CallbackHandler } from '@langfuse/langchain';` : ''}
 import { z } from 'zod';
 
 const nodeEnvSchema = z.enum(['development', 'staging', 'production', 'test']);
@@ -64,6 +63,8 @@ if (env !== 'production') {
 const configSchema = z.object({
   port: z.coerce.number().int().positive(),
   nodeEnv: nodeEnvSchema,
+  ${hasBetterAuth ? `backendUrl: z.string().url('BACKEND_URL must be a valid URL').optional(),
+  authSecret: z.string().min(32, 'BETTER_AUTH_SECRET/AUTH_SECRET must be at least 32 chars'),` : ''}
   
   // Supabase
   supabaseApiKey: z.string().min(1, 'Missing Supabase secret key for current environment'),
@@ -94,6 +95,8 @@ const configSchema = z.object({
 export const config = configSchema.parse({
   port: process.env.PORT || 3000,
   nodeEnv: env,
+  ${hasBetterAuth ? `backendUrl: process.env.BACKEND_URL,
+  authSecret: process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET || '',` : ''}
   
   // Supabase
   supabaseApiKey: env === 'production' ? production.supabaseSecretKey : staging.supabaseSecretKey,
@@ -120,39 +123,7 @@ process.env.LANGFUSE_BASE_URL = config.langfuseBaseUrl;
 if (config.langfusePublicKey && config.langfuseSecretKey) {
   process.env.LANGFUSE_PUBLIC_KEY = config.langfusePublicKey;
   process.env.LANGFUSE_SECRET_KEY = config.langfuseSecretKey;
-}
-
-${isTS ? `interface LangfuseCallbackOptions {
-  userId?: string;
-  sessionId?: string;
-  tags?: string[];
-  version?: string;
-  traceMetadata?: Record<string, unknown>;
-}
-` : ''}
-
-const BASE_LANGFUSE_TAGS = ['${config.name}', env];
-const isLangfuseConfigured = Boolean(config.langfusePublicKey && config.langfuseSecretKey);
-
-export const createLangfuseCallbacks = (options${isTS ? ': LangfuseCallbackOptions' : ''} = {})${isTS ? ': CallbackHandler[]' : ''} => {
-  if (!isLangfuseConfigured) {
-    return [];
-  }
-
-  const tags = Array.from(new Set([...(options.tags || []), ...BASE_LANGFUSE_TAGS]));
-
-  return [
-    new CallbackHandler({
-      userId: options.userId,
-      sessionId: options.sessionId,
-      tags,
-      version: options.version,
-      traceMetadata: options.traceMetadata,
-    }),
-  ];
-};
-
-export const langfuseHandler = createLangfuseCallbacks()[0] ?? new CallbackHandler();` : ''}
+}` : ''}
 
 export default config;
 `;

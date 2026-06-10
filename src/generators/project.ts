@@ -85,7 +85,7 @@ export async function generateProject(config: ProjectConfig) {
     await generateDockerFiles(projectPath, config);
   }
 
-  if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+  if (config.features.security === 'strict' || config.auth === 'cookie-session' || config.auth === 'better-auth') {
     const { generateStrictSecurity } = await import('./security.js');
     await generateStrictSecurity(projectPath, config, ext);
   }
@@ -158,19 +158,6 @@ export async function generateProject(config: ProjectConfig) {
     await generateLangfuseObservability(projectPath, config, ext);
   }
 
-  // Generate model/source config
-  if (config.features.modelConfig) {
-    const { generateModelConfig, generateSelectionMiddleware } = await import('./ai.js');
-    await generateModelConfig(projectPath, ext);
-    await generateSelectionMiddleware(projectPath, ext, true, false); // model=true, source=false
-  }
-
-  if (config.features.sourceConfig) {
-    const { generateSourceConfig, generateSourceSelectionMiddleware } = await import('./ai.js');
-    await generateSourceConfig(projectPath, ext);
-    await generateSourceSelectionMiddleware(projectPath, ext);
-  }
-
   // Generate API audit middleware
   if (config.features.apiAudit) {
     const { generateApiAudit, generateAuditSchema } = await import('./audit.js');
@@ -217,8 +204,7 @@ async function generateConfigFiles(projectPath: string, config: ProjectConfig, c
   const isTS = ext === 'ts';
 
   if (config.features.environments) {
-    const langfuseExport = config.ai?.langfuse ? ', langfuseHandler' : '';
-    const configIndexContent = `export { config, env${langfuseExport} } from './config.js';\nexport { default } from './config.js';\n`;
+    const configIndexContent = `export { config, env } from './config.js';\nexport { default } from './config.js';\n`;
     await fs.outputFile(path.join(projectPath, `src/config/index.${ext}`), configIndexContent);
     return;
   }
@@ -347,14 +333,14 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     dependencies['cors'] = DEPENDENCIES.cors;
     dependencies['helmet'] = DEPENDENCIES.helmet;
     dependencies['morgan'] = DEPENDENCIES.morgan;
-    if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+    if (config.features.security === 'strict' || config.auth === 'cookie-session' || config.auth === 'better-auth') {
       dependencies['cookie-parser'] = DEPENDENCIES.cookieParser;
     }
     if (config.typescript) {
       devDependencies['@types/express'] = DEV_DEPENDENCIES.typesExpress;
       devDependencies['@types/cors'] = DEV_DEPENDENCIES.typesCors;
       devDependencies['@types/morgan'] = DEV_DEPENDENCIES.typesMorgan;
-      if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+      if (config.features.security === 'strict' || config.auth === 'cookie-session' || config.auth === 'better-auth') {
         devDependencies['@types/cookie-parser'] = DEV_DEPENDENCIES.typesCookieParser;
       }
     }
@@ -381,6 +367,14 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
 
   if (config.auth === 'supabase') {
     dependencies['jose'] = DEPENDENCIES.jose;
+  }
+
+  if (config.auth === 'better-auth') {
+    dependencies['better-auth'] = DEPENDENCIES.betterAuth;
+    dependencies['bcryptjs'] = DEPENDENCIES.bcryptjs;
+    if (config.typescript) {
+      devDependencies['@types/bcryptjs'] = DEV_DEPENDENCIES.typesBcryptjs;
+    }
   }
 
   // Database dependencies
@@ -422,7 +416,6 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   // AI dependencies
   if (config.ai?.rag || config.ai?.chat) {
     dependencies['@langchain/core'] = DEPENDENCIES.langchainCore;
-    dependencies['langchain'] = DEPENDENCIES.langchain;
   }
 
   if (config.ai?.rag) {
@@ -459,15 +452,9 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   }
 
   if (config.ai?.langfuse) {
-    dependencies['@langfuse/langchain'] = DEPENDENCIES.langfuseLangchainModern;
     dependencies['@langfuse/core'] = DEPENDENCIES.langfuseCore;
     dependencies['@langfuse/otel'] = DEPENDENCIES.langfuseOtel;
     dependencies['@opentelemetry/sdk-node'] = DEPENDENCIES.opentelemetrySdkNode;
-    
-    if (!config.ai?.rag && !config.ai?.chat) {
-      dependencies['@langchain/core'] = DEPENDENCIES.langchainCore;
-      dependencies['langchain'] = DEPENDENCIES.langchain;
-    }
   }
 
   if (config.features.pm2) {
@@ -480,20 +467,31 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
 
   if (config.deployment?.target === 'lambda-sam') {
     dependencies['serverless-http'] = DEPENDENCIES.serverlessHttp;
+    if (config.typescript) {
+      devDependencies['tsup'] = DEV_DEPENDENCIES.tsup;
+    }
   }
 
   const ext = config.typescript ? 'ts' : 'js';
   const drizzleConfigFile = config.typescript ? 'drizzle.config.ts' : 'drizzle.config.js';
   const entryBaseName = 'server';
+  const isLambdaSam = config.deployment?.target === 'lambda-sam';
   const scripts: Record<string, string> = {
     dev: config.typescript 
       ? `tsx watch src/${entryBaseName}.${ext}`
       : `nodemon src/${entryBaseName}.${ext}`,
-    build: config.typescript ? 'tsc' : 'echo "No build needed for JS"',
+    build: config.typescript ? (isLambdaSam ? 'tsup' : 'tsc') : 'echo "No build needed for JS"',
     start: config.typescript ? `node dist/server.js` : `node src/server.${ext}`,
     lint: 'eslint . --ext .ts,.js',
     format: 'prettier --write "src/**/*.{ts,js}"',
   };
+
+  if (isLambdaSam) {
+    scripts.typecheck = 'tsc --noEmit';
+    scripts['sam:build'] = 'pnpm build && sam build';
+    scripts['sam:deploy:staging'] = 'sam deploy --config-env staging';
+    scripts['sam:deploy:production'] = 'sam deploy --config-env production';
+  }
 
   if (config.features.pm2) {
     scripts['start:pm2'] = 'pm2 start ecosystem.config.js --env production';
@@ -505,6 +503,7 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
 
   if (config.orm === 'drizzle') {
     scripts['db:generate'] = `drizzle-kit generate --config=${drizzleConfigFile}`;
+    scripts['db:migrate'] = `drizzle-kit migrate --config=${drizzleConfigFile}`;
     scripts['db:studio'] = 'drizzle-kit studio';
   }
 
@@ -522,13 +521,33 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     packageManager: 'pnpm@10.27.0',
     scripts,
     dependencies,
-    devDependencies
+    devDependencies,
+    ...(isLambdaSam ? {
+      overrides: {
+        esbuild: '^0.28.0',
+      },
+      engines: {
+        node: '22.x',
+      },
+    } : {}),
   };
 
   await fs.outputFile(
     path.join(projectPath, 'package.json'),
     JSON.stringify(packageJson, null, 2)
   );
+
+  if (isLambdaSam) {
+    await fs.outputFile(
+      path.join(projectPath, 'pnpm-workspace.yaml'),
+      `packages:
+  - .
+
+overrides:
+  esbuild: ^0.28.0
+`
+    );
+  }
 }
 
 async function generateEnvFile(projectPath: string, config: ProjectConfig) {
@@ -550,6 +569,15 @@ JWT_EXPIRES_IN=24h
     envContent += `
 # Cookie Session Authentication
 SESSION_SECRET=your-session-secret-change-this-in-production-min-32-chars
+`;
+  }
+
+  if (config.auth === 'better-auth') {
+    envContent += `
+# Better Auth
+BACKEND_URL=http://localhost:3000
+BETTER_AUTH_SECRET=replace-with-better-auth-secret-min-32-chars
+BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000,http://localhost:5173
 `;
   }
 
@@ -583,7 +611,7 @@ DB_POOL_MAX=10
     envContent += `
 # Supabase - Production
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_API_KEY=your-service-role-key
+SUPABASE_SECRET_KEY=your-service-role-key
 SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_PROJECT=your-project-id
 `;
@@ -621,19 +649,19 @@ REDIS_PASSWORD=
   if (config.ai?.rag || config.ai?.chat) {
     envContent += `
 # OpenAI
-OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_API_KEY=replace-with-openai-api-key
 `;
   }
 
   if (config.ai?.langfuse) {
     envContent += `
 # Langfuse - Production
-LANGFUSE_PUBLIC_KEY=pk-lf-your-public-key
-LANGFUSE_SECRET_KEY=sk-lf-your-secret-key
+LANGFUSE_PUBLIC_KEY=replace-with-langfuse-public-key
+LANGFUSE_SECRET_KEY=replace-with-langfuse-secret-key
 
 # Langfuse - Staging
-LANGFUSE_STAGING_PUBLIC_KEY=pk-lf-your-staging-public-key
-LANGFUSE_STAGING_SECRET_KEY=sk-lf-your-staging-secret-key
+LANGFUSE_STAGING_PUBLIC_KEY=replace-with-langfuse-staging-public-key
+LANGFUSE_STAGING_SECRET_KEY=replace-with-langfuse-staging-secret-key
 `;
   }
 
@@ -645,21 +673,13 @@ CRON_SECRET=your-cron-secret-for-vercel
 `;
   }
 
-  // Model Config
-  if (config.features.modelConfig) {
-    envContent += `
-# Model Domain Mapping (JSON)
-MODEL_DOMAIN_MAPPING={"o3":"o3","mini":"gpt-4o-mini","default":"gpt-4o"}
-`;
-  }
-
   // Logging
   envContent += `
 # Logging
 LOG_LEVEL=info
 `;
 
-  if (config.features.security === 'strict' || config.auth === 'cookie-session') {
+  if (config.features.security === 'strict' || config.auth === 'cookie-session' || config.auth === 'better-auth') {
     envContent += `
 # Strict Security
 TRUSTED_PARENT_DOMAINS=localhost
@@ -677,7 +697,31 @@ URLENCODED_PARAMETER_LIMIT=100
 async function generateTsConfig(projectPath: string, config: ProjectConfig) {
   if (!config.typescript) return;
 
-  const tsConfig = {
+  const isLambdaSam = config.deployment?.target === 'lambda-sam';
+  const tsConfig = isLambdaSam ? {
+    compilerOptions: {
+      target: 'ES2022',
+      lib: ['ES2022'],
+      module: 'NodeNext',
+      moduleResolution: 'NodeNext',
+      types: ['node'],
+      strict: true,
+      esModuleInterop: true,
+      allowSyntheticDefaultImports: true,
+      skipLibCheck: true,
+      forceConsistentCasingInFileNames: true,
+      resolveJsonModule: true,
+      isolatedModules: true,
+      moduleDetection: 'force',
+      noEmit: true,
+      noUnusedLocals: true,
+      noUnusedParameters: true,
+      noImplicitReturns: true,
+      noFallthroughCasesInSwitch: true
+    },
+    include: ['src/**/*.ts', 'src/**/*.d.ts', 'tsup.config.ts'],
+    exclude: ['node_modules', 'dist', '.aws-sam']
+  } : {
     compilerOptions: {
       target: 'ES2022',
       module: 'ESNext',
@@ -944,13 +988,13 @@ ${config.orm === 'drizzle' ? `## Database Setup (Drizzle)
 
 \`\`\`bash
 # Generate migrations
-npm run db:generate
+pnpm db:generate
 
 # Apply migrations
-npx drizzle-kit migrate --config=${drizzleConfigFile}
+pnpm exec drizzle-kit migrate --config=${drizzleConfigFile}
 
 # Open Drizzle Studio
-npm run db:studio
+pnpm db:studio
 \`\`\`
 ` : ''}
 
@@ -964,6 +1008,7 @@ npm run db:studio
 ${config.features.testing ? '- `pnpm test` - Run tests' : ''}
 ${config.orm === 'drizzle' ? `- \`pnpm db:generate\` - Generate Drizzle migrations
 - \`pnpm exec drizzle-kit migrate --config=${drizzleConfigFile}\` - Apply Drizzle migrations
+- \`pnpm db:migrate\` - Apply Drizzle migrations
 - \`pnpm db:studio\` - Open Drizzle Studio` : ''}
 
 ## Project Structure
