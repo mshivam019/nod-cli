@@ -54,6 +54,9 @@ nod init my-api --yes
 # One-command AWS SAM backend
 nod backend my-api
 
+# Explicit strict backend with Postgres-backed rate limits
+nod init my-api --preset aws-sam-backend --rate-limit-store postgres --yes
+
 # JavaScript project with API preset
 nod init my-api --preset api --no-ts --yes
 
@@ -110,6 +113,21 @@ nod init my-api --framework hono --db supabase --auth supabase --yes`}
                 <td className="py-2 px-4"><code>--deploy-target</code></td>
                 <td className="py-2 px-4">node or lambda-sam</td>
                 <td className="py-2 px-4">lambda-sam via production-api</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>--cron</code></td>
+                <td className="py-2 px-4">Include node/Lambda cron support</td>
+                <td className="py-2 px-4">preset</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>--vercel-cron</code></td>
+                <td className="py-2 px-4">Include Vercel cron config</td>
+                <td className="py-2 px-4">preset</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-2 px-4"><code>--rate-limit-store</code></td>
+                <td className="py-2 px-4">postgres, redis, or none</td>
+                <td className="py-2 px-4">postgres for strict Drizzle/SAM projects</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>-y, --yes</code></td>

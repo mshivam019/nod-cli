@@ -29,6 +29,7 @@ nod add <component> [options]`}
         <CodeBlock
           code={`# Non-interactive examples (AI/CI friendly)
 nod add cron --lock-backend file --yes
+nod add middleware --name rateLimit --type rateLimit --rate-limit-store postgres --yes
 nod add rag --embedding-provider openai --vector-store supabase --generate-routes true --yes
 nod add chat --llm-provider anthropic --chat-database pg --langfuse true --generate-routes true --yes
 nod add route --name users --method get --path /users --create-controller true --create-service true --middleware authMiddleware --yes`}
@@ -61,13 +62,18 @@ nod add route --name users --method get --path /users --create-controller true -
           Middleware
         </h2>
 
-        <p>Add custom middleware:</p>
+        <p>Add custom middleware. Rate limits use a shared store; Postgres is preferred when Drizzle is already configured.</p>
 
         <CodeBlock
-          code={`nod add middleware rateLimit
+          code={`# Preferred shared-store rate limiter
+nod add middleware --name rateLimit --type rateLimit --rate-limit-store postgres --yes
+
+# Redis-backed limiter
+nod add middleware --name rateLimit --type rateLimit --rate-limit-store redis --yes
 
 # Creates:
-# - src/middleware/rateLimit.ts`}
+# - src/services/rateLimit.service.ts
+# - src/middleware/rateLimit.middleware.ts`}
           language="bash"
         />
 

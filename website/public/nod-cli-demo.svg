@@ -1,0 +1,161 @@
+<svg width="1200" height="700" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">nod-cli animated macOS terminal demo</title>
+  <desc id="desc">An animated macOS Terminal-style session showing nod-cli scaffolding a generic TypeScript backend with AWS SAM, cron examples, and Postgres rate limiting.</desc>
+  <defs>
+    <linearGradient id="desktop" x1="0" y1="0" x2="1200" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1624"/>
+      <stop offset="0.56" stop-color="#172030"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="window" x1="78" y1="54" x2="1122" y2="646" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111820"/>
+      <stop offset="1" stop-color="#05070A"/>
+    </linearGradient>
+    <linearGradient id="titlebar" x1="78" y1="54" x2="1122" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ECECEC"/>
+      <stop offset="1" stop-color="#C9C9C9"/>
+    </linearGradient>
+    <filter id="window-shadow" x="38" y="20" width="1124" height="674" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="26" stdDeviation="26" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <style>
+    .command { animation: type-command 10s steps(79, end) infinite; }
+    .cursor-track { animation: cursor-move 10s steps(79, end) infinite; }
+    .cursor { animation: blink 1s steps(1, end) infinite; }
+    .r1 { animation: row 10s ease infinite; animation-delay: 1.15s; }
+    .r2 { animation: row 10s ease infinite; animation-delay: 1.55s; }
+    .r3 { animation: row 10s ease infinite; animation-delay: 1.95s; }
+    .r4 { animation: row 10s ease infinite; animation-delay: 2.35s; }
+    .r5 { animation: row 10s ease infinite; animation-delay: 2.8s; }
+    .r6 { animation: row 10s ease infinite; animation-delay: 3.25s; }
+    .r7 { animation: row 10s ease infinite; animation-delay: 3.7s; }
+    .r8 { animation: row 10s ease infinite; animation-delay: 4.15s; }
+    .r9 { animation: row 10s ease infinite; animation-delay: 4.6s; }
+    .r10 { animation: row 10s ease infinite; animation-delay: 5.05s; }
+    .r11 { animation: row 10s ease infinite; animation-delay: 5.5s; }
+    .r12 { animation: row 10s ease infinite; animation-delay: 5.95s; }
+    .r13 { animation: row 10s ease infinite; animation-delay: 6.45s; }
+    .r14 { animation: row 10s ease infinite; animation-delay: 6.9s; }
+    .scroll-thumb { animation: scroll 10s ease infinite; }
+
+    @keyframes type-command {
+      0% { clip-path: inset(0 100% 0 0); }
+      13%, 90% { clip-path: inset(0 0 0 0); }
+      100% { clip-path: inset(0 100% 0 0); }
+    }
+    @keyframes cursor-move {
+      0% { transform: translateX(-716px); }
+      13%, 90% { transform: translateX(0); }
+      100% { transform: translateX(-716px); }
+    }
+    @keyframes blink {
+      0%, 48% { opacity: 1; }
+      49%, 100% { opacity: 0; }
+    }
+    @keyframes row {
+      0%, 14% { opacity: 0; transform: translateY(6px); }
+      24%, 91% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-4px); }
+    }
+    @keyframes scroll {
+      0%, 55% { transform: translateY(0); opacity: 0.45; }
+      80%, 91% { transform: translateY(235px); opacity: 0.75; }
+      100% { transform: translateY(0); opacity: 0.45; }
+    }
+  </style>
+
+  <rect width="1200" height="700" rx="34" fill="url(#desktop)"/>
+  <rect x="126" y="92" width="948" height="536" rx="24" fill="#000000" opacity="0.18"/>
+
+  <g filter="url(#window-shadow)">
+    <rect x="78" y="54" width="1044" height="592" rx="18" fill="url(#window)" stroke="#2A2F38"/>
+    <rect x="78" y="54" width="1044" height="58" rx="18" fill="url(#titlebar)"/>
+    <path d="M78 92H1122V112H78V92Z" fill="#C9C9C9"/>
+
+    <circle cx="112" cy="83" r="7.5" fill="#FF5F57" stroke="#D64B43" stroke-width="0.8"/>
+    <circle cx="137" cy="83" r="7.5" fill="#FFBD2E" stroke="#D79B19" stroke-width="0.8"/>
+    <circle cx="162" cy="83" r="7.5" fill="#28C840" stroke="#16A12B" stroke-width="0.8"/>
+
+    <text x="600" y="88" text-anchor="middle" fill="#3B3B3B" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">demo-api - zsh - 120x32</text>
+    <text x="1038" y="88" fill="#6B7280" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="12">nod-cli</text>
+
+    <rect x="92" y="128" width="1016" height="500" rx="8" fill="#070A0F"/>
+    <rect x="1094" y="143" width="4" height="452" rx="2" fill="#1F2937"/>
+    <rect class="scroll-thumb" x="1094" y="148" width="4" height="108" rx="2" fill="#6B7280" opacity="0.55"/>
+
+    <text x="124" y="166" fill="#7DD3FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">dev@macbook</text>
+    <text x="229" y="166" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">:</text>
+    <text x="242" y="166" fill="#C084FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">~/work</text>
+    <text x="298" y="166" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">%</text>
+    <g class="command">
+      <text x="322" y="166" textLength="710" lengthAdjust="spacingAndGlyphs" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">nod backend demo-api --preset aws-sam-backend --rate-limit-store postgres --yes</text>
+    </g>
+    <g class="cursor-track">
+      <rect class="cursor" x="1038" y="149" width="8" height="21" rx="1.5" fill="#F9FAFB"/>
+    </g>
+
+    <g class="r1" opacity="0">
+      <text x="124" y="207" fill="#A7F3D0" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">◆</text>
+      <text x="154" y="207" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">nod-cli</text>
+    </g>
+    <g class="r2" opacity="0">
+      <text x="124" y="240" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
+      <text x="154" y="240" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Project</text>
+      <text x="276" y="240" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">demo-api</text>
+    </g>
+    <g class="r3" opacity="0">
+      <text x="124" y="273" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
+      <text x="154" y="273" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Preset</text>
+      <text x="276" y="273" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">aws-sam-backend</text>
+    </g>
+    <g class="r4" opacity="0">
+      <text x="124" y="306" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
+      <text x="154" y="306" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Stack</text>
+      <text x="276" y="306" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Express, TypeScript, Node 22</text>
+    </g>
+    <g class="r5" opacity="0">
+      <text x="124" y="339" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
+      <text x="154" y="339" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Deploy</text>
+      <text x="276" y="339" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">AWS SAM + Vercel build config</text>
+    </g>
+    <g class="r6" opacity="0">
+      <text x="124" y="372" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
+      <text x="154" y="372" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Rate limit</text>
+      <text x="276" y="372" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Postgres</text>
+    </g>
+    <g class="r7" opacity="0">
+      <text x="124" y="405" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
+      <text x="154" y="405" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote package.json, tsconfig.json, tsconfig.build.json</text>
+    </g>
+    <g class="r8" opacity="0">
+      <text x="124" y="438" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
+      <text x="154" y="438" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote src/app.ts, src/lambda.ts, src/cron-lambda.ts</text>
+    </g>
+    <g class="r9" opacity="0">
+      <text x="124" y="471" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
+      <text x="154" y="471" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote scripts/build-lambda.mjs and runtime import checks</text>
+    </g>
+    <g class="r10" opacity="0">
+      <text x="124" y="504" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
+      <text x="154" y="504" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote template.yaml, vercel.json, and drizzle schema</text>
+    </g>
+    <g class="r11" opacity="0">
+      <text x="124" y="537" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
+      <text x="154" y="537" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Added node, Vercel, pg_cron, and Lambda cron examples</text>
+    </g>
+    <g class="r12" opacity="0">
+      <text x="124" y="570" fill="#A78BFA" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Done</text>
+      <text x="184" y="570" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">cd demo-api &amp;&amp; pnpm install</text>
+    </g>
+    <g class="r13" opacity="0">
+      <text x="124" y="603" fill="#7DD3FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">dev@macbook</text>
+      <text x="229" y="603" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">:</text>
+      <text x="242" y="603" fill="#C084FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">~/work</text>
+      <text x="298" y="603" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">%</text>
+    </g>
+    <g class="r14" opacity="0">
+      <rect class="cursor" x="322" y="586" width="8" height="21" rx="1.5" fill="#F9FAFB"/>
+    </g>
+  </g>
+</svg>

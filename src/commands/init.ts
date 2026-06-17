@@ -4,7 +4,54 @@ import chalk from 'chalk';
 import { ProjectConfig } from '../types/index.js';
 import { generateProject } from '../generators/project.js';
 import { loadPresetsConfig, getDefaultPreset, getBuiltinPresets, isBuiltinPreset } from '../utils/presets.js';
-import { DeployTarget, SecurityMode } from '../types/index.js';
+import { DeployTarget, RateLimitStore, SecurityMode } from '../types/index.js';
+
+const RATE_LIMIT_STORE_VALUES = ['postgres', 'redis', 'none'] as const;
+
+function parseBooleanOption(value: unknown, optionName: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'boolean') return value;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+
+  console.log(chalk.red(`\n❌ Invalid value for ${optionName}: ${String(value)}. Use true or false.\n`));
+  process.exit(1);
+}
+
+function parseEnumOption<T extends readonly string[]>(
+  value: unknown,
+  validValues: T,
+  optionName: string
+): T[number] | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).trim();
+  if ((validValues as readonly string[]).includes(normalized)) {
+    return normalized as T[number];
+  }
+
+  console.log(chalk.red(`\n❌ Invalid value for ${optionName}: ${normalized}. Valid values: ${validValues.join(', ')}\n`));
+  process.exit(1);
+}
+
+function inferRateLimitStore(input: {
+  explicit?: RateLimitStore;
+  preset?: RateLimitStore;
+  orm?: string;
+  security?: SecurityMode;
+  deployTarget?: DeployTarget;
+}): RateLimitStore {
+  if (input.explicit) return input.explicit;
+  if (input.preset) return input.preset;
+  if (
+    input.orm === 'drizzle' &&
+    (input.security === 'strict' || input.deployTarget === 'lambda-sam')
+  ) {
+    return 'postgres';
+  }
+  return 'none';
+}
 
 export async function initProject(name?: string, options?: any) {
   console.log(chalk.blue.bold('\n🚀 Welcome to nod-cli!\n'));
@@ -35,6 +82,14 @@ export async function initProject(name?: string, options?: any) {
     const framework = options?.framework || 'express';
     const security = (options?.security || presetDefaults.features?.security || 'basic') as SecurityMode;
     const deployTarget = (options?.deployTarget || presetDefaults.deployment?.target || 'node') as DeployTarget;
+    const orm = presetDefaults.orm || 'raw';
+    const rateLimitStore = inferRateLimitStore({
+      explicit: parseEnumOption(options?.rateLimitStore, RATE_LIMIT_STORE_VALUES, '--rate-limit-store'),
+      preset: presetDefaults.features?.rateLimitStore,
+      orm,
+      security,
+      deployTarget,
+    });
     
     config = {
       name,
@@ -44,9 +99,9 @@ export async function initProject(name?: string, options?: any) {
       auth: options?.auth || presetDefaults.auth || 'jwt',
       queue: options?.queue || presetDefaults.queue || 'none',
       preset: presetToUse,
-      orm: presetDefaults.orm || 'raw',
+      orm,
       features: {
-        cron: presetDefaults.features?.cron ?? false,
+        cron: parseBooleanOption(options?.cron, '--cron') ?? presetDefaults.features?.cron ?? false,
         cronLock: presetDefaults.features?.cronLock || 'file',
         logging: true,
         testing: presetDefaults.features?.testing ?? true,
@@ -55,6 +110,7 @@ export async function initProject(name?: string, options?: any) {
         environments: presetDefaults.features?.environments ?? true,
         apiAudit: presetDefaults.features?.apiAudit ?? false,
         security,
+        rateLimitStore,
       },
       ai: {
         rag: presetDefaults.ai?.rag ?? false,
@@ -67,7 +123,7 @@ export async function initProject(name?: string, options?: any) {
       },
       deployment: {
         vercel: presetDefaults.deployment?.vercel ?? false,
-        vercelCron: presetDefaults.deployment?.vercelCron ?? false,
+        vercelCron: parseBooleanOption(options?.vercelCron, '--vercel-cron') ?? presetDefaults.deployment?.vercelCron ?? false,
         githubWorkflow: presetDefaults.deployment?.githubWorkflow ?? true,
         target: deployTarget,
       },
@@ -203,6 +259,17 @@ export async function initProject(name?: string, options?: any) {
       choices: [
         { title: 'Node server', value: 'node' },
         { title: 'AWS Lambda + SAM', value: 'lambda-sam' }
+      ],
+      initial: 0
+    },
+    {
+      type: (_prev, values) => values.preset === 'custom' ? 'select' : null,
+      name: 'rateLimitStore',
+      message: 'Rate limiter store:',
+      choices: [
+        { title: 'Postgres table (Drizzle)', value: 'postgres' },
+        { title: 'Redis / ElastiCache', value: 'redis' },
+        { title: 'None', value: 'none' }
       ],
       initial: 0
     },
@@ -343,6 +410,14 @@ export async function initProject(name?: string, options?: any) {
   const useTypeScript = options?.ts !== undefined ? options.ts : (response.typescript !== false);
   const security = (options?.security || response.security || presetDefaults.features?.security || 'basic') as SecurityMode;
   const deployTarget = (options?.deployTarget || response.deployTarget || presetDefaults.deployment?.target || 'node') as DeployTarget;
+  const orm = response.orm || presetDefaults.orm || 'raw';
+  const rateLimitStore = inferRateLimitStore({
+    explicit: parseEnumOption(options?.rateLimitStore, RATE_LIMIT_STORE_VALUES, '--rate-limit-store') || response.rateLimitStore,
+    preset: presetDefaults.features?.rateLimitStore,
+    orm,
+    security,
+    deployTarget,
+  });
   
   config = {
     name: name || response.name,
@@ -352,9 +427,9 @@ export async function initProject(name?: string, options?: any) {
     auth: options?.auth || response.auth || presetDefaults.auth || 'jwt',
     queue: options?.queue || response.queue || presetDefaults.queue || 'none',
     preset: selectedPreset,
-    orm: response.orm || presetDefaults.orm || 'raw',
+    orm,
     features: {
-      cron: response.cron ?? presetDefaults.features?.cron ?? false,
+      cron: parseBooleanOption(options?.cron, '--cron') ?? response.cron ?? presetDefaults.features?.cron ?? false,
       cronLock: response.cronLock || presetDefaults.features?.cronLock || 'file',
       logging: true,
       testing: presetDefaults.features?.testing ?? true,
@@ -363,6 +438,7 @@ export async function initProject(name?: string, options?: any) {
       environments: response.environments ?? presetDefaults.features?.environments ?? true,
       apiAudit: presetDefaults.features?.apiAudit ?? false,
       security,
+      rateLimitStore,
     },
     ai: {
       rag: response.rag ?? presetDefaults.ai?.rag ?? false,
@@ -374,8 +450,8 @@ export async function initProject(name?: string, options?: any) {
       chatDatabase: response.chatDatabase || (response.chat || presetDefaults.ai?.chat ? 'supabase' : 'none'),
     },
     deployment: {
-      vercel: response.vercelCron ?? presetDefaults.deployment?.vercel ?? false,
-      vercelCron: response.vercelCron ?? presetDefaults.deployment?.vercelCron ?? false,
+      vercel: parseBooleanOption(options?.vercelCron, '--vercel-cron') ?? response.vercelCron ?? presetDefaults.deployment?.vercel ?? false,
+      vercelCron: parseBooleanOption(options?.vercelCron, '--vercel-cron') ?? response.vercelCron ?? presetDefaults.deployment?.vercelCron ?? false,
       githubWorkflow: response.githubWorkflow ?? presetDefaults.deployment?.githubWorkflow ?? true,
       target: deployTarget,
     },
@@ -433,6 +509,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: false,
       pm2: false,
       environments: false,
+      rateLimitStore: 'none',
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: false },
@@ -449,6 +526,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
+      rateLimitStore: 'none',
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true },
@@ -466,6 +544,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
+      rateLimitStore: 'none',
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: true, vercelCron: true, githubWorkflow: true },
@@ -483,6 +562,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
+      rateLimitStore: 'none',
     },
     ai: { rag: true, chat: true, langfuse: true, embeddings: 'openai' },
     deployment: { vercel: true, vercelCron: true, githubWorkflow: true },
@@ -502,6 +582,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       environments: true,
       apiAudit: true,
       security: 'strict',
+      rateLimitStore: 'postgres',
     },
     ai: { rag: false, chat: false, langfuse: false, embeddings: 'none' },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true, target: 'lambda-sam' },
@@ -521,6 +602,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       environments: true,
       apiAudit: true,
       security: 'strict',
+      rateLimitStore: 'postgres',
     },
     ai: { rag: false, chat: false, langfuse: false, embeddings: 'none' },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true, target: 'lambda-sam' },
@@ -541,6 +623,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       pm2: false,
       environments: true,
       apiAudit: true,
+      rateLimitStore: 'none',
     },
     ai: { rag: false, chat: false, langfuse: false, embeddings: 'none' },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true },
@@ -557,6 +640,7 @@ const BUILTIN_PRESETS: Record<string, Partial<ProjectConfig>> = {
       docker: true,
       pm2: false,
       environments: true,
+      rateLimitStore: 'none',
     },
     ai: { rag: false, chat: false, langfuse: false },
     deployment: { vercel: false, vercelCron: false, githubWorkflow: true },

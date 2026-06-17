@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import * as path from 'path';
-import { ProjectConfig } from '../types/index.js';
+import { ProjectConfig, RateLimitStore } from '../types/index.js';
 import { generateExpressProject } from './frameworks/express.js';
 import { generateHonoProject } from './frameworks/hono.js';
 import { generateAgentsGuide } from './agents.js';
@@ -75,6 +75,7 @@ export async function generateProject(config: ProjectConfig) {
   await generateGitIgnore(projectPath);
   await generateLogger(projectPath, ext);
   await generateDocsFolder(projectPath, config);
+  await generateCronExamplesDocs(projectPath, config);
   await generateTempFolder(projectPath);
   
   // Generate nod.config.json for component generation context
@@ -166,10 +167,34 @@ export async function generateProject(config: ProjectConfig) {
     await generateAuditSchema(projectPath, auditTableName, config.orm === 'drizzle');
   }
 
+  if (shouldGenerateSharedRateLimit(config)) {
+    const { generateSharedRateLimit } = await import('./rate-limit.js');
+    const tableName = `${getProjectTablePrefix(config.name)}_rate_limits`;
+    await generateSharedRateLimit(projectPath, ext, tableName, getRateLimitStore(config) as Exclude<RateLimitStore, 'none'>);
+  }
+
   await generateAgentsGuide(projectPath, {
     mode: 'init',
     config
   });
+}
+
+function shouldGenerateSharedRateLimit(config: ProjectConfig): boolean {
+  const store = getRateLimitStore(config);
+  if (!config.typescript || store === 'none') return false;
+  if (store === 'postgres') return config.orm === 'drizzle';
+  return store === 'redis';
+}
+
+function getRateLimitStore(config: ProjectConfig): RateLimitStore {
+  if (config.features.rateLimitStore) return config.features.rateLimitStore;
+  if (
+    config.orm === 'drizzle' &&
+    (config.features.security === 'strict' || config.deployment?.target === 'lambda-sam')
+  ) {
+    return 'postgres';
+  }
+  return 'none';
 }
 
 async function generateLogger(projectPath: string, ext: string) {
@@ -396,6 +421,13 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     devDependencies['drizzle-kit'] = DEV_DEPENDENCIES.drizzleKit;
   }
 
+  if (shouldGenerateSharedRateLimit(config)) {
+    dependencies['rate-limiter-flexible'] = DEPENDENCIES.rateLimiterFlexible;
+    if (getRateLimitStore(config) === 'redis') {
+      dependencies['ioredis'] = DEPENDENCIES.ioredis;
+    }
+  }
+
   // Cron dependencies
   if (config.features.cron) {
     dependencies['node-cron'] = DEPENDENCIES.nodeCron;
@@ -468,7 +500,7 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   if (config.deployment?.target === 'lambda-sam') {
     dependencies['serverless-http'] = DEPENDENCIES.serverlessHttp;
     if (config.typescript) {
-      devDependencies['tsup'] = DEV_DEPENDENCIES.tsup;
+      devDependencies['esbuild'] = DEV_DEPENDENCIES.esbuild;
     }
   }
 
@@ -480,17 +512,28 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     dev: config.typescript 
       ? `tsx watch src/${entryBaseName}.${ext}`
       : `nodemon src/${entryBaseName}.${ext}`,
-    build: config.typescript ? (isLambdaSam ? 'tsup' : 'tsc') : 'echo "No build needed for JS"',
-    start: config.typescript ? `node dist/server.js` : `node src/server.${ext}`,
+    build: config.typescript
+      ? (isLambdaSam ? 'node scripts/build-lambda.mjs' : 'tsc -p tsconfig.build.json')
+      : 'echo "No build needed for JS"',
+    start: config.typescript
+      ? `node dist/server${isLambdaSam ? '.mjs' : '.js'}`
+      : `node src/server.${ext}`,
     lint: 'eslint . --ext .ts,.js',
     format: 'prettier --write "src/**/*.{ts,js}"',
   };
 
   if (isLambdaSam) {
     scripts.typecheck = 'tsc --noEmit';
-    scripts['sam:build'] = 'pnpm build && sam build';
-    scripts['sam:deploy:staging'] = 'sam deploy --config-env staging';
-    scripts['sam:deploy:production'] = 'sam deploy --config-env production';
+    scripts['sam:validate'] = 'sam validate';
+    scripts['sam:build'] = 'pnpm run build && sam build && node scripts/check-sam-runtime-imports.mjs';
+    scripts['deploy:staging'] = 'node scripts/require-codebuild-deploy.mjs staging && pnpm run typecheck && pnpm run build && sam build && node scripts/check-sam-runtime-imports.mjs && sam deploy --config-env staging --no-confirm-changeset --no-fail-on-empty-changeset';
+    scripts['update:staging'] = 'pnpm run deploy:staging';
+    scripts['deploy:production'] = 'node scripts/require-codebuild-deploy.mjs production && pnpm run typecheck && pnpm run build && sam build && node scripts/check-sam-runtime-imports.mjs && sam deploy --config-env production --no-confirm-changeset --no-fail-on-empty-changeset';
+    scripts['deploy:prod'] = 'pnpm run deploy:production';
+    scripts['update:production'] = 'pnpm run deploy:production';
+    scripts['update:prod'] = 'pnpm run deploy:production';
+  } else if (config.typescript) {
+    scripts.typecheck = 'tsc --noEmit';
   }
 
   if (config.features.pm2) {
@@ -516,7 +559,9 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     name: config.name,
     version: '1.0.0',
     description: `Backend project generated with nod-cli`,
-    main: config.typescript ? `dist/${entryBaseName}.js` : `src/${entryBaseName}.js`,
+    main: config.typescript
+      ? `dist/${entryBaseName}${isLambdaSam ? '.mjs' : '.js'}`
+      : `src/${entryBaseName}.js`,
     type: 'module',
     packageManager: 'pnpm@10.27.0',
     scripts,
@@ -636,12 +681,20 @@ SUPABASE_STAGING_PROJECT=your-staging-project-id
   }
 
   // Queue
-  if (config.queue === 'bull') {
+  if (config.queue === 'bull' || getRateLimitStore(config) === 'redis') {
     envContent += `
-# Redis (for BullMQ)
+# Redis
+REDIS_URL=
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
+`;
+  }
+
+  if (shouldGenerateSharedRateLimit(config)) {
+    envContent += `
+# Rate Limiting
+RATE_LIMIT_KEY_SECRET=replace-with-rate-limit-key-secret-min-32-chars
 `;
   }
 
@@ -698,7 +751,7 @@ async function generateTsConfig(projectPath: string, config: ProjectConfig) {
   if (!config.typescript) return;
 
   const isLambdaSam = config.deployment?.target === 'lambda-sam';
-  const tsConfig = isLambdaSam ? {
+  const baseTsConfig = {
     compilerOptions: {
       target: 'ES2022',
       lib: ['ES2022'],
@@ -719,38 +772,34 @@ async function generateTsConfig(projectPath: string, config: ProjectConfig) {
       noImplicitReturns: true,
       noFallthroughCasesInSwitch: true
     },
-    include: ['src/**/*.ts', 'src/**/*.d.ts', 'tsup.config.ts'],
-    exclude: ['node_modules', 'dist', '.aws-sam']
-  } : {
+    include: ['src/**/*.ts', 'src/**/*.d.ts'],
+    exclude: ['node_modules', 'dist', ...(isLambdaSam ? ['.aws-sam'] : ['.vercel'])]
+  };
+
+  const buildTsConfig = {
+    extends: './tsconfig.json',
     compilerOptions: {
-      target: 'ES2022',
-      module: 'ESNext',
-      lib: ['ES2022'],
-      moduleResolution: 'node',
-      types: ['node'],
-      outDir: './dist',
-      rootDir: './src',
-      strict: true,
-      esModuleInterop: true,
-      skipLibCheck: true,
-      forceConsistentCasingInFileNames: true,
-      resolveJsonModule: true,
-      declaration: true,
-      declarationMap: true,
-      sourceMap: true,
-      noUnusedLocals: true,
-      noUnusedParameters: true,
-      noImplicitReturns: true,
-      noFallthroughCasesInSwitch: true
+      noEmit: false,
+      outDir: 'dist',
+      rootDir: 'src',
+      declaration: false,
+      sourceMap: false
     },
-    include: ['src/**/*'],
-    exclude: ['node_modules', 'dist']
+    include: ['src/**/*.ts', 'src/**/*.d.ts'],
+    exclude: ['node_modules', 'dist', ...(isLambdaSam ? ['.aws-sam'] : ['.vercel'])]
   };
 
   await fs.outputFile(
     path.join(projectPath, 'tsconfig.json'),
-    JSON.stringify(tsConfig, null, 2)
+    JSON.stringify(baseTsConfig, null, 2)
   );
+
+  if (!isLambdaSam) {
+    await fs.outputFile(
+      path.join(projectPath, 'tsconfig.build.json'),
+      JSON.stringify(buildTsConfig, null, 2)
+    );
+  }
 }
 
 async function generateGitIgnore(projectPath: string) {
@@ -874,6 +923,98 @@ Add your project documentation here. Consider including:
 `;
 
   await fs.outputFile(path.join(projectPath, 'docs/README.md'), readmeContent);
+}
+
+async function generateCronExamplesDocs(projectPath: string, config: ProjectConfig) {
+  if (!config.features.cron && !config.deployment?.vercelCron && config.deployment?.target !== 'lambda-sam') {
+    return;
+  }
+
+  const content = `# Cron Options
+
+This project can use four cron styles. Pick one per job based on where the work should run.
+
+## 1. Node Cron
+
+Use this for a long-running Node server, such as EC2 with PM2.
+
+\`\`\`ts
+import cron from 'node-cron';
+
+cron.schedule('0 3 * * *', async () => {
+  // Run daily at 03:00 on the server's configured timezone.
+});
+\`\`\`
+
+For multiple PM2 instances or multiple servers, wrap the job with the generated lock adapter in \`src/cron/lock-adapter.ts\`.
+
+## 2. Vercel Cron
+
+Use this when the app is deployed on Vercel and the cron should call an HTTP endpoint.
+
+\`\`\`json
+{
+  "crons": [
+    {
+      "path": "/cron/daily-task",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
+\`\`\`
+
+Protect endpoints with \`CRON_SECRET\` and keep the endpoint idempotent. Vercel cron should trigger work; it should not depend on in-memory state.
+
+## 3. Postgres Cron
+
+Use pg_cron for database-native scheduled SQL, such as cleanup jobs that do not need application code.
+
+\`\`\`sql
+create extension if not exists pg_cron;
+
+select cron.schedule(
+  'cleanup-cron-locks',
+  '*/5 * * * *',
+  $$delete from cron_locks where expires_at < now()$$
+);
+\`\`\`
+
+Do not use pg_cron for work that needs application secrets, external APIs, or TypeScript business logic. Use Lambda or Node cron for that.
+
+## 4. Lambda Cron
+
+Use this for AWS SAM deployments. The generated \`template.yaml\` includes a scheduled Lambda when cron is enabled:
+
+\`\`\`yaml
+ScheduledCronFunction:
+  Type: AWS::Serverless::Function
+  Properties:
+    CodeUri: dist/
+    Handler: cron-lambda.handler
+    Events:
+      DailyTaskSchedule:
+        Type: Schedule
+        Properties:
+          Schedule: 'cron(0 3 * * ? *)'
+          Input: '{"job":"daily-task"}'
+\`\`\`
+
+The generated \`scripts/check-sam-runtime-imports.mjs\` runs after \`sam build\` and imports each handler from \`.aws-sam/build\`. This catches common CJS/ESM and missing-handler failures before deployment.
+
+## Rate Limits On AWS
+
+Do not use an in-memory rate limiter for Lambda, Vercel serverless, or PM2 cluster mode. Memory is per container/process, so limits are inconsistent.
+
+For AWS/SAM, prefer a shared store. Default to Postgres/Drizzle when the project already has a database; use Redis only when the app already operates Redis or needs very high-throughput, low-latency limits:
+
+- Postgres/Drizzle with \`rate-limiter-flexible\` (preferred default)
+- Redis/ElastiCache with \`rate-limiter-flexible\`
+- API Gateway usage plans for API-key based throttling
+
+For local development, use the same selected store with a local database or local Redis instance so behavior matches production.
+`;
+
+  await fs.outputFile(path.join(projectPath, 'docs/cron-options.md'), content);
 }
 
 async function generateTempFolder(projectPath: string) {

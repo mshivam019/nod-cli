@@ -47,6 +47,7 @@ export function createNodConfig(config: ProjectConfig): NodConfig {
       } : undefined,
       security: {
         mode: config.features.security || 'basic',
+        rateLimitStore: config.features.rateLimitStore || 'none',
       },
     },
     supabase: config.supabase,

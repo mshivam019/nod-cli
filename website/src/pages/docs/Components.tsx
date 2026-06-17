@@ -10,7 +10,7 @@ const components = [
   {
     name: 'Middleware',
     href: '/docs/components/middleware',
-    description: 'Create custom middleware (logger, rate limit, CORS)',
+    description: 'Create middleware, including Postgres or Redis-backed rate limits',
     category: 'Core'
   },
   {

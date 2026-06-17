@@ -3,9 +3,7 @@ import * as path from 'path';
 import { ProjectConfig } from '../types/index.js';
 
 export async function generatePM2Config(projectPath: string, config: ProjectConfig) {
-  const entryScript = config.framework === 'express'
-    ? (config.typescript ? 'dist/app.js' : 'src/app.js')
-    : (config.typescript ? 'dist/server.js' : 'src/server.js');
+  const entryScript = config.typescript ? 'dist/server.js' : 'src/server.js';
 
   const pm2Config = {
     apps: [

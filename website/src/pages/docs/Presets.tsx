@@ -42,11 +42,11 @@ export function Presets() {
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>production-api</code></td>
-                <td className="py-2 px-4">Default strict Express API: Supabase, Drizzle, Better Auth, trusted origins, request limits, and Lambda/SAM files</td>
+                <td className="py-2 px-4">Default strict Express API: Supabase, Drizzle, Better Auth, trusted origins, Postgres-backed rate limits, and Lambda/SAM files</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>aws-sam-backend</code></td>
-                <td className="py-2 px-4">One-command AWS SAM backend with Express, TypeScript, Better Auth, Drizzle, and Node 22 Lambda</td>
+                <td className="py-2 px-4">One-command AWS SAM backend with Express, TypeScript, Better Auth, Drizzle, Postgres rate limits, esbuild, and Node 22 Lambda</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>1</code></td>
@@ -73,6 +73,9 @@ nod init my-api --preset ai --yes
 
 # Explicit production preset
 nod init my-api --preset production-api --yes
+
+# Use Redis rate limits when the project already operates Redis
+nod init my-api --preset aws-sam-backend --rate-limit-store redis --yes
 
 # One-command AWS SAM backend
 nod backend my-api`}

@@ -19,6 +19,14 @@ export function Introduction() {
           authentication, database connections, AI features, and more.
         </p>
 
+        <div className="overflow-hidden rounded-lg border bg-muted">
+          <img
+            src={`${import.meta.env.BASE_URL}nod-cli-demo.svg`}
+            alt="Animated terminal demo showing nod-cli scaffolding a backend"
+            className="block w-full"
+          />
+        </div>
+
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           Features
         </h2>
@@ -66,7 +74,7 @@ export function Introduction() {
           >
             <h3 className="font-semibold">Deployment Ready</h3>
             <p className="text-sm text-muted-foreground">
-              Docker, PM2, Vercel cron, and GitHub Actions
+              AWS SAM, PM2, Vercel cron, Docker, and GitHub Actions
             </p>
           </Link>
           <Link
@@ -100,6 +108,9 @@ pnpm add -g nod-cli
 # Create a SAM backend in one command
 nod backend my-api
 
+# Create a strict SAM backend with Postgres-backed rate limits
+nod init my-api --preset aws-sam-backend --rate-limit-store postgres --yes
+
 # Or use shorthand
 nod my-api`}
           language="bash"
@@ -125,6 +136,7 @@ nod my-api`}
 │   ├── db/              # Database connection & schema
 │   └── types/           # TypeScript types
 ├── docs/                # Project documentation
+├── scripts/             # Build and deployment checks for SAM projects
 ├── .env.example
 ├── package.json
 └── tsconfig.json`}

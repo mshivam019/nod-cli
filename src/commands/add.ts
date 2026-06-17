@@ -19,6 +19,7 @@ const AUTH_MODE_VALUES = ['email-password', 'oauth-only', 'both'] as const;
 const ROUTE_METHOD_VALUES = ['get', 'post', 'put', 'delete', 'patch'] as const;
 const ROUTE_MIDDLEWARE_VALUES = ['authMiddleware', 'loggingMiddleware', 'roleMiddleware'] as const;
 const MIDDLEWARE_TYPE_VALUES = ['logger', 'rateLimit', 'cors', 'custom'] as const;
+const RATE_LIMIT_STORE_VALUES = ['postgres', 'redis'] as const;
 const SERVICE_METHOD_VALUES = ['getAll', 'getById', 'create', 'update', 'delete'] as const;
 
 function parseBooleanOption(value: unknown, optionName: string): boolean | undefined {
@@ -893,12 +894,31 @@ if (component === 'langfuse') {
         break;
       }
       case 'middleware':
+        {
+        const middlewareType = parseEnumOption(options?.type, MIDDLEWARE_TYPE_VALUES, '--type');
+        let rateLimitStore = parseEnumOption(options?.rateLimitStore, RATE_LIMIT_STORE_VALUES, '--rate-limit-store');
+        if (middlewareType === 'rateLimit' && !rateLimitStore && !isNonInteractive) {
+          const response = await prompts({
+            type: 'select',
+            name: 'rateLimitStore',
+            message: 'Rate limiter store:',
+            choices: [
+              { title: 'Postgres table (preferred)', value: 'postgres' },
+              { title: 'Redis / ElastiCache', value: 'redis' }
+            ],
+            initial: 0
+          });
+          rateLimitStore = response.rateLimitStore;
+        }
+
         await addMiddleware(name, {
           nonInteractive: isNonInteractive,
-          type: parseEnumOption(options?.type, MIDDLEWARE_TYPE_VALUES, '--type'),
-          isDefault: parseBooleanOption(options?.default, '--default')
+          type: middlewareType,
+          isDefault: parseBooleanOption(options?.default, '--default'),
+          rateLimitStore: rateLimitStore || 'postgres'
         });
         break;
+        }
       case 'service':
         {
           const methods = parseListOption(options?.methods);

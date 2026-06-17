@@ -6,7 +6,7 @@ export function CronComponent() {
       <div>
         <h1 className="scroll-m-20 text-4xl font-bold tracking-tight">Cron</h1>
         <p className="text-lg text-muted-foreground mt-2">
-          Distributed cron with locking support for PM2 cluster mode.
+          Cron options for Node servers, Vercel, Postgres, and AWS SAM Lambda schedules.
         </p>
       </div>
 
@@ -15,6 +15,46 @@ export function CronComponent() {
           Installation
         </h2>
         <CodeBlock code={`nod add cron`} language="bash" />
+        <CodeBlock
+          code={`# Generate Lambda cron support in a SAM backend
+nod init my-api --preset aws-sam-backend --cron true --yes
+
+# Add Vercel cron endpoints/config
+nod add vercel-cron`}
+          language="bash"
+        />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight">
+          Cron Types
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2 mt-4">
+          <div className="rounded-lg border p-4">
+            <h4 className="font-medium">Node Cron</h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              For long-running Node servers such as EC2 with PM2.
+            </p>
+          </div>
+          <div className="rounded-lg border p-4">
+            <h4 className="font-medium">Vercel Cron</h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              Vercel scheduler calls protected HTTP endpoints.
+            </p>
+          </div>
+          <div className="rounded-lg border p-4">
+            <h4 className="font-medium">Postgres Cron</h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              pg_cron for database-native scheduled SQL.
+            </p>
+          </div>
+          <div className="rounded-lg border p-4">
+            <h4 className="font-medium">Lambda Cron</h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              AWS SAM Schedule events invoke generated Lambda handlers.
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -240,6 +280,47 @@ async function performCleanup() {
   // - Archive old records
   // - Clean temp files
 }`}
+        />
+
+        <h3 className="font-semibold mt-6">Vercel Cron</h3>
+        <CodeBlock
+          code={`{
+  "crons": [
+    {
+      "path": "/cron/daily-task",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}`}
+          language="json"
+        />
+
+        <h3 className="font-semibold mt-6">Postgres Cron</h3>
+        <CodeBlock
+          code={`create extension if not exists pg_cron;
+
+select cron.schedule(
+  'cleanup-cron-locks',
+  '*/5 * * * *',
+  $$delete from cron_locks where expires_at < now()$$
+);`}
+          language="sql"
+        />
+
+        <h3 className="font-semibold mt-6">AWS SAM Lambda Cron</h3>
+        <CodeBlock
+          code={`ScheduledCronFunction:
+  Type: AWS::Serverless::Function
+  Properties:
+    CodeUri: dist/
+    Handler: cron-lambda.handler
+    Events:
+      DailyTaskSchedule:
+        Type: Schedule
+        Properties:
+          Schedule: 'cron(0 3 * * ? *)'
+          Input: '{"job":"daily-task"}'`}
+          language="yaml"
         />
       </section>
 

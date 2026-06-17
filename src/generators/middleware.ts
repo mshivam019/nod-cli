@@ -2,17 +2,23 @@ import prompts from 'prompts';
 import fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
+import { generateSharedRateLimit } from './rate-limit.js';
+import { getProjectConfig, updateNodConfig } from '../utils/config.js';
+import { DEPENDENCIES } from '../utils/dependencies.js';
+import { RateLimitStore } from '../types/index.js';
 
 interface AddMiddlewareOptions {
   nonInteractive?: boolean;
   type?: string;
   isDefault?: boolean;
+  rateLimitStore?: Exclude<RateLimitStore, 'none'>;
 }
 
 export async function addMiddleware(name: string, preset?: AddMiddlewareOptions) {
   const defaults = {
     type: preset?.type || 'custom',
-    isDefault: preset?.isDefault ?? false
+    isDefault: preset?.isDefault ?? false,
+    rateLimitStore: preset?.rateLimitStore || 'postgres'
   };
 
   const response = preset?.nonInteractive
@@ -20,7 +26,8 @@ export async function addMiddleware(name: string, preset?: AddMiddlewareOptions)
     : preset?.type || preset?.isDefault !== undefined
       ? {
           type: preset.type || defaults.type,
-          isDefault: preset.isDefault ?? defaults.isDefault
+          isDefault: preset.isDefault ?? defaults.isDefault,
+          rateLimitStore: preset.rateLimitStore || defaults.rateLimitStore
         }
       : await prompts([
     {
@@ -29,10 +36,20 @@ export async function addMiddleware(name: string, preset?: AddMiddlewareOptions)
       message: 'Middleware type:',
       choices: [
         { title: 'Request Logger', value: 'logger' },
-        { title: 'Rate Limiter', value: 'rateLimit' },
+        { title: 'Shared-store Rate Limiter', value: 'rateLimit' },
         { title: 'CORS', value: 'cors' },
         { title: 'Custom', value: 'custom' }
       ]
+    },
+    {
+      type: (_prev, values) => values.type === 'rateLimit' ? 'select' : null,
+      name: 'rateLimitStore',
+      message: 'Rate limiter store:',
+      choices: [
+        { title: 'Postgres table (preferred)', value: 'postgres' },
+        { title: 'Redis / ElastiCache', value: 'redis' }
+      ],
+      initial: 0
     },
     {
       type: 'confirm',
@@ -45,7 +62,8 @@ export async function addMiddleware(name: string, preset?: AddMiddlewareOptions)
   const projectRoot = process.cwd();
   await createMiddleware(projectRoot, name, {
     type: response.type || defaults.type,
-    isDefault: response.isDefault ?? defaults.isDefault
+    isDefault: response.isDefault ?? defaults.isDefault,
+    rateLimitStore: response.rateLimitStore || defaults.rateLimitStore
   });
 }
 
@@ -59,6 +77,46 @@ async function createMiddleware(projectRoot: string, name: string, config: any) 
     await fs.readFile(path.join(projectRoot, 'package.json'), 'utf-8')
   );
   const isHono = packageJson.dependencies?.hono;
+
+  if (config.type === 'rateLimit') {
+    const projectConfig = await getProjectConfig(projectRoot);
+    const store = (config.rateLimitStore ||
+      projectConfig?.components?.security?.rateLimitStore ||
+      'postgres') as Exclude<RateLimitStore, 'none'>;
+
+    if (store === 'postgres' && projectConfig?.orm !== 'drizzle' && !packageJson.dependencies?.['drizzle-orm']) {
+      throw new Error('Postgres rate limiting requires Drizzle. Run `nod add drizzle` first or use `--rate-limit-store redis`.');
+    }
+
+    const tablePrefix = (projectConfig?.name || packageJson.name || 'app')
+      .replace(/^@[^/]+\//, '')
+      .split('-')[0]
+      .replace(/[^a-zA-Z0-9_]/g, '_');
+    await generateSharedRateLimit(projectRoot, ext, `${tablePrefix}_rate_limits`, store);
+
+    packageJson.dependencies = {
+      ...packageJson.dependencies,
+      'rate-limiter-flexible': DEPENDENCIES.rateLimiterFlexible,
+      ...(store === 'redis' ? { ioredis: DEPENDENCIES.ioredis } : {}),
+    };
+    await fs.writeJson(path.join(projectRoot, 'package.json'), packageJson, { spaces: 2 });
+
+    if (projectConfig) {
+      await updateNodConfig(projectRoot, {
+        components: {
+          ...projectConfig.components,
+          security: {
+            ...projectConfig.components?.security,
+            rateLimitStore: store,
+          },
+        },
+      } as any);
+    }
+
+    console.log(chalk.green(`✓ Created shared ${store} rate limiter: src/middleware/rateLimit.middleware.${ext}`));
+    console.log(chalk.gray('  Import `rateLimiters` or `createRateLimitMiddleware` from `./middleware/rateLimit.middleware.js`.'));
+    return;
+  }
 
   let middlewareContent = '';
 
@@ -88,30 +146,6 @@ export function ${name}Middleware(req: Request, res: Response, next: NextFunctio
     console.log(\`[\${req.method}] \${req.path} - \${res.statusCode} (\${duration}ms)\`);
   });
   
-  next();
-}`,
-    rateLimit: `import { Request, Response, NextFunction } from 'express';
-
-const requests = new Map<string, number[]>();
-
-export function ${name}Middleware(req: Request, res: Response, next: NextFunction) {
-  const ip = req.ip || 'unknown';
-  const now = Date.now();
-  const windowMs = 60000; // 1 minute
-  const maxRequests = 100;
-
-  if (!requests.has(ip)) {
-    requests.set(ip, []);
-  }
-
-  const userRequests = requests.get(ip)!.filter(time => now - time < windowMs);
-  
-  if (userRequests.length >= maxRequests) {
-    return res.status(429).json({ error: 'Too many requests' });
-  }
-
-  userRequests.push(now);
-  requests.set(ip, userRequests);
   next();
 }`,
     cors: `import { Request, Response, NextFunction } from 'express';
@@ -149,30 +183,6 @@ export async function ${name}Middleware(c: Context, next: Next) {
   await next();
   const duration = Date.now() - start;
   console.log(\`[\${c.req.method}] \${c.req.path} - \${c.res.status} (\${duration}ms)\`);
-}`,
-    rateLimit: `import { Context, Next } from 'hono';
-
-const requests = new Map<string, number[]>();
-
-export async function ${name}Middleware(c: Context, next: Next) {
-  const ip = c.req.header('x-forwarded-for') || 'unknown';
-  const now = Date.now();
-  const windowMs = 60000;
-  const maxRequests = 100;
-
-  if (!requests.has(ip)) {
-    requests.set(ip, []);
-  }
-
-  const userRequests = requests.get(ip)!.filter(time => now - time < windowMs);
-  
-  if (userRequests.length >= maxRequests) {
-    return c.json({ error: 'Too many requests' }, 429);
-  }
-
-  userRequests.push(now);
-  requests.set(ip, userRequests);
-  await next();
 }`,
     cors: `import { Context, Next } from 'hono';
 

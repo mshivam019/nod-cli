@@ -38,6 +38,8 @@ export function Generators() {
 ├── temp/                # Git-ignored temp files
 ├── sql/                 # SQL schema files
 ├── .github/workflows/   # GitHub Actions
+├── scripts/             # SAM build/runtime checks
+├── template.yaml        # AWS SAM template when lambda-sam is selected
 ├── vercel.json          # Vercel cron config
 ├── drizzle.config.ts    # Drizzle ORM config
 ├── ecosystem.config.js  # PM2 config
@@ -148,7 +150,7 @@ export class ChatService {
           <div className="rounded-lg border p-4">
             <h4 className="font-semibold">Rate Limiter</h4>
             <p className="text-sm text-muted-foreground">
-              Request rate limiting
+              Shared-store limits using Postgres by default or Redis when selected
             </p>
           </div>
           <div className="rounded-lg border p-4">

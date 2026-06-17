@@ -9,6 +9,7 @@ export interface VercelCronJob {
 export async function generateVercelConfig(projectPath: string, cronJobs: VercelCronJob[] = []) {
   const vercelConfig: any = {
     '$schema': 'https://openapi.vercel.sh/vercel.json',
+    outputDirectory: 'dist',
   };
 
   if (cronJobs.length > 0) {

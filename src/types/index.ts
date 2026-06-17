@@ -5,6 +5,7 @@ export type AuthMode = 'email-password' | 'oauth-only' | 'both';
 export type Queue = 'bull' | 'none';
 export type Preset = 'minimal' | 'api' | 'full' | 'ai' | 'production-api' | 'aws-sam-backend' | '1' | 'custom';
 export type CronLock = 'pg' | 'mysql' | 'redis' | 'file' | 'supabase';
+export type RateLimitStore = 'postgres' | 'redis' | 'none';
 export type ORM = 'drizzle' | 'raw' | 'none';
 export type SecurityMode = 'basic' | 'strict';
 export type DeployTarget = 'node' | 'lambda-sam';
@@ -62,6 +63,7 @@ export interface ProjectConfig {
     environments?: boolean;
     apiAudit?: boolean;
     security?: SecurityMode;
+    rateLimitStore?: RateLimitStore;
   };
   ai?: AIFeatures;
   deployment?: DeploymentFeatures;
@@ -154,6 +156,7 @@ export interface NodConfig {
     };
     security?: {
       mode?: SecurityMode;
+      rateLimitStore?: RateLimitStore;
     };
     ai?: {
       rag?: boolean;

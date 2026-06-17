@@ -33,6 +33,9 @@ const initCommand = program
   )
   .option("--security <mode>", "Security mode: basic or strict")
   .option("--deploy-target <target>", "Deploy target: node or lambda-sam")
+  .option("--cron <boolean>", "Include cron support (true|false)")
+  .option("--vercel-cron <boolean>", "Include Vercel cron config (true|false)")
+  .option("--rate-limit-store <store>", "Rate limit store: postgres, redis, or none")
   .option("-y, --yes", "Skip prompts and use defaults/provided options")
   .action(initProject);
 
@@ -43,6 +46,8 @@ program
   .option("--security <mode>", "Security mode: basic or strict")
   .option("--db <database>", "Database: supabase, pg, or none")
   .option("--auth <auth>", "Auth: better-auth, cookie-session, jwt, jwks, supabase, or none")
+  .option("--cron <boolean>", "Include cron support (true|false)")
+  .option("--rate-limit-store <store>", "Rate limit store: postgres, redis, or none")
   .action((name, options) =>
     initProject(name, {
       ...options,
@@ -134,6 +139,7 @@ program
     "--default <boolean>",
     "Apply middleware as default for `add middleware` (true|false)",
   )
+  .option("--rate-limit-store <store>", "Rate limit store for `add middleware --type rateLimit`: postgres or redis")
   .option(
     "--with-database <boolean>",
     "Include database operations for `add service` (true|false)",
@@ -204,6 +210,7 @@ program
   .option("--pm2 <boolean>", "Include PM2 config (true|false)")
   .option("--testing <boolean>", "Include testing setup (true|false)")
   .option("--vercel-cron <boolean>", "Include Vercel cron config (true|false)")
+  .option("--rate-limit-store <store>", "Preset rate limit store: postgres, redis, or none")
   .option("--clear", "Clear the default preset for `preset default`")
   .action(presetCommand);
 

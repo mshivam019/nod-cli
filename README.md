@@ -2,6 +2,10 @@
 
 Backend scaffolding CLI for Node.js with best practices built-in. Generate production-ready Express or Hono projects with TypeScript, authentication, database connections, AI features, and more.
 
+<p align="center">
+  <img src="website/public/nod-cli-demo.svg" alt="nod-cli terminal demo showing backend scaffolding output" width="900">
+</p>
+
 ## Installation
 
 ```bash
@@ -23,6 +27,9 @@ nod init my-api --yes
 # One-command AWS SAM backend
 nod backend my-api
 
+# Strict SAM backend with shared Postgres rate limits
+nod init my-api --preset aws-sam-backend --rate-limit-store postgres --yes
+
 # Or pick a specific preset
 nod init my-api --preset 1 --framework express --yes
 
@@ -37,7 +44,8 @@ nod init my-api --preset api --no-ts --yes
 # - ORM (Drizzle/Raw SQL)
 # - Authentication (JWT/JWKS/Supabase/Better Auth/None)
 # - AI features (RAG, Chat, Langfuse)
-# - Deployment (Vercel cron, GitHub workflow)
+# - Deployment (AWS SAM, Vercel cron, GitHub workflow)
+# - Rate limit store (Postgres, Redis, None)
 # - Docker & PM2 configuration
 ```
 
@@ -45,8 +53,8 @@ nod init my-api --preset api --no-ts --yes
 
 | Preset    | Description                                                             |
 | --------- | ----------------------------------------------------------------------- |
-| `production-api` | Default strict API: Supabase, Drizzle, Better Auth, request limits, trusted origins, Lambda/SAM |
-| `aws-sam-backend` | Production AWS SAM backend: Express, TypeScript, Supabase/Drizzle, Better Auth, strict security, Node 22 Lambda |
+| `production-api` | Default strict API: Supabase, Drizzle, Better Auth, Postgres-backed rate limits, trusted origins, Lambda/SAM |
+| `aws-sam-backend` | Production AWS SAM backend: Express, TypeScript, Supabase/Drizzle, Better Auth, Postgres-backed rate limits, strict security, esbuild, Node 22 Lambda |
 | `minimal`        | Basic setup, no database or auth                                                                            |
 | `api`            | Standard REST API with JWT auth                                                                             |
 | `full`           | All features including Supabase, Drizzle, Vercel cron                                                       |
@@ -97,7 +105,7 @@ nod <project-name>
 nod backend <project-name>
 ```
 
-This is shorthand for a production AWS SAM backend preset with Express, TypeScript, strict security, Supabase/Drizzle, Better Auth, `tsup`, Node.js 22 Lambda, `template.yaml`, `samconfig.toml`, and `docs/aws-sam-setup.md`.
+This is shorthand for a production AWS SAM backend preset with Express, TypeScript, strict security, Supabase/Drizzle, Better Auth, Postgres-backed rate limits, direct `esbuild`, Node.js 22 Lambda, `template.yaml`, `samconfig.toml`, and `docs/aws-sam-setup.md`.
 
 #### Options
 
@@ -112,6 +120,9 @@ This is shorthand for a production AWS SAM backend preset with Express, TypeScri
 | `--preset <preset>`       | Use a preset configuration                     | `production-api` in non-interactive mode |
 | `--security <mode>`       | Security: `basic` or `strict`                  | preset    |
 | `--deploy-target <target>`| Deploy target: `node` or `lambda-sam`          | preset    |
+| `--cron <boolean>`        | Include node/Lambda cron support               | preset    |
+| `--vercel-cron <boolean>` | Include Vercel cron config                     | preset    |
+| `--rate-limit-store <store>` | Rate limit store: `postgres`, `redis`, or `none` | `postgres` for strict Drizzle/SAM |
 | `-y, --yes`               | Skip prompts, use defaults                     | -         |
 
 #### Examples
@@ -150,8 +161,11 @@ nod add route users
 # Add complete auth module
 nod add auth
 
-# Add middleware
-nod add middleware rateLimit
+# Add shared-store rate limiter (Postgres preferred)
+nod add middleware --name rateLimit --type rateLimit --rate-limit-store postgres --yes
+
+# Add Redis-backed rate limiter
+nod add middleware --name rateLimit --type rateLimit --rate-limit-store redis --yes
 
 # Add CORS middleware and apply globally
 nod add cors
@@ -280,7 +294,8 @@ my-api/
 ├── .gitignore
 ├── package.json
 ├── tsconfig.json        # TypeScript config (TS only)
-├── tsup.config.ts       # Lambda/server bundling config (AWS SAM backend)
+├── tsconfig.build.json  # TypeScript emit config for non-SAM TS projects
+├── scripts/             # esbuild and SAM runtime checks (AWS SAM backend)
 ├── drizzle.config.ts    # Drizzle config (if using Drizzle)
 ├── template.yaml        # AWS SAM template (if using AWS SAM)
 ├── samconfig.toml       # AWS SAM deploy profiles (if using AWS SAM)
@@ -313,6 +328,7 @@ my-api/
 | Chat            | Yes, No                           | Conversation management                    |
 | Langfuse        | Yes, No                           | LLM observability                          |
 | Vercel Cron     | Yes, No                           | Vercel cron configuration                  |
+| Rate Limit Store| Postgres, Redis, None             | Shared rate-limit storage                  |
 | GitHub Workflow | Yes, No                           | CI/CD workflow                             |
 | Docker          | Yes, No                           | Container configuration                    |
 | PM2             | Yes, No                           | Process manager config                     |
@@ -324,6 +340,7 @@ my-api/
 - **Declarative Routes** - Clean, configuration-based route definitions
 - **Type Safety** - Full TypeScript support (or plain JavaScript with `--no-ts`)
 - **PM2 Cluster Mode** - Thread-safe cron jobs with distributed locking
+- **Shared Rate Limits** - Postgres/Drizzle by default, Redis when selected
 - **Docker Ready** - Dockerfile and docker-compose included
 - **Zod Validation** - Runtime config validation (TypeScript only)
 - **Documentation Folder** - Built-in `docs/` folder for project documentation
@@ -352,6 +369,7 @@ my-api/
 
 ### Deployment
 
+- **AWS SAM** - Lambda/API Gateway backend with direct esbuild bundling
 - **Vercel Cron** - Cron job configuration with auth middleware
 - **GitHub Workflow** - Deploy trigger workflow
 

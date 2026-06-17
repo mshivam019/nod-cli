@@ -52,9 +52,14 @@ export const handler = async (event, context) => {
 `;
 
   await fs.outputFile(path.join(projectPath, `src/lambda.${ext}`), lambdaContent);
+  if (config.features.cron) {
+    await fs.outputFile(path.join(projectPath, `src/cron-lambda.${ext}`), generateCronLambda(config, isTS));
+  }
 
   if (isTS) {
-    await fs.outputFile(path.join(projectPath, 'tsup.config.ts'), generateTsupConfig(config));
+    await fs.outputFile(path.join(projectPath, 'scripts/build-lambda.mjs'), generateLambdaBuildScript());
+    await fs.outputFile(path.join(projectPath, 'scripts/check-sam-runtime-imports.mjs'), generateSamRuntimeImportCheckScript());
+    await fs.outputFile(path.join(projectPath, 'scripts/require-codebuild-deploy.mjs'), generateRequireCodeBuildDeployScript());
   }
 
   await fs.outputFile(path.join(projectPath, 'template.yaml'), generateSamTemplate(config));
@@ -62,29 +67,271 @@ export const handler = async (event, context) => {
   await fs.outputFile(path.join(projectPath, 'docs/aws-sam-setup.md'), generateSamSetupDocs(config));
 }
 
-function generateTsupConfig(config: ProjectConfig): string {
-  const entries = [`    server: 'src/server.ts',`, `    lambda: 'src/lambda.ts',`];
-  if (config.features.cron) {
-    entries.push(`    'cron-lambda': 'src/cron-lambda.ts',`);
-  }
+function generateLambdaBuildScript(): string {
+  return `import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { build } from 'esbuild';
 
-  return `import { defineConfig } from 'tsup';
+const candidateEntries = {
+  server: 'src/server.ts',
+  lambda: 'src/lambda.ts',
+  'cron-lambda': 'src/cron-lambda.ts',
+  'appsync-authorizer': 'src/appsync-authorizer.ts',
+  'stream-chat-lambda': 'src/stream-chat-lambda.ts',
+};
 
-export default defineConfig({
-  entry: {
-${entries.join('\n')}
-  },
-  format: ['esm'],
-  target: 'node22',
-  platform: 'node',
-  outDir: 'dist',
+const entryPoints = Object.fromEntries(
+  Object.entries(candidateEntries).filter(([, entryPath]) => existsSync(entryPath)),
+);
+
+if (!entryPoints.lambda) {
+  throw new Error('Missing required Lambda entry point: src/lambda.ts');
+}
+
+await rm('dist', { recursive: true, force: true });
+
+await build({
+  entryPoints,
+  outdir: 'dist',
   bundle: true,
-  skipNodeModulesBundle: true,
-  clean: true,
-  dts: false,
+  platform: 'node',
+  target: 'node22',
+  format: 'esm',
+  outExtension: { '.js': '.mjs' },
   sourcemap: false,
   splitting: false,
+  logLevel: 'info',
+  banner: {
+    js: [
+      "import { createRequire } from 'node:module';",
+      "import { fileURLToPath as __nodeFileURLToPath } from 'node:url';",
+      "import { dirname as __nodeDirname } from 'node:path';",
+      'const require = createRequire(import.meta.url);',
+      'const __filename = __nodeFileURLToPath(import.meta.url);',
+      'const __dirname = __nodeDirname(__filename);',
+    ].join('\\n'),
+  },
 });
+`;
+}
+
+function generateCronLambda(_config: ProjectConfig, isTS: boolean): string {
+  return isTS
+    ? `import logger from './utils/logger.js';
+
+type CronEvent = {
+  job?: string;
+  source?: string;
+};
+
+const runScheduledJob = async (job: string) => {
+  // Replace this switch with direct service calls for each scheduled job.
+  // Keep cron work out of request handlers so retries and timeouts are explicit.
+  switch (job) {
+    case 'daily-task':
+      logger.info('Running daily scheduled task.');
+      return { ok: true, job };
+    default:
+      throw new Error(\`Unknown cron job: \${job}\`);
+  }
+};
+
+export const handler = async (event: CronEvent = {}) => {
+  const job = event.job || 'daily-task';
+
+  try {
+    logger.info('Scheduled cron Lambda started.', { job, source: event.source });
+    const result = await runScheduledJob(job);
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result),
+    };
+  } catch (error) {
+    logger.error('Scheduled cron Lambda failed.', {
+      job,
+      error: error instanceof Error ? error.message : String(error),
+      ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
+    });
+    throw error;
+  }
+};
+`
+    : `import logger from './utils/logger.js';
+
+const runScheduledJob = async (job) => {
+  // Replace this switch with direct service calls for each scheduled job.
+  // Keep cron work out of request handlers so retries and timeouts are explicit.
+  switch (job) {
+    case 'daily-task':
+      logger.info('Running daily scheduled task.');
+      return { ok: true, job };
+    default:
+      throw new Error(\`Unknown cron job: \${job}\`);
+  }
+};
+
+export const handler = async (event = {}) => {
+  const job = event.job || 'daily-task';
+
+  try {
+    logger.info('Scheduled cron Lambda started.', { job, source: event.source });
+    const result = await runScheduledJob(job);
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result),
+    };
+  } catch (error) {
+    logger.error('Scheduled cron Lambda failed.', {
+      job,
+      error: error instanceof Error ? error.message : String(error),
+      ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
+    });
+    throw error;
+  }
+};
+`;
+}
+
+function generateSamRuntimeImportCheckScript(): string {
+  return `import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const buildRoot = path.resolve('.aws-sam', 'build');
+const templatePath = path.join(buildRoot, 'template.yaml');
+
+const defaultEnv = {
+  AUTH_JWT_AUDIENCE: 'sam-runtime-import-check',
+  AUTH_JWT_ISSUER: 'sam-runtime-import-check',
+  BACKEND_URL: 'https://example.invalid',
+  BETTER_AUTH_SECRET: 'sam-runtime-import-check-secret-00000000000000000000000000000000',
+  CORS_ALLOWED_ORIGINS: 'https://example.invalid',
+  CRON_SECRET: 'sam-runtime-import-check-secret-00000000000000000000000000000000',
+  DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/postgres',
+  JWT_SECRET: 'sam-runtime-import-check-secret-00000000000000000000000000000000',
+  LOG_LEVEL: 'error',
+  NODE_ENV: 'test',
+  OPENAI_API_KEY: 'sam-runtime-import-check',
+  PORT: '3000',
+  SESSION_SECRET: 'sam-runtime-import-check-secret-00000000000000000000000000000000',
+  SUPABASE_ANON_KEY: 'sam-runtime-import-check',
+  SUPABASE_POOLER_URL: 'postgres://postgres:postgres@localhost:5432/postgres',
+  SUPABASE_PROJECT: 'sam-runtime-import-check',
+  SUPABASE_SECRET_KEY: 'sam-runtime-import-check',
+  SUPABASE_STAGING_ANON_KEY: 'sam-runtime-import-check',
+  SUPABASE_STAGING_POOLER_URL: 'postgres://postgres:postgres@localhost:5432/postgres',
+  SUPABASE_STAGING_PROJECT: 'sam-runtime-import-check',
+  SUPABASE_STAGING_SECRET_KEY: 'sam-runtime-import-check',
+  SUPABASE_STAGING_URL: 'https://example.invalid',
+  SUPABASE_URL: 'https://example.invalid',
+};
+
+for (const [key, value] of Object.entries(defaultEnv)) {
+  process.env[key] ??= value;
+}
+
+globalThis.awslambda ??= {
+  streamifyResponse: (handler) => handler,
+};
+
+if (!existsSync(templatePath)) {
+  throw new Error('Missing .aws-sam/build/template.yaml. Run sam build first.');
+}
+
+const lines = readFileSync(templatePath, 'utf8').split(/\\r?\\n/);
+const checks = [];
+let resource = null;
+let inProperties = false;
+let codeUri = null;
+
+for (const line of lines) {
+  const resourceMatch = line.match(/^  ([A-Za-z0-9]+):\\s*$/);
+  if (resourceMatch) {
+    resource = resourceMatch[1];
+    inProperties = false;
+    codeUri = null;
+    continue;
+  }
+
+  if (!resource) continue;
+  if (/^    Properties:\\s*$/.test(line)) {
+    inProperties = true;
+    continue;
+  }
+  if (!inProperties) continue;
+
+  const codeUriMatch = line.match(/^      CodeUri:\\s+(.+?)\\s*$/);
+  if (codeUriMatch) {
+    codeUri = codeUriMatch[1].replace(/^['"]|['"]$/g, '');
+    continue;
+  }
+
+  const handlerMatch = line.match(/^      Handler:\\s+(.+?)\\s*$/);
+  if (!handlerMatch || !codeUri) continue;
+
+  const handler = handlerMatch[1].replace(/^['"]|['"]$/g, '');
+  const handlerParts = handler.split('.');
+  const exportName = handlerParts.at(-1);
+  const modulePath = handlerParts.slice(0, -1).join('.');
+  const functionDir = path.join(buildRoot, codeUri);
+  checks.push({
+    resource,
+    handler,
+    exportName,
+    candidates: [
+      path.join(functionDir, \`\${modulePath}.mjs\`),
+      path.join(functionDir, \`\${modulePath}.js\`),
+      path.join(functionDir, \`\${modulePath}.cjs\`),
+    ],
+  });
+}
+
+const failures = [];
+
+for (const [index, check] of checks.entries()) {
+  const filePath = check.candidates.find((candidate) => existsSync(candidate));
+  if (!filePath) {
+    failures.push(\`\${check.resource} Handler=\${check.handler} missing handler file\`);
+    continue;
+  }
+
+  try {
+    const moduleUrl = \`\${pathToFileURL(filePath).href}?sam-runtime-import-check=\${index}\`;
+    const moduleExports = await import(moduleUrl);
+    if (!(check.exportName in moduleExports)) {
+      failures.push(\`\${check.resource} Handler=\${check.handler} missing export "\${check.exportName}" in \${filePath}\`);
+    }
+  } catch (error) {
+    failures.push(\`\${check.resource} Handler=\${check.handler} failed to import \${filePath}: \${error.stack || error.message}\`);
+  }
+}
+
+if (failures.length > 0) {
+  throw new Error(\`SAM runtime import check failed:\\n\${failures.join('\\n\\n')}\`);
+}
+
+console.log(\`Verified \${checks.length} SAM handler file(s) import successfully.\`);
+`;
+}
+
+function generateRequireCodeBuildDeployScript(): string {
+  return `const target = process.argv[2] || 'deployment';
+
+if (process.env.CODEBUILD_BUILD_ID || process.env.ALLOW_LOCAL_SAM_DEPLOY === 'true') {
+  process.exit(0);
+}
+
+console.error(
+  [
+    \`Blocked \${target} deploy outside AWS CodeBuild.\`,
+    'Deploy through CodeBuild/CodePipeline so the deployed artifact always matches a Git commit.',
+    'For emergency break-glass only, rerun with ALLOW_LOCAL_SAM_DEPLOY=true.',
+  ].join('\\n')
+);
+
+process.exit(1);
 `;
 }
 
@@ -92,6 +339,26 @@ function generateSamTemplate(config: ProjectConfig): string {
   const secretVars = buildSecretEnvironmentVariables(config);
   const secretEnvBlock = secretVars.map(({ name, key }) => `        ${name}: !Sub '{{resolve:secretsmanager:\${AppConfigSecretArn}:SecretString:${key}}}'`).join('\n');
   const apiPolicies = buildApiPolicyStatements(config);
+  const cronResource = config.features.cron ? `
+  ScheduledCronFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: dist/
+      Handler: cron-lambda.handler
+      Description: ${config.name} scheduled cron worker.
+      Timeout: 900
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSXRayDaemonWriteAccess
+${apiPolicies}
+      Events:
+        DailyTaskSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: 'cron(0 3 * * ? *)'
+            Enabled: true
+            Input: '{"job":"daily-task"}'
+` : '';
   const langfuseRuntimeEnvBlock = config.ai?.langfuse
     ? `        LANGCHAIN_CALLBACKS_BACKGROUND: 'false'
         LANGFUSE_FLUSH_AT: '1'
@@ -177,8 +444,8 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: .
-      Handler: dist/lambda.handler
+      CodeUri: dist/
+      Handler: lambda.handler
       Description: ${config.name} Express API.
       Timeout: 480
       Events:
@@ -198,6 +465,7 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - AWSXRayDaemonWriteAccess
 ${apiPolicies}
+${cronResource}
 
 Outputs:
   ApiUrl:
@@ -365,8 +633,9 @@ Edit \`samconfig.toml\` and set:
 
 \`\`\`bash
 pnpm install --frozen-lockfile
-pnpm build
+pnpm run build
 sam build
+node scripts/check-sam-runtime-imports.mjs
 sam deploy --config-env staging
 \`\`\`
 

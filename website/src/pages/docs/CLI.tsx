@@ -41,6 +41,9 @@ nod <project-name> [options]`}
 --preset <preset>        Use a preset: production-api, aws-sam-backend, minimal, api, full, ai, 1, or custom
 --security <mode>        Security: basic or strict
 --deploy-target <target> Deploy target: node or lambda-sam
+--cron <boolean>         Include node/Lambda cron support
+--vercel-cron <boolean>  Include Vercel cron config
+--rate-limit-store <s>   Rate limit store: postgres, redis, or none
 -y, --yes                Skip prompts, use defaults`}
           language="plaintext"
         />
@@ -76,7 +79,7 @@ nod init my-api --preset aws-sam-backend --deploy-target lambda-sam --auth bette
 
 # Examples
 nod add route users
-nod add middleware rateLimit
+nod add middleware --name rateLimit --type rateLimit --rate-limit-store postgres --yes
 nod add service email
 nod add rag
 nod add chat`}
@@ -118,6 +121,7 @@ nod add chat`}
         <CodeBlock
           code={`middleware/service options:
 --type <type>                 logger|rateLimit|cors|custom
+--rate-limit-store <store>    postgres|redis for rateLimit middleware
 --default <boolean>           true|false
 --with-database <boolean>     true|false
 --methods <list>              getAll,getById,create,update,delete`}
@@ -211,7 +215,7 @@ nod preset show <name>       # Show preset details`}
 
         <CodeBlock
           code={`# Non-interactive preset creation
-nod preset create sam-api --db supabase --orm drizzle --auth better-auth --security strict --deploy-target lambda-sam --yes
+nod preset create sam-api --db supabase --orm drizzle --auth better-auth --security strict --deploy-target lambda-sam --rate-limit-store postgres --yes
 
 # Non-interactive delete/default
 nod preset delete sam-api --yes

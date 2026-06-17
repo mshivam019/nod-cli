@@ -118,6 +118,10 @@
             "mode": {
               "type": "string",
               "enum": ["basic", "strict"]
+            },
+            "rateLimitStore": {
+              "type": "string",
+              "enum": ["postgres", "redis", "none"]
             }
           }
         }

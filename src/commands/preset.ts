@@ -18,6 +18,7 @@ const ORM_VALUES = ['drizzle', 'raw', 'none'] as const;
 const AUTH_VALUES = ['jwt', 'jwks', 'supabase', 'better-auth', 'cookie-session', 'none'] as const;
 const SECURITY_VALUES = ['basic', 'strict'] as const;
 const DEPLOY_TARGET_VALUES = ['node', 'lambda-sam'] as const;
+const RATE_LIMIT_STORE_VALUES = ['postgres', 'redis', 'none'] as const;
 
 function isNonInteractive(options?: any): boolean {
   return Boolean(options?.yes || process.env.CI === 'true');
@@ -120,6 +121,7 @@ async function createPresetCommand(name?: string, options?: any) {
     auth: parseEnumOption(options?.auth, AUTH_VALUES, '--auth') || 'better-auth',
     security: parseEnumOption(options?.security, SECURITY_VALUES, '--security') || 'strict',
     deployTarget: parseEnumOption(options?.deployTarget, DEPLOY_TARGET_VALUES, '--deploy-target') || 'lambda-sam',
+    rateLimitStore: parseEnumOption(options?.rateLimitStore, RATE_LIMIT_STORE_VALUES, '--rate-limit-store'),
     cron: parseBooleanOption(options?.cron, '--cron') ?? false,
     environments: parseBooleanOption(options?.environments, '--environments') ?? true,
     apiAudit: parseBooleanOption(options?.apiAudit, '--api-audit') ?? true,
@@ -135,6 +137,14 @@ async function createPresetCommand(name?: string, options?: any) {
     optionDefaults.orm = optionDefaults.database === 'pg' || optionDefaults.database === 'supabase'
       ? 'drizzle'
       : 'none';
+  }
+
+  if (!optionDefaults.rateLimitStore) {
+    optionDefaults.rateLimitStore =
+      optionDefaults.orm === 'drizzle' &&
+      (optionDefaults.security === 'strict' || optionDefaults.deployTarget === 'lambda-sam')
+        ? 'postgres'
+        : 'none';
   }
   
   const response = nonInteractive ? {
@@ -216,6 +226,17 @@ async function createPresetCommand(name?: string, options?: any) {
       initial: 1
     },
     {
+      type: 'select',
+      name: 'rateLimitStore',
+      message: 'Rate limiter store:',
+      choices: [
+        { title: 'Postgres table (Drizzle)', value: 'postgres' },
+        { title: 'Redis / ElastiCache', value: 'redis' },
+        { title: 'None', value: 'none' }
+      ],
+      initial: 0
+    },
+    {
       type: 'confirm',
       name: 'cron',
       message: 'Include cron jobs support?',
@@ -293,6 +314,7 @@ async function createPresetCommand(name?: string, options?: any) {
       environments: response.environments,
       apiAudit: response.apiAudit,
       security: response.security,
+      rateLimitStore: response.rateLimitStore,
     },
     ai: {
       rag: false,
