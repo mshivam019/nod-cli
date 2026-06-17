@@ -1,22 +1,14 @@
 <svg width="1200" height="700" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">nod-cli animated macOS terminal demo</title>
+  <title id="title">Professional animated macOS terminal demo</title>
   <desc id="desc">An animated macOS Terminal-style session showing nod-cli scaffolding a generic TypeScript backend with AWS SAM, cron examples, and Postgres rate limiting.</desc>
   <defs>
     <linearGradient id="desktop" x1="0" y1="0" x2="1200" y2="700" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0E1624"/>
-      <stop offset="0.56" stop-color="#172030"/>
-      <stop offset="1" stop-color="#111827"/>
+      <stop stop-color="#0c0c0c"/>
+      <stop offset="1" stop-color="#070707"/>
     </linearGradient>
-    <linearGradient id="window" x1="78" y1="54" x2="1122" y2="646" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#111820"/>
-      <stop offset="1" stop-color="#05070A"/>
-    </linearGradient>
-    <linearGradient id="titlebar" x1="78" y1="54" x2="1122" y2="112" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ECECEC"/>
-      <stop offset="1" stop-color="#C9C9C9"/>
-    </linearGradient>
-    <filter id="window-shadow" x="38" y="20" width="1124" height="674" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="26" stdDeviation="26" flood-color="#000000" flood-opacity="0.45"/>
+
+    <filter id="window-shadow" x="0" y="0" width="1200" height="700" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="25" stdDeviation="30" flood-color="#000000" flood-opacity="0.6"/>
     </filter>
   </defs>
   <style>
@@ -37,7 +29,6 @@
     .r12 { animation: row 10s ease infinite; animation-delay: 5.95s; }
     .r13 { animation: row 10s ease infinite; animation-delay: 6.45s; }
     .r14 { animation: row 10s ease infinite; animation-delay: 6.9s; }
-    .scroll-thumb { animation: scroll 10s ease infinite; }
 
     @keyframes type-command {
       0% { clip-path: inset(0 100% 0 0); }
@@ -59,103 +50,98 @@
       100% { opacity: 0; transform: translateY(-4px); }
     }
     @keyframes scroll {
-      0%, 55% { transform: translateY(0); opacity: 0.45; }
-      80%, 91% { transform: translateY(235px); opacity: 0.75; }
-      100% { transform: translateY(0); opacity: 0.45; }
+      0%, 55% { transform: translateY(0); opacity: 0.2; }
+      80%, 91% { transform: translateY(235px); opacity: 0.5; }
+      100% { transform: translateY(0); opacity: 0.2; }
     }
   </style>
 
   <rect width="1200" height="700" fill="url(#desktop)"/>
-  <rect x="126" y="92" width="948" height="536" rx="24" fill="#000000" opacity="0.18"/>
 
   <g filter="url(#window-shadow)">
-    <rect x="78" y="54" width="1044" height="592" rx="18" fill="url(#window)" stroke="#2A2F38"/>
-    <rect x="78" y="54" width="1044" height="58" rx="18" fill="url(#titlebar)"/>
-    <path d="M78 92H1122V112H78V92Z" fill="#C9C9C9"/>
+    <rect x="78" y="54" width="1044" height="592" rx="12" fill="#1C1C1E" stroke="#3A3A3D" stroke-width="0.5"/>
 
-    <circle cx="112" cy="83" r="7.5" fill="#FF5F57" stroke="#D64B43" stroke-width="0.8"/>
-    <circle cx="137" cy="83" r="7.5" fill="#FFBD2E" stroke="#D79B19" stroke-width="0.8"/>
-    <circle cx="162" cy="83" r="7.5" fill="#28C840" stroke="#16A12B" stroke-width="0.8"/>
+    <path d="M78 66 C78 59.373 83.373 54 90 54 H1110 C1116.63 54 1122 59.373 1122 66 V92 H78 V66 Z" fill="#2D2D2D"/>
+    <line x1="78" y1="92" x2="1122" y2="92" stroke="#000000" stroke-opacity="0.5" stroke-width="1"/>
 
-    <text x="600" y="88" text-anchor="middle" fill="#3B3B3B" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">demo-api - zsh - 120x32</text>
-    <text x="1038" y="88" fill="#6B7280" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="12">nod-cli</text>
+    <circle cx="98" cy="73" r="6" fill="#FF5F56"/>
+    <circle cx="118" cy="73" r="6" fill="#FFBD2E"/>
+    <circle cx="138" cy="73" r="6" fill="#27C93F"/>
 
-    <rect x="92" y="128" width="1016" height="500" rx="8" fill="#070A0F"/>
-    <rect x="1094" y="143" width="4" height="452" rx="2" fill="#1F2937"/>
-    <rect class="scroll-thumb" x="1094" y="148" width="4" height="108" rx="2" fill="#6B7280" opacity="0.55"/>
+    <text x="600" y="77" text-anchor="middle" fill="#9CA3AF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="0.3">nod-cli</text>
 
-    <text x="124" y="166" fill="#7DD3FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">dev@macbook</text>
-    <text x="229" y="166" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">:</text>
-    <text x="242" y="166" fill="#C084FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">~/work</text>
-    <text x="298" y="166" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">%</text>
-    <g class="command">
-      <text x="322" y="166" textLength="710" lengthAdjust="spacingAndGlyphs" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">nod backend demo-api --preset aws-sam-backend --rate-limit-store postgres --yes</text>
-    </g>
-    <g class="cursor-track">
-      <rect class="cursor" x="1038" y="149" width="8" height="21" rx="1.5" fill="#F9FAFB"/>
-    </g>
 
-    <g class="r1" opacity="0">
-      <text x="124" y="207" fill="#A7F3D0" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">◆</text>
-      <text x="154" y="207" fill="#E5E7EB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">nod-cli</text>
-    </g>
-    <g class="r2" opacity="0">
-      <text x="124" y="240" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
-      <text x="154" y="240" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Project</text>
-      <text x="276" y="240" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">demo-api</text>
-    </g>
-    <g class="r3" opacity="0">
-      <text x="124" y="273" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
-      <text x="154" y="273" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Preset</text>
-      <text x="276" y="273" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">aws-sam-backend</text>
-    </g>
-    <g class="r4" opacity="0">
-      <text x="124" y="306" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
-      <text x="154" y="306" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Stack</text>
-      <text x="276" y="306" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Express, TypeScript, Node 22</text>
-    </g>
-    <g class="r5" opacity="0">
-      <text x="124" y="339" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
-      <text x="154" y="339" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Deploy</text>
-      <text x="276" y="339" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">AWS SAM + Vercel build config</text>
-    </g>
-    <g class="r6" opacity="0">
-      <text x="124" y="372" fill="#64748B" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">│</text>
-      <text x="154" y="372" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Rate limit</text>
-      <text x="276" y="372" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Postgres</text>
-    </g>
-    <g class="r7" opacity="0">
-      <text x="124" y="405" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
-      <text x="154" y="405" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote package.json, tsconfig.json, tsconfig.build.json</text>
-    </g>
-    <g class="r8" opacity="0">
-      <text x="124" y="438" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
-      <text x="154" y="438" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote src/app.ts, src/lambda.ts, src/cron-lambda.ts</text>
-    </g>
-    <g class="r9" opacity="0">
-      <text x="124" y="471" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
-      <text x="154" y="471" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote scripts/build-lambda.mjs and runtime import checks</text>
-    </g>
-    <g class="r10" opacity="0">
-      <text x="124" y="504" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
-      <text x="154" y="504" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Wrote template.yaml, vercel.json, and drizzle schema</text>
-    </g>
-    <g class="r11" opacity="0">
-      <text x="124" y="537" fill="#34D399" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">✓</text>
-      <text x="154" y="537" fill="#D1D5DB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Added node, Vercel, pg_cron, and Lambda cron examples</text>
-    </g>
-    <g class="r12" opacity="0">
-      <text x="124" y="570" fill="#A78BFA" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Done</text>
-      <text x="184" y="570" fill="#F9FAFB" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">cd demo-api &amp;&amp; pnpm install</text>
-    </g>
-    <g class="r13" opacity="0">
-      <text x="124" y="603" fill="#7DD3FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">dev@macbook</text>
-      <text x="229" y="603" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">:</text>
-      <text x="242" y="603" fill="#C084FC" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">~/work</text>
-      <text x="298" y="603" fill="#9CA3AF" font-family="SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">%</text>
-    </g>
-    <g class="r14" opacity="0">
-      <rect class="cursor" x="322" y="586" width="8" height="21" rx="1.5" fill="#F9FAFB"/>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" font-size="14">
+      
+      <text x="104" y="146" fill="#4ADE80">dev@macbook</text>
+      <text x="196" y="146" fill="#9CA3AF">:</text>
+      <text x="206" y="146" fill="#A78BFA">~/work</text>
+      <text x="256" y="146" fill="#9CA3AF">%</text>
+
+      <g class="command">
+        <text x="276" y="146" textLength="710" lengthAdjust="spacingAndGlyphs" fill="#F3F4F6">nod backend demo-api --preset aws-sam-backend --rate-limit-store postgres --yes</text>
+      </g>
+      <g class="cursor-track">
+        <rect class="cursor" x="992" y="132" width="7" height="18" rx="1" fill="#F3F4F6"/>
+      </g>
+
+      <g class="r1" opacity="0">
+        <text x="104" y="186" fill="#34D399">◆</text>
+        <text x="130" y="186" fill="#E5E7EB" font-weight="600">nod-cli</text>
+      </g>
+
+      <g class="r2" opacity="0">
+        <text x="104" y="216" fill="#4B5563">│</text>
+        <text x="130" y="216" fill="#9CA3AF">Project</text>
+        <text x="250" y="216" fill="#F3F4F6">demo-api</text>
+      </g>
+      <g class="r3" opacity="0">
+        <text x="104" y="246" fill="#4B5563">│</text>
+        <text x="130" y="246" fill="#9CA3AF">Preset</text>
+        <text x="250" y="246" fill="#F3F4F6">aws-sam-backend</text>
+      </g>
+      <g class="r4" opacity="0">
+        <text x="104" y="276" fill="#4B5563">│</text>
+        <text x="130" y="276" fill="#9CA3AF">Stack</text>
+        <text x="250" y="276" fill="#F3F4F6">Express, TypeScript, Node 22</text>
+      </g>
+      <g class="r5" opacity="0">
+        <text x="104" y="306" fill="#4B5563">│</text>
+        <text x="130" y="306" fill="#9CA3AF">Deploy</text>
+        <text x="250" y="306" fill="#F3F4F6">AWS SAM + Vercel build config</text>
+      </g>
+      <g class="r6" opacity="0">
+        <text x="104" y="336" fill="#4B5563">│</text>
+        <text x="130" y="336" fill="#9CA3AF">Rate limit</text>
+        <text x="250" y="336" fill="#F3F4F6">Postgres</text>
+      </g>
+
+      <g class="r7" opacity="0">
+        <text x="104" y="376" fill="#10B981">✓</text>
+        <text x="130" y="376" fill="#D1D5DB">Wrote package.json, tsconfig.json, tsconfig.build.json</text>
+      </g>
+      <g class="r8" opacity="0">
+        <text x="104" y="406" fill="#10B981">✓</text>
+        <text x="130" y="406" fill="#D1D5DB">Wrote src/app.ts, src/lambda.ts, src/cron-lambda.ts</text>
+      </g>
+      <g class="r9" opacity="0">
+        <text x="104" y="436" fill="#10B981">✓</text>
+        <text x="130" y="436" fill="#D1D5DB">Wrote scripts/build-lambda.mjs and runtime import checks</text>
+      </g>
+      <g class="r10" opacity="0">
+        <text x="104" y="466" fill="#10B981">✓</text>
+        <text x="130" y="466" fill="#D1D5DB">Wrote template.yaml, vercel.json, and drizzle schema</text>
+      </g>
+      <g class="r11" opacity="0">
+        <text x="104" y="496" fill="#10B981">✓</text>
+        <text x="130" y="496" fill="#D1D5DB">Added node, Vercel, pg_cron, and Lambda cron examples</text>
+      </g>
+
+      <g class="r12" opacity="0">
+        <text x="104" y="536" fill="#A78BFA" font-weight="600">Done</text>
+        <text x="154" y="536" fill="#F3F4F6">cd demo-api &amp;&amp; pnpm install</text>
+      </g>
+
     </g>
   </g>
 </svg>
