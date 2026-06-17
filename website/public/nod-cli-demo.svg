@@ -65,7 +65,7 @@
     }
   </style>
 
-  <rect width="1200" height="700" rx="34" fill="url(#desktop)"/>
+  <rect width="1200" height="700" fill="url(#desktop)"/>
   <rect x="126" y="92" width="948" height="536" rx="24" fill="#000000" opacity="0.18"/>
 
   <g filter="url(#window-shadow)">
