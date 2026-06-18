@@ -57,9 +57,9 @@ export const handler = async (event, context) => {
   }
 
   if (isTS) {
-    await fs.outputFile(path.join(projectPath, 'scripts/build-lambda.mjs'), generateLambdaBuildScript());
-    await fs.outputFile(path.join(projectPath, 'scripts/check-sam-runtime-imports.mjs'), generateSamRuntimeImportCheckScript());
-    await fs.outputFile(path.join(projectPath, 'scripts/require-codebuild-deploy.mjs'), generateRequireCodeBuildDeployScript());
+    await fs.outputFile(path.join(projectPath, 'scripts/build-lambda.js'), generateLambdaBuildScript());
+    await fs.outputFile(path.join(projectPath, 'scripts/check-sam-runtime-imports.js'), generateSamRuntimeImportCheckScript());
+    await fs.outputFile(path.join(projectPath, 'scripts/require-codebuild-deploy.js'), generateRequireCodeBuildDeployScript());
   }
 
   await fs.outputFile(path.join(projectPath, 'template.yaml'), generateSamTemplate(config));
@@ -69,49 +69,121 @@ export const handler = async (event, context) => {
 
 function generateLambdaBuildScript(): string {
   return `import { existsSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
-import { build } from 'esbuild';
+import { cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
 
-const candidateEntries = {
-  server: 'src/server.ts',
-  lambda: 'src/lambda.ts',
-  'cron-lambda': 'src/cron-lambda.ts',
-  'appsync-authorizer': 'src/appsync-authorizer.ts',
-  'stream-chat-lambda': 'src/stream-chat-lambda.ts',
+const root = process.cwd();
+const distDir = path.join(root, 'dist');
+const layerDir = path.join(root, 'dist-layer');
+const layerNodeDir = path.join(layerDir, 'nodejs', 'node22');
+
+const run = (command, args, options = {}) => new Promise((resolve, reject) => {
+  const child = spawn(command, args, {
+    cwd: options.cwd ?? root,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env: {
+      ...process.env,
+      ...(options.env ?? {}),
+    },
+  });
+
+  child.on('error', reject);
+  child.on('exit', (code) => {
+    if (code === 0) {
+      resolve();
+      return;
+    }
+    reject(new Error(\`\${command} \${args.join(' ')} failed with exit code \${code}\`));
+  });
+});
+
+const copyIfExists = async (from, to) => {
+  if (existsSync(from)) {
+    await cp(from, to, { recursive: true, force: true });
+  }
 };
 
-const entryPoints = Object.fromEntries(
-  Object.entries(candidateEntries).filter(([, entryPath]) => existsSync(entryPath)),
-);
+const copyRuntimeAssets = async (sourceDir, targetDir) => {
+  if (!existsSync(sourceDir)) return;
 
-if (!entryPoints.lambda) {
+  await mkdir(targetDir, { recursive: true });
+  const entries = await readdir(sourceDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const source = path.join(sourceDir, entry.name);
+    const target = path.join(targetDir, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyRuntimeAssets(source, target);
+      continue;
+    }
+
+    if (/\\.(ts|tsx|d\\.ts|map)$/.test(entry.name)) {
+      continue;
+    }
+
+    await cp(source, target, { force: true });
+  }
+};
+
+const writeSamMakefile = async () => {
+  await writeFile(path.join(distDir, 'Makefile'), 'build-%:\\n\\tnode copy-sam-artifact.js "$(ARTIFACTS_DIR)"\\n');
+  await writeFile(path.join(distDir, 'copy-sam-artifact.js'), \`import { cp, mkdir, readdir, rm } from 'node:fs/promises';
+import path from 'node:path';
+
+const artifactsDir = process.argv[2];
+if (!artifactsDir) throw new Error('Usage: node copy-sam-artifact.js <ARTIFACTS_DIR>');
+
+const sourceDir = process.cwd();
+const targetDir = path.resolve(artifactsDir);
+if (path.resolve(sourceDir) === targetDir) process.exit(0);
+
+await rm(targetDir, { recursive: true, force: true });
+await mkdir(targetDir, { recursive: true });
+
+for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
+  await cp(path.join(sourceDir, entry.name), path.join(targetDir, entry.name), {
+    recursive: true,
+    force: true,
+  });
+}
+\`);
+};
+
+if (!existsSync('src/lambda.ts')) {
   throw new Error('Missing required Lambda entry point: src/lambda.ts');
 }
 
-await rm('dist', { recursive: true, force: true });
+await rm(distDir, { recursive: true, force: true });
+await rm(layerDir, { recursive: true, force: true });
+await mkdir(distDir, { recursive: true });
+await mkdir(layerNodeDir, { recursive: true });
 
-await build({
-  entryPoints,
-  outdir: 'dist',
-  bundle: true,
-  platform: 'node',
-  target: 'node22',
-  format: 'esm',
-  outExtension: { '.js': '.mjs' },
-  sourcemap: false,
-  splitting: false,
-  logLevel: 'info',
-  banner: {
-    js: [
-      "import { createRequire } from 'node:module';",
-      "import { fileURLToPath as __nodeFileURLToPath } from 'node:url';",
-      "import { dirname as __nodeDirname } from 'node:path';",
-      'const require = createRequire(import.meta.url);',
-      'const __filename = __nodeFileURLToPath(import.meta.url);',
-      'const __dirname = __nodeDirname(__filename);',
-    ].join('\\n'),
-  },
-});
+await run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.lambda.json']);
+await copyRuntimeAssets(path.join(root, 'src'), distDir);
+
+await writeFile(
+  path.join(distDir, 'package.json'),
+  \`\${JSON.stringify({ type: 'module' }, null, 2)}\\n\`,
+);
+
+await copyIfExists(path.join(root, 'package.json'), path.join(layerNodeDir, 'package.json'));
+await copyIfExists(path.join(root, 'pnpm-lock.yaml'), path.join(layerNodeDir, 'pnpm-lock.yaml'));
+await copyIfExists(path.join(root, 'pnpm-workspace.yaml'), path.join(layerNodeDir, 'pnpm-workspace.yaml'));
+
+await run('pnpm', [
+  'install',
+  '--prod',
+  '--frozen-lockfile',
+  '--config.node-linker=hoisted',
+  '--config.package-import-method=copy',
+  '--config.auto-install-peers=false',
+], { cwd: layerNodeDir });
+await writeSamMakefile();
+
+console.log('Built Lambda function artifact in dist/ and dependency layer in dist-layer/.');
 `;
 }
 
@@ -196,11 +268,14 @@ export const handler = async (event = {}) => {
 
 function generateSamRuntimeImportCheckScript(): string {
   return `import { existsSync, readFileSync } from 'node:fs';
+import { lstat, readlink, symlink, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const buildRoot = path.resolve('.aws-sam', 'build');
-const templatePath = path.join(buildRoot, 'template.yaml');
+const buildTemplatePath = path.resolve('.aws-sam', 'build', 'template.yaml');
+const sourceTemplatePath = path.resolve('template.yaml');
+const templatePath = existsSync(buildTemplatePath) ? buildTemplatePath : sourceTemplatePath;
+const templateRoot = path.dirname(templatePath);
 
 const defaultEnv = {
   AUTH_JWT_AUDIENCE: 'sam-runtime-import-check',
@@ -210,6 +285,10 @@ const defaultEnv = {
   CORS_ALLOWED_ORIGINS: 'https://example.invalid',
   CRON_SECRET: 'sam-runtime-import-check-secret-00000000000000000000000000000000',
   DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/postgres',
+  DATABASE_CONNECT_TIMEOUT_SECONDS: '5',
+  DATABASE_IDLE_TIMEOUT_SECONDS: '20',
+  DATABASE_MAX_LIFETIME_SECONDS: '1800',
+  DATABASE_POOL_MAX: '2',
   JWT_SECRET: 'sam-runtime-import-check-secret-00000000000000000000000000000000',
   LOG_LEVEL: 'error',
   NODE_ENV: 'test',
@@ -237,7 +316,7 @@ globalThis.awslambda ??= {
 };
 
 if (!existsSync(templatePath)) {
-  throw new Error('Missing .aws-sam/build/template.yaml. Run sam build first.');
+  throw new Error('Missing template.yaml. Run from the SAM backend repository root.');
 }
 
 const lines = readFileSync(templatePath, 'utf8').split(/\\r?\\n/);
@@ -275,20 +354,48 @@ for (const line of lines) {
   const handlerParts = handler.split('.');
   const exportName = handlerParts.at(-1);
   const modulePath = handlerParts.slice(0, -1).join('.');
-  const functionDir = path.join(buildRoot, codeUri);
+  const functionDir = path.resolve(templateRoot, codeUri);
   checks.push({
     resource,
     handler,
     exportName,
     candidates: [
-      path.join(functionDir, \`\${modulePath}.mjs\`),
       path.join(functionDir, \`\${modulePath}.js\`),
+      path.join(functionDir, \`\${modulePath}.mjs\`),
       path.join(functionDir, \`\${modulePath}.cjs\`),
     ],
   });
 }
 
 const failures = [];
+const temporaryLinks = [];
+
+const layerNodeModulesCandidates = [
+  path.resolve(templateRoot, 'DependencyLayer', 'nodejs', 'node22', 'node_modules'),
+  path.resolve(templateRoot, 'DependencyLayer', 'nodejs', 'node_modules'),
+  path.resolve('dist-layer', 'nodejs', 'node22', 'node_modules'),
+  path.resolve('dist-layer', 'nodejs', 'node_modules'),
+];
+
+const layerNodeModules = layerNodeModulesCandidates.find((candidate) => existsSync(candidate));
+
+const linkLayerDependencies = async (functionDir) => {
+  if (!layerNodeModules) return;
+
+  const functionNodeModules = path.join(functionDir, 'node_modules');
+  if (existsSync(functionNodeModules)) {
+    const stat = await lstat(functionNodeModules);
+    if (!stat.isSymbolicLink()) return;
+
+    const target = await readlink(functionNodeModules);
+    if (path.resolve(functionDir, target) !== layerNodeModules && path.resolve(target) !== layerNodeModules) return;
+
+    await unlink(functionNodeModules);
+  }
+
+  await symlink(layerNodeModules, functionNodeModules, process.platform === 'win32' ? 'junction' : 'dir');
+  temporaryLinks.push(functionNodeModules);
+};
 
 for (const [index, check] of checks.entries()) {
   const filePath = check.candidates.find((candidate) => existsSync(candidate));
@@ -298,6 +405,7 @@ for (const [index, check] of checks.entries()) {
   }
 
   try {
+    await linkLayerDependencies(path.dirname(filePath));
     const moduleUrl = \`\${pathToFileURL(filePath).href}?sam-runtime-import-check=\${index}\`;
     const moduleExports = await import(moduleUrl);
     if (!(check.exportName in moduleExports)) {
@@ -308,11 +416,22 @@ for (const [index, check] of checks.entries()) {
   }
 }
 
+for (const linkPath of temporaryLinks.reverse()) {
+  try {
+    const stat = await lstat(linkPath);
+    if (stat.isSymbolicLink()) {
+      await unlink(linkPath);
+    }
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
 if (failures.length > 0) {
   throw new Error(\`SAM runtime import check failed:\\n\${failures.join('\\n\\n')}\`);
 }
 
-console.log(\`Verified \${checks.length} SAM handler file(s) import successfully.\`);
+console.log(\`Verified \${checks.length} SAM handler file(s) import successfully using \${path.relative(process.cwd(), templatePath) || 'template.yaml'}.\`);
 `;
 }
 
@@ -342,9 +461,13 @@ function generateSamTemplate(config: ProjectConfig): string {
   const cronResource = config.features.cron ? `
   ScheduledCronFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
       CodeUri: dist/
       Handler: cron-lambda.handler
+      Layers:
+        - !Ref DependencyLayer
       Description: ${config.name} scheduled cron worker.
       Timeout: 900
       Policies:
@@ -433,9 +556,25 @@ Globals:
         AUTH_JWT_ISSUER: !If [HasAuthJwtIssuer, !Ref AuthJwtIssuer, !Ref AWS::NoValue]
         AUTH_JWT_AUDIENCE: !If [HasAuthJwtAudience, !Ref AuthJwtAudience, !Ref AWS::NoValue]
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+        DATABASE_POOL_MAX: '2'
+        DATABASE_CONNECT_TIMEOUT_SECONDS: '5'
+        DATABASE_IDLE_TIMEOUT_SECONDS: '20'
+        DATABASE_MAX_LIFETIME_SECONDS: '1800'
 ${langfuseRuntimeEnvBlock}${secretEnvBlock}
 
 Resources:
+  DependencyLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "\${AWS::StackName}-dependencies"
+      Description: Production Node.js dependencies for this backend.
+      ContentUri: dist-layer/
+      CompatibleRuntimes:
+        - nodejs22.x
+      CompatibleArchitectures:
+        - arm64
+      RetentionPolicy: Delete
+
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -443,9 +582,13 @@ Resources:
 
   ApiFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
       CodeUri: dist/
       Handler: lambda.handler
+      Layers:
+        - !Ref DependencyLayer
       Description: ${config.name} Express API.
       Timeout: 480
       Events:
@@ -634,10 +777,12 @@ Edit \`samconfig.toml\` and set:
 \`\`\`bash
 pnpm install --frozen-lockfile
 pnpm run build
-sam build
-node scripts/check-sam-runtime-imports.mjs
+sam build --parallel
+node scripts/check-sam-runtime-imports.js
 sam deploy --config-env staging
 \`\`\`
+
+The build emits ESM \`.js\` files into \`dist/\` and installs production dependencies into \`dist-layer/\` with pnpm. Do not add a committed \`.npmrc\`; project pnpm policy belongs in \`pnpm-workspace.yaml\`. The dependency-layer install uses command-local pnpm flags so Lambda receives copied, hoisted production dependencies.
 
 After the first deploy, SAM prints \`ApiUrl\`. Put the final API URL back into \`BackendUrl\` and redeploy.
 
@@ -649,7 +794,22 @@ Do not run migrations from Lambda startup. Run migrations from a machine that ca
 pnpm db:migrate
 \`\`\`
 
-## 6. Smoke Test
+Lambda Drizzle clients default to:
+
+- \`DATABASE_POOL_MAX=2\`
+- \`DATABASE_CONNECT_TIMEOUT_SECONDS=5\`
+- \`DATABASE_IDLE_TIMEOUT_SECONDS=20\`
+- \`DATABASE_MAX_LIFETIME_SECONDS=1800\`
+
+Use an RDS Proxy or database pooler endpoint in \`DATABASE_URL\`.
+
+## 6. Rate Limits And Audit
+
+For Postgres-backed rate limits, the generated code uses static Drizzle SQL. Do not switch to dynamic Drizzle adapters that compute \`import('drizzle-orm')\` at runtime unless the package is tested through \`scripts/check-sam-runtime-imports.js\`.
+
+Generated DB audit middleware skips \`GET\`, \`HEAD\`, and \`OPTIONS\` writes. Use ALB/API Gateway/WAF/access logs for read-path traffic and keep DB audit rows for mutations or explicit domain events.
+
+## 7. Smoke Test
 
 \`\`\`bash
 curl https://YOUR_API_ID.execute-api.REGION.amazonaws.com/staging/health

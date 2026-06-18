@@ -155,11 +155,15 @@ export default logAuditEvent;
  */
 export const auditLogger = (req: any, _res: any, next: any) => {
   try {
+    const method = String(req.method || '').toUpperCase();
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+      return next();
+    }
+
     const userId = req.user?.id || null;
     const routePath = req.originalUrl;
-    const method = req.method;
     const eventType = \`\${method}:\${routePath}\`;
-    const eventData = method === 'GET' ? {} : req.body;
+    const eventData = req.body;
     
     logAuditEvent(eventType, eventData, userId, req)
       .catch(err => console.error('Error in audit logging middleware:', err));
@@ -180,11 +184,15 @@ export default auditLogger;
  */
 export const auditLogger = (req, _res, next) => {
   try {
+    const method = String(req.method || '').toUpperCase();
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+      return next();
+    }
+
     const userId = req.user?.id || null;
     const routePath = req.originalUrl;
-    const method = req.method;
     const eventType = \`\${method}:\${routePath}\`;
-    const eventData = method === 'GET' ? {} : req.body;
+    const eventData = req.body;
     
     logAuditEvent(eventType, eventData, userId, req)
       .catch(err => console.error('Error in audit logging middleware:', err));

@@ -96,8 +96,12 @@ async function createMiddleware(projectRoot: string, name: string, config: any) 
 
     packageJson.dependencies = {
       ...packageJson.dependencies,
-      'rate-limiter-flexible': DEPENDENCIES.rateLimiterFlexible,
-      ...(store === 'redis' ? { ioredis: DEPENDENCIES.ioredis } : {}),
+      ...(store === 'redis'
+        ? {
+            'rate-limiter-flexible': DEPENDENCIES.rateLimiterFlexible,
+            ioredis: DEPENDENCIES.ioredis,
+          }
+        : {}),
     };
     await fs.writeJson(path.join(projectRoot, 'package.json'), packageJson, { spaces: 2 });
 

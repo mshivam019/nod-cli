@@ -76,8 +76,9 @@ export function loggerMiddleware(req, res, next) {
         <h3 className="font-semibold mt-6">Shared Rate Limiter Middleware (Express)</h3>
         <p className="text-muted-foreground">
           Rate limiting is generated as a shared-store service and middleware pair.
-          Use Postgres/Drizzle first when your app already has a database. Use Redis
-          only when the project already operates Redis or needs very high-throughput limits.
+          Use the generated static Postgres/Drizzle limiter first when your app already
+          has a database. Use Redis only when the project already operates Redis or needs
+          very high-throughput limits.
         </p>
         <CodeBlock
           tsCode={`import type { NextFunction, Request, Response } from 'express';

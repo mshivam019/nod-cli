@@ -59,7 +59,7 @@ function buildAgentRules(context: AgentsGuideContext): string {
 - Run \`pnpm db:generate\` when schema or Drizzle config changes.
 - Keep Drizzle migrations in \`drizzle/\` tracked in git; do not add \`drizzle/\` to \`.gitignore\`.
 - Drizzle should only manage project tables prefixed with \`${getProjectTablePrefix(cfg.name)}_\`.
-- \`npm test\` may not be configured; check scripts before assuming tests exist.`;
+- \`pnpm test\` may not be configured; check scripts before assuming tests exist.`;
   }
 
   const transform = context.transform!;

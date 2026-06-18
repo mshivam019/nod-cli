@@ -242,10 +242,14 @@ if (!connectionString) {
   throw new Error('Supabase pooler URL is not configured.');
 }
 
+const isLambda = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
 const client = postgres(connectionString, {
   prepare: false,
-  idle_timeout: 20,
-  max_lifetime: 60 * 30,
+  max: Number(process.env.DATABASE_POOL_MAX || (isLambda ? 2 : 10)),
+  connect_timeout: Number(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS || 5),
+  idle_timeout: Number(process.env.DATABASE_IDLE_TIMEOUT_SECONDS || 20),
+  max_lifetime: Number(process.env.DATABASE_MAX_LIFETIME_SECONDS || 60 * 30),
 });
 
 export const db = drizzle(client, { schema });
@@ -263,10 +267,14 @@ if (!connectionString) {
   throw new Error('Supabase pooler URL is not configured.');
 }
 
+const isLambda = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
 const client = postgres(connectionString, {
   prepare: false,
-  idle_timeout: 20,
-  max_lifetime: 60 * 30,
+  max: Number(process.env.DATABASE_POOL_MAX || (isLambda ? 2 : 10)),
+  connect_timeout: Number(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS || 5),
+  idle_timeout: Number(process.env.DATABASE_IDLE_TIMEOUT_SECONDS || 20),
+  max_lifetime: Number(process.env.DATABASE_MAX_LIFETIME_SECONDS || 60 * 30),
 });
 
 export const db = drizzle(client, { schema });

@@ -422,8 +422,8 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   }
 
   if (shouldGenerateSharedRateLimit(config)) {
-    dependencies['rate-limiter-flexible'] = DEPENDENCIES.rateLimiterFlexible;
     if (getRateLimitStore(config) === 'redis') {
+      dependencies['rate-limiter-flexible'] = DEPENDENCIES.rateLimiterFlexible;
       dependencies['ioredis'] = DEPENDENCIES.ioredis;
     }
   }
@@ -499,9 +499,6 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
 
   if (config.deployment?.target === 'lambda-sam') {
     dependencies['serverless-http'] = DEPENDENCIES.serverlessHttp;
-    if (config.typescript) {
-      devDependencies['esbuild'] = DEV_DEPENDENCIES.esbuild;
-    }
   }
 
   const ext = config.typescript ? 'ts' : 'js';
@@ -513,10 +510,10 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
       ? `tsx watch src/${entryBaseName}.${ext}`
       : `nodemon src/${entryBaseName}.${ext}`,
     build: config.typescript
-      ? (isLambdaSam ? 'node scripts/build-lambda.mjs' : 'tsc -p tsconfig.build.json')
+      ? (isLambdaSam ? 'node scripts/build-lambda.js' : 'tsc -p tsconfig.build.json')
       : 'echo "No build needed for JS"',
     start: config.typescript
-      ? `node dist/server${isLambdaSam ? '.mjs' : '.js'}`
+      ? 'node dist/server.js'
       : `node src/server.${ext}`,
     lint: 'eslint . --ext .ts,.js',
     format: 'prettier --write "src/**/*.{ts,js}"',
@@ -525,10 +522,10 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
   if (isLambdaSam) {
     scripts.typecheck = 'tsc --noEmit';
     scripts['sam:validate'] = 'sam validate';
-    scripts['sam:build'] = 'pnpm run build && sam build && node scripts/check-sam-runtime-imports.mjs';
-    scripts['deploy:staging'] = 'node scripts/require-codebuild-deploy.mjs staging && pnpm run typecheck && pnpm run build && sam build && node scripts/check-sam-runtime-imports.mjs && sam deploy --config-env staging --no-confirm-changeset --no-fail-on-empty-changeset';
+    scripts['sam:build'] = 'pnpm run build && sam build --parallel && node scripts/check-sam-runtime-imports.js';
+    scripts['deploy:staging'] = 'node scripts/require-codebuild-deploy.js staging && pnpm run typecheck && pnpm run build && sam build --parallel && node scripts/check-sam-runtime-imports.js && sam deploy --config-env staging --no-confirm-changeset --no-fail-on-empty-changeset';
     scripts['update:staging'] = 'pnpm run deploy:staging';
-    scripts['deploy:production'] = 'node scripts/require-codebuild-deploy.mjs production && pnpm run typecheck && pnpm run build && sam build && node scripts/check-sam-runtime-imports.mjs && sam deploy --config-env production --no-confirm-changeset --no-fail-on-empty-changeset';
+    scripts['deploy:production'] = 'node scripts/require-codebuild-deploy.js production && pnpm run typecheck && pnpm run build && sam build --parallel && node scripts/check-sam-runtime-imports.js && sam deploy --config-env production --no-confirm-changeset --no-fail-on-empty-changeset';
     scripts['deploy:prod'] = 'pnpm run deploy:production';
     scripts['update:production'] = 'pnpm run deploy:production';
     scripts['update:prod'] = 'pnpm run deploy:production';
@@ -560,17 +557,14 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
     version: '1.0.0',
     description: `Backend project generated with nod-cli`,
     main: config.typescript
-      ? `dist/${entryBaseName}${isLambdaSam ? '.mjs' : '.js'}`
+      ? `dist/${entryBaseName}.js`
       : `src/${entryBaseName}.js`,
     type: 'module',
-    packageManager: 'pnpm@10.27.0',
+    packageManager: 'pnpm@11.5.0',
     scripts,
     dependencies,
     devDependencies,
     ...(isLambdaSam ? {
-      overrides: {
-        esbuild: '^0.28.0',
-      },
       engines: {
         node: '22.x',
       },
@@ -588,8 +582,18 @@ async function generatePackageJson(projectPath: string, config: ProjectConfig) {
       `packages:
   - .
 
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+strictDepBuilds: true
+
 overrides:
-  esbuild: ^0.28.0
+  esbuild: ^0.28.1
+
+allowBuilds:
+  esbuild: true
+  protobufjs: true
+
+autoInstallPeers: false
 `
     );
   }
@@ -663,6 +667,14 @@ SUPABASE_PROJECT=your-project-id
 
     if (config.orm === 'drizzle' || config.supabase?.usePooler) {
       envContent += `SUPABASE_POOLER_URL=postgresql://postgres.your-project:password@aws-0-region.pooler.supabase.com:6543/postgres
+`;
+    }
+
+    if (config.orm === 'drizzle') {
+      envContent += `DATABASE_POOL_MAX=2
+DATABASE_CONNECT_TIMEOUT_SECONDS=5
+DATABASE_IDLE_TIMEOUT_SECONDS=20
+DATABASE_MAX_LIFETIME_SECONDS=1800
 `;
     }
 
@@ -794,12 +806,10 @@ async function generateTsConfig(projectPath: string, config: ProjectConfig) {
     JSON.stringify(baseTsConfig, null, 2)
   );
 
-  if (!isLambdaSam) {
-    await fs.outputFile(
-      path.join(projectPath, 'tsconfig.build.json'),
-      JSON.stringify(buildTsConfig, null, 2)
-    );
-  }
+  await fs.outputFile(
+    path.join(projectPath, isLambdaSam ? 'tsconfig.lambda.json' : 'tsconfig.build.json'),
+    JSON.stringify(buildTsConfig, null, 2)
+  );
 }
 
 async function generateGitIgnore(projectPath: string) {
@@ -999,7 +1009,7 @@ ScheduledCronFunction:
           Input: '{"job":"daily-task"}'
 \`\`\`
 
-The generated \`scripts/check-sam-runtime-imports.mjs\` runs after \`sam build\` and imports each handler from \`.aws-sam/build\`. This catches common CJS/ESM and missing-handler failures before deployment.
+The generated \`scripts/check-sam-runtime-imports.js\` runs after \`sam build --parallel\` and imports each handler from \`.aws-sam/build\`. This catches common CJS/ESM, dynamic import, and missing-handler failures before deployment.
 
 ## Rate Limits On AWS
 
@@ -1007,7 +1017,7 @@ Do not use an in-memory rate limiter for Lambda, Vercel serverless, or PM2 clust
 
 For AWS/SAM, prefer a shared store. Default to Postgres/Drizzle when the project already has a database; use Redis only when the app already operates Redis or needs very high-throughput, low-latency limits:
 
-- Postgres/Drizzle with \`rate-limiter-flexible\` (preferred default)
+- Postgres/Drizzle with the generated static Drizzle limiter (preferred default)
 - Redis/ElastiCache with \`rate-limiter-flexible\`
 - API Gateway usage plans for API-key based throttling
 
@@ -1033,14 +1043,16 @@ async function generateDockerFiles(projectPath: string, config: ProjectConfig) {
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci --only=production
+RUN corepack enable && corepack prepare pnpm@11.5.0 --activate
+
+COPY package.json ./
+RUN pnpm install --prod --no-frozen-lockfile
 
 COPY ${config.typescript ? 'dist' : 'src'} ./${config.typescript ? 'dist' : 'src'}
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]
 `;
 
   await fs.outputFile(path.join(projectPath, 'Dockerfile'), dockerfile);

@@ -103,6 +103,7 @@ export function Introduction() {
 
         <CodeBlock
           code={`# Install globally
+corepack prepare pnpm@11.5.0 --activate
 pnpm add -g nod-cli
 
 # Create a SAM backend in one command

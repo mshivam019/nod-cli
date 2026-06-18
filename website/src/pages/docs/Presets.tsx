@@ -46,7 +46,7 @@ export function Presets() {
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>aws-sam-backend</code></td>
-                <td className="py-2 px-4">One-command AWS SAM backend with Express, TypeScript, Better Auth, Drizzle, Postgres rate limits, esbuild, and Node 22 Lambda</td>
+                <td className="py-2 px-4">One-command AWS SAM backend with Express, TypeScript, Better Auth, Drizzle, static Postgres rate limits, pnpm dependency layer, and Node 22 Lambda</td>
               </tr>
               <tr className="border-b">
                 <td className="py-2 px-4"><code>1</code></td>

@@ -204,6 +204,11 @@ interface AuditLogEntry {
 }
 
 export async function apiAuditLog(c: Context, next: Next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method.toUpperCase())) {
+    await next();
+    return;
+  }
+
   const startTime = Date.now();
   const user = c.get('user');
   
@@ -270,17 +275,19 @@ function logAuditEntry(entry: AuditLogEntry) {
   
   console.log(message);
   
-  // Log full details for non-GET requests or errors
-  if (entry.method !== 'GET' || (entry.statusCode && entry.statusCode >= 400)) {
-    console.log('Details:', JSON.stringify({
-      query: entry.query,
-      body: entry.body,
-      userAgent: entry.userAgent
-    }, null, 2));
-  }
+  console.log('Details:', JSON.stringify({
+    query: entry.query,
+    body: entry.body,
+    userAgent: entry.userAgent
+  }, null, 2));
 }
 `
     : `export async function apiAuditLog(c, next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method.toUpperCase())) {
+    await next();
+    return;
+  }
+
   const startTime = Date.now();
   const user = c.get('user');
   
@@ -347,14 +354,11 @@ function logAuditEntry(entry) {
   
   console.log(message);
   
-  // Log full details for non-GET requests or errors
-  if (entry.method !== 'GET' || (entry.statusCode && entry.statusCode >= 400)) {
-    console.log('Details:', JSON.stringify({
-      query: entry.query,
-      body: entry.body,
-      userAgent: entry.userAgent
-    }, null, 2));
-  }
+  console.log('Details:', JSON.stringify({
+    query: entry.query,
+    body: entry.body,
+    userAgent: entry.userAgent
+  }, null, 2));
 }
 `;
 

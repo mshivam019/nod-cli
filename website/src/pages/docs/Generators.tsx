@@ -39,6 +39,7 @@ export function Generators() {
 ├── sql/                 # SQL schema files
 ├── .github/workflows/   # GitHub Actions
 ├── scripts/             # SAM build/runtime checks
+├── tsconfig.lambda.json # SAM TypeScript emit config
 ├── template.yaml        # AWS SAM template when lambda-sam is selected
 ├── vercel.json          # Vercel cron config
 ├── drizzle.config.ts    # Drizzle ORM config
@@ -46,6 +47,36 @@ export function Generators() {
 └── Dockerfile           # Docker config`}
           language="plaintext"
         />
+
+        <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
+          AWS SAM Pattern
+        </h2>
+
+        <p>
+          SAM projects emit ESM <code>.js</code> files under <code>"type": "module"</code>.
+          Runtime dependencies are installed by pnpm into <code>dist-layer/</code>, and
+          every Lambda function uses that dependency layer.
+        </p>
+
+        <CodeBlock
+          code={`pnpm run build
+sam build --parallel
+node scripts/check-sam-runtime-imports.js`}
+          language="bash"
+        />
+
+        <p>
+          The runtime import check loads every built handler before deployment. This catches
+          missing handlers, ESM/CommonJS mistakes, and hidden dynamic import problems before
+          CodePipeline deploys the stack.
+        </p>
+
+        <p>
+          Generated Drizzle clients default to <code>DATABASE_POOL_MAX=2</code>,
+          short connect timeouts, and <code>prepare: false</code> for Lambda/RDS Proxy.
+          Postgres rate limits use static Drizzle SQL, and DB audit middleware skips
+          <code>GET</code>, <code>HEAD</code>, and <code>OPTIONS</code> writes.
+        </p>
 
         <h2 className="scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight mt-8">
           Route Generator

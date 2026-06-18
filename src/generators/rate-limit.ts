@@ -60,8 +60,7 @@ function generatePostgresRateLimitService(ext: string): string {
 
   return isTS
     ? `import crypto from 'crypto';
-import { lt } from 'drizzle-orm';
-import { RateLimiterDrizzle, RateLimiterRes } from 'rate-limiter-flexible';
+import { lt, sql } from 'drizzle-orm';
 import db from '../db/index.js';
 import { rateLimits } from '../db/schema.js';
 
@@ -81,10 +80,6 @@ export type RateLimitHitResult = {
   resetAt: Date;
 };
 
-type LimiterKey = string;
-
-const limiters = new Map<LimiterKey, RateLimiterDrizzle>();
-
 const keySecret = () => (
   process.env.RATE_LIMIT_KEY_SECRET ||
   process.env.BETTER_AUTH_SECRET ||
@@ -93,58 +88,52 @@ const keySecret = () => (
   'development-rate-limit-key-secret-change-me'
 );
 
-const limiterKey = (input: Pick<RateLimitHitInput, 'scope' | 'limit' | 'windowSeconds'>): LimiterKey =>
-  \`\${input.scope}:\${input.limit}:\${input.windowSeconds}\`;
-
-const getLimiter = (input: Pick<RateLimitHitInput, 'scope' | 'limit' | 'windowSeconds'>): RateLimiterDrizzle => {
-  const key = limiterKey(input);
-  const existing = limiters.get(key);
-  if (existing) return existing;
-
-  const limiter = new RateLimiterDrizzle({
-    storeClient: db,
-    schema: rateLimits,
-    keyPrefix: input.scope,
-    points: input.limit,
-    duration: input.windowSeconds,
-    clearExpiredByTimeout: false,
-  });
-  limiters.set(key, limiter);
-  return limiter;
-};
-
 const hashIdentifier = (scope: string, parts: Array<string | number | null | undefined>): string => {
   const source = [scope, ...parts.map(part => String(part ?? 'unknown'))].join('|');
   return crypto.createHmac('sha256', keySecret()).update(source).digest('hex');
 };
 
-const toHitResult = (limiterResult: RateLimiterRes, limit: number, allowed: boolean): RateLimitHitResult => {
-  const retryAfterSeconds = Math.max(1, Math.ceil(limiterResult.msBeforeNext / 1000));
+const normalizeExpire = (expire: Date | string | null): Date => {
+  if (!expire) return new Date(Date.now() + 60_000);
+  return expire instanceof Date ? expire : new Date(expire);
+};
+
+const toHitResult = (record: { points: number; expire: Date | string | null }, limit: number): RateLimitHitResult => {
+  const expire = normalizeExpire(record.expire);
+  const msBeforeNext = Math.max(expire.getTime() - Date.now(), 0);
+  const consumedPoints = Number(record.points || 0);
+  const allowed = consumedPoints <= limit;
+  const retryAfterSeconds = Math.max(1, Math.ceil(msBeforeNext / 1000));
 
   return {
     allowed,
-    consumedPoints: limiterResult.consumedPoints,
-    remainingPoints: limiterResult.remainingPoints,
+    consumedPoints,
+    remainingPoints: Math.max(limit - consumedPoints, 0),
     limit,
     retryAfterSeconds,
-    resetAt: new Date(Date.now() + Math.max(limiterResult.msBeforeNext, 0)),
+    resetAt: expire,
   };
 };
 
 export const rateLimitService = {
   async hit(input: RateLimitHitInput): Promise<RateLimitHitResult> {
-    const limiter = getLimiter(input);
     const key = hashIdentifier(input.scope, input.parts);
+    const now = new Date();
+    const expire = new Date(now.getTime() + input.windowSeconds * 1000);
 
-    try {
-      const result = await limiter.consume(key, 1);
-      return toHitResult(result, input.limit, true);
-    } catch (error) {
-      if (error instanceof RateLimiterRes) {
-        return toHitResult(error, input.limit, false);
-      }
-      throw error;
-    }
+    const [record] = await db
+      .insert(rateLimits)
+      .values({ key, points: 1, expire })
+      .onConflictDoUpdate({
+        target: rateLimits.key,
+        set: {
+          points: sql\`case when \${rateLimits.expire} is null or \${rateLimits.expire} <= \${now} then 1 else \${rateLimits.points} + 1 end\`,
+          expire: sql\`case when \${rateLimits.expire} is null or \${rateLimits.expire} <= \${now} then \${expire} else \${rateLimits.expire} end\`,
+        },
+      })
+      .returning({ points: rateLimits.points, expire: rateLimits.expire });
+
+    return toHitResult(record, input.limit);
   },
 
   async cleanupExpiredOlderThan(cutoff: Date): Promise<number> {
@@ -160,12 +149,9 @@ export const rateLimitService = {
 export default rateLimitService;
 `
     : `import crypto from 'crypto';
-import { lt } from 'drizzle-orm';
-import { RateLimiterDrizzle, RateLimiterRes } from 'rate-limiter-flexible';
+import { lt, sql } from 'drizzle-orm';
 import db from '../db/index.js';
 import { rateLimits } from '../db/schema.js';
-
-const limiters = new Map();
 
 const keySecret = () => (
   process.env.RATE_LIMIT_KEY_SECRET ||
@@ -175,56 +161,51 @@ const keySecret = () => (
   'development-rate-limit-key-secret-change-me'
 );
 
-const limiterKey = input => \`\${input.scope}:\${input.limit}:\${input.windowSeconds}\`;
-
-const getLimiter = input => {
-  const key = limiterKey(input);
-  const existing = limiters.get(key);
-  if (existing) return existing;
-
-  const limiter = new RateLimiterDrizzle({
-    storeClient: db,
-    schema: rateLimits,
-    keyPrefix: input.scope,
-    points: input.limit,
-    duration: input.windowSeconds,
-    clearExpiredByTimeout: false,
-  });
-  limiters.set(key, limiter);
-  return limiter;
-};
-
 const hashIdentifier = (scope, parts) => {
   const source = [scope, ...parts.map(part => String(part ?? 'unknown'))].join('|');
   return crypto.createHmac('sha256', keySecret()).update(source).digest('hex');
 };
 
-const toHitResult = (limiterResult, limit, allowed) => {
-  const retryAfterSeconds = Math.max(1, Math.ceil(limiterResult.msBeforeNext / 1000));
+const normalizeExpire = expire => {
+  if (!expire) return new Date(Date.now() + 60_000);
+  return expire instanceof Date ? expire : new Date(expire);
+};
+
+const toHitResult = (record, limit) => {
+  const expire = normalizeExpire(record.expire);
+  const msBeforeNext = Math.max(expire.getTime() - Date.now(), 0);
+  const consumedPoints = Number(record.points || 0);
+  const allowed = consumedPoints <= limit;
+  const retryAfterSeconds = Math.max(1, Math.ceil(msBeforeNext / 1000));
   return {
     allowed,
-    consumedPoints: limiterResult.consumedPoints,
-    remainingPoints: limiterResult.remainingPoints,
+    consumedPoints,
+    remainingPoints: Math.max(limit - consumedPoints, 0),
     limit,
     retryAfterSeconds,
-    resetAt: new Date(Date.now() + Math.max(limiterResult.msBeforeNext, 0)),
+    resetAt: expire,
   };
 };
 
 export const rateLimitService = {
   async hit(input) {
-    const limiter = getLimiter(input);
     const key = hashIdentifier(input.scope, input.parts);
+    const now = new Date();
+    const expire = new Date(now.getTime() + input.windowSeconds * 1000);
 
-    try {
-      const result = await limiter.consume(key, 1);
-      return toHitResult(result, input.limit, true);
-    } catch (error) {
-      if (error instanceof RateLimiterRes) {
-        return toHitResult(error, input.limit, false);
-      }
-      throw error;
-    }
+    const [record] = await db
+      .insert(rateLimits)
+      .values({ key, points: 1, expire })
+      .onConflictDoUpdate({
+        target: rateLimits.key,
+        set: {
+          points: sql\`case when \${rateLimits.expire} is null or \${rateLimits.expire} <= \${now} then 1 else \${rateLimits.points} + 1 end\`,
+          expire: sql\`case when \${rateLimits.expire} is null or \${rateLimits.expire} <= \${now} then \${expire} else \${rateLimits.expire} end\`,
+        },
+      })
+      .returning({ points: rateLimits.points, expire: rateLimits.expire });
+
+    return toHitResult(record, input.limit);
   },
 
   async cleanupExpiredOlderThan(cutoff) {

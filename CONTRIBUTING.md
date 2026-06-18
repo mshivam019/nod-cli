@@ -11,7 +11,7 @@ Please be respectful and constructive in all interactions. We're all here to bui
 ### Prerequisites
 
 - Node.js 22+
-- pnpm (recommended) or npm
+- pnpm 11
 
 ### Setup
 
@@ -31,7 +31,7 @@ Please be respectful and constructive in all interactions. We're all here to bui
    ```
 5. Link for local development:
    ```bash
-   npm link
+   pnpm link --global
    ```
 
 Now you can use `nod` commands with your local changes.

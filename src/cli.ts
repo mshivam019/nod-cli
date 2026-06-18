@@ -12,7 +12,7 @@ const program = new Command();
 program
   .name("nod-cli")
   .description("Backend scaffolding CLI with best practices built-in")
-  .version("0.4.5");
+  .version("0.4.8");
 
 // Define the init command with all options
 const initCommand = program

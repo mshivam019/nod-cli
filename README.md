@@ -3,12 +3,13 @@
 Backend scaffolding CLI for Node.js with best practices built-in. Generate production-ready Express or Hono projects with TypeScript, authentication, database connections, AI features, and more.
 
 <p align="center">
-  <img src="website/public/nod-cli-demo.svg" alt="nod-cli terminal demo showing backend scaffolding output" width="900">
+  <img src="https://raw.githubusercontent.com/mshivam019/nod-cli/main/website/public/nod-cli-demo.svg" alt="nod-cli terminal demo showing backend scaffolding output" width="900">
 </p>
 
 ## Installation
 
 ```bash
+corepack prepare pnpm@11.5.0 --activate
 pnpm add -g nod-cli
 ```
 
@@ -54,7 +55,7 @@ nod init my-api --preset api --no-ts --yes
 | Preset    | Description                                                             |
 | --------- | ----------------------------------------------------------------------- |
 | `production-api` | Default strict API: Supabase, Drizzle, Better Auth, Postgres-backed rate limits, trusted origins, Lambda/SAM |
-| `aws-sam-backend` | Production AWS SAM backend: Express, TypeScript, Supabase/Drizzle, Better Auth, Postgres-backed rate limits, strict security, esbuild, Node 22 Lambda |
+| `aws-sam-backend` | Production AWS SAM backend: Express, TypeScript, Supabase/Drizzle, Better Auth, static Drizzle rate limits, strict security, pnpm dependency layer, Node 22 Lambda |
 | `minimal`        | Basic setup, no database or auth                                                                            |
 | `api`            | Standard REST API with JWT auth                                                                             |
 | `full`           | All features including Supabase, Drizzle, Vercel cron                                                       |
@@ -105,7 +106,7 @@ nod <project-name>
 nod backend <project-name>
 ```
 
-This is shorthand for a production AWS SAM backend preset with Express, TypeScript, strict security, Supabase/Drizzle, Better Auth, Postgres-backed rate limits, direct `esbuild`, Node.js 22 Lambda, `template.yaml`, `samconfig.toml`, and `docs/aws-sam-setup.md`.
+This is shorthand for a production AWS SAM backend preset with Express, TypeScript, strict security, Supabase/Drizzle, Better Auth, Postgres-backed rate limits, a pnpm-built dependency layer, Node.js 22 Lambda, `template.yaml`, `samconfig.toml`, and `docs/aws-sam-setup.md`.
 
 #### Options
 
@@ -295,7 +296,8 @@ my-api/
 ├── package.json
 ├── tsconfig.json        # TypeScript config (TS only)
 ├── tsconfig.build.json  # TypeScript emit config for non-SAM TS projects
-├── scripts/             # esbuild and SAM runtime checks (AWS SAM backend)
+├── tsconfig.lambda.json # TypeScript emit config for SAM TS projects
+├── scripts/             # SAM build and runtime import checks (AWS SAM backend)
 ├── drizzle.config.ts    # Drizzle config (if using Drizzle)
 ├── template.yaml        # AWS SAM template (if using AWS SAM)
 ├── samconfig.toml       # AWS SAM deploy profiles (if using AWS SAM)
@@ -369,9 +371,26 @@ my-api/
 
 ### Deployment
 
-- **AWS SAM** - Lambda/API Gateway backend with direct esbuild bundling
+- **AWS SAM** - Lambda/API Gateway backend with TypeScript ESM `.js` emit and a pnpm-built dependency layer
 - **Vercel Cron** - Cron job configuration with auth middleware
 - **GitHub Workflow** - Deploy trigger workflow
+
+### AWS SAM Backend Pattern
+
+Generated SAM backends use ESM `.js` files under `"type": "module"`. They do not emit `.mjs`.
+
+The Lambda build is deliberately split:
+
+- `dist/` contains TypeScript-emitted application code and Lambda handlers.
+- `dist-layer/` contains production `node_modules` installed with pnpm.
+- `template.yaml` attaches the dependency layer to every function and uses `BuildMethod: makefile`.
+- `scripts/check-sam-runtime-imports.js` imports every built handler after `sam build --parallel`.
+
+This avoids standalone bundler failures from hidden dynamic imports such as packages that compute `import('drizzle-orm')` at runtime. Postgres rate limits use generated static Drizzle SQL instead of `rate-limiter-flexible`'s Drizzle adapter. Redis rate limits still use `rate-limiter-flexible`.
+
+Generated Drizzle clients are Lambda-safe by default: `prepare: false`, `DATABASE_POOL_MAX=2`, `DATABASE_CONNECT_TIMEOUT_SECONDS=5`, `DATABASE_IDLE_TIMEOUT_SECONDS=20`, and `DATABASE_MAX_LIFETIME_SECONDS=1800`. Use an RDS Proxy or database pooler URL for Lambda.
+
+Generated API audit middleware skips `GET`, `HEAD`, and `OPTIONS` DB writes. Use ALB/API Gateway/WAF/access logs for read-path traffic and keep DB audit rows for mutations or explicit domain events.
 
 ## Running Your Project
 

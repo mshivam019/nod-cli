@@ -15,9 +15,10 @@ export function Installation() {
           Global Installation
         </h2>
 
-        <p>Install nod-cli globally using pnpm:</p>
+        <p>Install nod-cli globally using pnpm 11:</p>
 
-        <CodeBlock code="pnpm add -g nod-cli" language="bash" />
+        <CodeBlock code={`corepack prepare pnpm@11.5.0 --activate
+pnpm add -g nod-cli`} language="bash" />
 
         <p>Or use pnpm dlx to run without installing:</p>
 
