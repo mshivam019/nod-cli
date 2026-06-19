@@ -37,19 +37,19 @@ export function CodeBlock({
   }
 
   return (
-    <div className="relative group rounded-lg border border-border bg-muted">
+    <div className="relative group min-w-0 max-w-full rounded-lg border border-border bg-muted">
       {/* Header with filename and/or toggle */}
       {(filename || showToggle) && (
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-          <span className="text-sm text-muted-foreground font-mono">
+        <div className="flex flex-col gap-2 px-4 py-2 border-b border-border sm:flex-row sm:items-center sm:justify-between">
+          <span className="min-w-0 max-w-full truncate text-sm text-muted-foreground font-mono">
             {filename || ''}
           </span>
           {showToggle && (
-            <div className="flex items-center gap-1 bg-background/50 rounded-md p-0.5">
+            <div className="grid w-full grid-cols-2 gap-1 rounded-md bg-background/50 p-0.5 sm:flex sm:w-auto sm:shrink-0">
               <button
                 onClick={() => setActiveTab('ts')}
                 className={cn(
-                  'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                  'min-w-0 px-2 py-1 text-xs font-medium rounded transition-colors',
                   activeTab === 'ts'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -60,7 +60,7 @@ export function CodeBlock({
               <button
                 onClick={() => setActiveTab('js')}
                 className={cn(
-                  'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                  'min-w-0 px-2 py-1 text-xs font-medium rounded transition-colors',
                   activeTab === 'js'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
